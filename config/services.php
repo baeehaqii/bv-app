@@ -35,4 +35,8 @@ return [
         ],
     ],
 
+    'scrapecreators' => [
+        'api_key' => env('SCRAPECREATORS_API_KEY'),
+    ],
+
 ];

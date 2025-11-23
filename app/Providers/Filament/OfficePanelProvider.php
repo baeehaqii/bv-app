@@ -3,12 +3,14 @@
 namespace App\Providers\Filament;
 
 use Filament\Panel;
+use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
 use Filament\PanelProvider;
 use Filament\Pages\Dashboard;
 use Filament\Widgets\AccountWidget;
 use Filament\Widgets\FilamentInfoWidget;
 use Filament\Http\Middleware\Authenticate;
 use Resma\FilamentAwinTheme\FilamentAwinTheme;
+use Jeffgreco13\FilamentBreezy\BreezyCore;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Filament\Http\Middleware\AuthenticateSession;
@@ -28,7 +30,10 @@ class OfficePanelProvider extends PanelProvider
             ->id('office')
             ->path('office')
             ->sidebarCollapsibleOnDesktop(true)
+            ->globalSearch(true)
+            ->globalSearchKeyBindings(['command+k', 'ctrl+k'])
             ->login()
+            ->topbar(true)
             ->brandLogo('https://res.cloudinary.com/dbr6xazzh/image/upload/v1763576028/01_Logo_Main_f2t5wp.avif')
             ->brandLogoHeight('5rem')
             ->brandName('Beyond Viral')
@@ -41,6 +46,18 @@ class OfficePanelProvider extends PanelProvider
                 Dashboard::class,
             ])
             ->plugins([
+                FilamentShieldPlugin::make(),
+                BreezyCore::make()
+                    ->myProfile(
+                        shouldRegisterUserMenu: true, // Sets the 'account' link in the panel User Menu (default = true)
+                        shouldRegisterNavigation: false, // Adds a main navigation item for the My Profile page (default = false)
+                        hasAvatars: true, // Enables the avatar upload form component (default = false)
+                        slug: 'my-profile' // Sets the slug for the profile page (default = 'my-profile')
+                    )
+                    ->enableTwoFactorAuthentication(
+                        force: false // Force all users to enable 2FA (default = false)
+                    )
+                    ->enableBrowserSessions(), // Enable browser session management
                 FilamentAwinTheme::make()
             ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\Filament\Widgets')

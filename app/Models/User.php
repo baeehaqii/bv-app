@@ -7,11 +7,16 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Str;
+use Spatie\Permission\Traits\HasRoles;
+use Jeffgreco13\FilamentBreezy\Traits\TwoFactorAuthenticatable;
+use Laravel\Sanctum\HasApiTokens;
+use Filament\Models\Contracts\FilamentUser;
+use Filament\Panel;
 
-class User extends Authenticatable
+class User extends Authenticatable implements FilamentUser
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable;
+    use HasFactory, Notifiable, HasRoles, TwoFactorAuthenticatable, HasApiTokens;
 
     /**
      * The attributes that are mass assignable.
@@ -22,6 +27,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'avatar_url',
     ];
 
     /**
@@ -55,7 +61,15 @@ class User extends Authenticatable
         return Str::of($this->name)
             ->explode(' ')
             ->take(2)
-            ->map(fn ($word) => Str::substr($word, 0, 1))
+            ->map(fn($word) => Str::substr($word, 0, 1))
             ->implode('');
+    }
+
+    /**
+     * Determine if the user can access the given panel.
+     */
+    public function canAccessPanel(Panel $panel): bool
+    {
+        return true; // You can add your own logic here
     }
 }

@@ -13,11 +13,13 @@ class InstagramService
 
     public function __construct()
     {
-        $this->apiKey = config('services.scrapecreators.api_key') ?? env('SCRAPECREATORS_API_KEY');
+        $apiKey = config('services.scrapecreators.api_key') ?? env('SCRAPECREATORS_API_KEY');
 
-        if (empty($this->apiKey)) {
+        if (empty($apiKey)) {
             throw new Exception('ScrapeCreators API key is not configured');
         }
+
+        $this->apiKey = $apiKey;
     }
 
     /**

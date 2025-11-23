@@ -27,6 +27,25 @@ class DataKolResource extends Resource
     protected static ?string $pluralModelLabel = 'Database KOL';
     protected static ?string $slug = 'data-kol';
 
+    // Enable global search
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['username', 'channel', 'category'];
+    }
+
+    public static function getGlobalSearchResultTitle($record): string
+    {
+        return $record->username ?? 'N/A';
+    }
+
+    public static function getGlobalSearchResultDetails($record): array
+    {
+        return [
+            'Channel' => $record->channel ?? 'N/A',
+            'Category' => $record->category ?? 'N/A',
+        ];
+    }
+
     public static function form(Schema $schema): Schema
     {
         return DataKolForm::configure($schema);
