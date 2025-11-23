@@ -66,6 +66,16 @@ class User extends Authenticatable implements FilamentUser
     }
 
     /**
+     * Override getFilamentAvatarUrl to use local avatar provider
+     */
+    public function getFilamentAvatarUrl(): ?string
+    {
+        // Use local avatar provider for consistent avatars
+        $provider = new \App\Filament\AvatarProviders\LocalAvatarProvider();
+        return $provider->get($this);
+    }
+
+    /**
      * Determine if the user can access the given panel.
      */
     public function canAccessPanel(Panel $panel): bool
