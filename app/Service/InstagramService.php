@@ -35,16 +35,27 @@ class InstagramService
             // Extract username from URL if needed
             $username = $this->extractUsername($linkUserProfile);
 
-            // Make API request
+            Log::info('🔍 Instagram API Request', [
+                'original_input' => $linkUserProfile,
+                'extracted_username' => $username,
+                'api_url' => "{$this->baseUrl}/profile",
+            ]);
+
+            // Make API request to get profile
             $response = Http::withHeaders([
                 'x-api-key' => $this->apiKey,
             ])->get("{$this->baseUrl}/profile", [
                         'handle' => $username,
                     ]);
 
+            Log::info('📡 Instagram Profile API Response', [
+                'status' => $response->status(),
+                'successful' => $response->successful(),
+            ]);
+
             // Check if request was successful
             if (!$response->successful()) {
-                Log::error('Instagram API Error', [
+                Log::error('❌ Instagram API Error', [
                     'status' => $response->status(),
                     'body' => $response->body(),
                 ]);
@@ -56,19 +67,118 @@ class InstagramService
 
             // Check if API returned success
             if (!isset($data['success']) || !$data['success']) {
+                Log::error('❌ API returned unsuccessful', [
+                    'response' => $data,
+                ]);
                 throw new Exception('API returned unsuccessful response');
             }
 
+            $userData = $data['data']['user'] ?? [];
+
+            // Get posts for accurate engagement calculation
+            $postsData = $this->getUserPosts($username);
+
+            Log::info('📊 Instagram Posts Fetched', [
+                'username' => $username,
+                'posts_count' => count($postsData),
+            ]);
+
             // Parse and return formatted data
-            return $this->parseProfileData($data['data']['user'] ?? []);
+            $parsedData = $this->parseProfileData($userData, $postsData);
+
+            Log::info('✅ Instagram Profile Parsed Successfully', [
+                'username' => $parsedData['username'],
+                'followers' => $parsedData['followers_count'],
+                'posts' => $parsedData['media_count'],
+                'engagement_rate' => $parsedData['engagement_rate'],
+            ]);
+
+            return $parsedData;
 
         } catch (Exception $e) {
-            Log::error('Instagram Service Error', [
+            Log::error('💥 Instagram Service Error', [
                 'message' => $e->getMessage(),
                 'username' => $username ?? $linkUserProfile,
+                'trace' => $e->getTraceAsString(),
             ]);
 
             throw $e;
+        }
+    }
+
+    /**
+     * Get user posts using v2 API for accurate engagement metrics
+     * 
+     * @param string $username
+     * @param int $count Number of posts to fetch (default 9)
+     * @return array
+     */
+    protected function getUserPosts(string $username, int $count = 9): array
+    {
+        try {
+            Log::info('📡 Fetching Instagram Posts via v2 API', [
+                'username' => $username,
+                'count' => $count,
+                'endpoint' => 'https://api.scrapecreators.com/v2/instagram/user/posts',
+            ]);
+
+            $response = Http::withHeaders([
+                'x-api-key' => $this->apiKey,
+            ])->get("https://api.scrapecreators.com/v2/instagram/user/posts", [
+                        'handle' => $username,
+                        'count' => $count,
+                    ]);
+
+            Log::info('📡 Instagram Posts API Response', [
+                'status' => $response->status(),
+                'successful' => $response->successful(),
+                'has_body' => !empty($response->body()),
+            ]);
+
+            if (!$response->successful()) {
+                Log::warning('❌ Instagram Posts API Error', [
+                    'status' => $response->status(),
+                    'username' => $username,
+                    'body' => $response->body(),
+                ]);
+                return [];
+            }
+
+            $data = $response->json();
+
+            Log::info('📊 Instagram Posts API Data Structure', [
+                'has_success_key' => isset($data['success']),
+                'success_value' => $data['success'] ?? null,
+                'has_data_key' => isset($data['data']),
+                'has_posts_key' => isset($data['data']['posts']),
+                'posts_count' => isset($data['data']['posts']) ? count($data['data']['posts']) : 0,
+                'data_keys' => array_keys($data),
+            ]);
+
+            if (!isset($data['success']) || !$data['success']) {
+                Log::warning('⚠️ Instagram Posts API returned unsuccessful', [
+                    'username' => $username,
+                    'response' => $data,
+                ]);
+                return [];
+            }
+
+            $posts = $data['items'] ?? [];
+
+            Log::info('✅ Instagram Posts Retrieved Successfully', [
+                'username' => $username,
+                'posts_count' => count($posts),
+            ]);
+
+            return $posts;
+
+        } catch (Exception $e) {
+            Log::error('💥 Failed to fetch user posts', [
+                'username' => $username,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return [];
         }
     }
 
@@ -104,16 +214,22 @@ class InstagramService
     /**
      * Parse raw API data into structured format
      * 
-     * @param array $userData
+     * @param array $userData User profile data from profile endpoint
+     * @param array $postsData Posts data from v2 API for accurate engagement
      * @return array
      */
-    protected function parseProfileData(array $userData): array
+    protected function parseProfileData(array $userData, array $postsData = []): array
     {
         $followersCount = $userData['edge_followed_by']['count'] ?? 0;
         $recentMedia = $userData['edge_owner_to_timeline_media']['edges'] ?? [];
 
-        // Calculate engagement metrics
-        $engagementMetrics = $this->calculateEngagementMetrics($recentMedia, $followersCount);
+        // Calculate engagement metrics from v2 posts data if available, otherwise fallback to profile data
+        if (!empty($postsData)) {
+            $engagementMetrics = $this->calculateEngagementMetrics($postsData, $followersCount);
+        } else {
+            // Fallback to old method using profile data
+            $engagementMetrics = $this->calculateEngagementMetricsFromProfile($recentMedia, $followersCount);
+        }
 
         return [
             // Basic Info
@@ -175,15 +291,146 @@ class InstagramService
     }
 
     /**
-     * Calculate engagement metrics from recent posts
-     * Formula: Engagement Rate = Average(Likes + Comments per Post) / Followers × 100%
-     * Also calculates average impressions from video views
+     * Calculate engagement metrics from recent posts using v2 API data
+     * This method provides ACCURATE engagement including saves, shares, and reposts
      * 
-     * @param array $mediaEdges
-     * @param int $followersCount
+     * Requirements from user:
+     * - Avg views: Average of 9 posts (>24 hours old) = AVERAGE(total views 9 postingan)
+     * - Total Engagement: Total engagement dari 9 postingan (likes + comments + saves + shares + reposts)
+     * - ER%: (Average Engagement per Post / Followers) × 100
+     * 
+     * @param array $posts Array of post data from v2 API
+     * @param int $followersCount Follower count for ER calculation
      * @return array
      */
-    protected function calculateEngagementMetrics(array $mediaEdges, int $followersCount): array
+    protected function calculateEngagementMetrics(array $posts, int $followersCount): array
+    {
+        if (empty($posts) || $followersCount === 0) {
+            return [
+                'engagement_rate' => 0,
+                'total_engagements' => 0,
+                'average_likes' => 0,
+                'average_comments' => 0,
+                'average_impressions' => 0,
+            ];
+        }
+
+        // Filter posts older than 24 hours
+        $now = time();
+        $oneDayAgo = $now - (24 * 60 * 60);
+
+        $validPosts = array_filter($posts, function ($post) use ($oneDayAgo) {
+            $postTime = $post['taken_at'] ?? 0;
+            return $postTime > 0 && $postTime < $oneDayAgo;
+        });
+
+        // Limit to 9 posts
+        $validPosts = array_slice($validPosts, 0, 9);
+
+        if (empty($validPosts)) {
+            return [
+                'engagement_rate' => 0,
+                'total_engagements' => 0,
+                'average_likes' => 0,
+                'average_comments' => 0,
+                'average_impressions' => 0,
+            ];
+        }
+
+        $totalLikes = 0;
+        $totalComments = 0;
+        $totalViews = 0;
+        $totalEngagement = 0;
+        $postCount = count($validPosts);
+        $videoPostCount = 0;
+
+        Log::info('📈 Starting Instagram Engagement Calculation', [
+            'posts_count' => $postCount,
+            'followersCount' => $followersCount,
+        ]);
+
+        foreach ($validPosts as $index => $post) {
+            // Basic metrics
+            $likes = $post['like_count'] ?? 0;
+            $comments = $post['comment_count'] ?? 0;
+            $views = $post['video_view_count'] ?? 0;
+
+            // Additional engagement metrics (saves, shares, reposts)
+            $saves = $post['save_count'] ?? 0;
+            $shares = $post['share_count'] ?? 0;
+            $reposts = $post['repost_count'] ?? 0;
+
+            Log::info("📊 Post #{$index} Stats", [
+                'post_id' => $post['id'] ?? 'unknown',
+                'shortcode' => $post['code'] ?? ($post['shortcode'] ?? 'N/A'),
+                'taken_at' => isset($post['taken_at']) ? date('Y-m-d H:i:s', $post['taken_at']) : 'N/A',
+                'likes' => $likes,
+                'comments' => $comments,
+                'shares' => $shares,
+                'saves' => $saves,
+                'reposts' => $reposts,
+                'views' => $views,
+                'is_video' => $views > 0,
+            ]);
+
+            $totalLikes += $likes;
+            $totalComments += $comments;
+
+            if ($views > 0) {
+                $totalViews += $views;
+                $videoPostCount++;
+            }
+
+            // Total engagement = likes + comments + saves + shares + reposts
+            $totalEngagement += $likes + $comments + $saves + $shares + $reposts;
+        }
+
+        // Calculate averages
+        $averageLikes = $postCount > 0 ? round($totalLikes / $postCount) : 0;
+        $averageComments = $postCount > 0 ? round($totalComments / $postCount) : 0;
+
+        // Avg views: AVERAGE dari total views 9 postingan (hanya video posts)
+        $averageImpressions = $videoPostCount > 0 ? round($totalViews / $videoPostCount) : 0;
+
+        // Average Engagement per Post
+        $averageEngagementPerPost = $postCount > 0 ? $totalEngagement / $postCount : 0;
+
+        // ER% = (Average Engagement per Post / Followers) × 100
+        // Formula standard industri menggunakan AVERAGE, bukan TOTAL
+        $engagementRate = $followersCount > 0
+            ? round(($averageEngagementPerPost / $followersCount) * 100, 2)
+            : 0;
+
+        Log::info('✅ Final Instagram Engagement Metrics', [
+            'postCount' => $postCount,
+            'videoPostCount' => $videoPostCount,
+            'totalEngagements' => $totalEngagement,
+            'averageEngagementPerPost' => round($averageEngagementPerPost),
+            'totalLikes' => $totalLikes,
+            'totalComments' => $totalComments,
+            'totalViews' => $totalViews,
+            'engagementRate' => $engagementRate,
+            'averageImpressions' => $averageImpressions,
+        ]);
+
+        return [
+            'engagement_rate' => $engagementRate,
+            'total_engagements' => $totalEngagement, // Total dari 9 postingan
+            'average_likes' => $averageLikes,
+            'average_comments' => $averageComments,
+            'average_impressions' => $averageImpressions,
+        ];
+    }    /**
+         * Calculate engagement metrics from recent posts (FALLBACK method using profile data)
+         * Used when v2 API posts are not available
+         * Formula: Engagement Rate = Average(Likes + Comments per Post) / Followers × 100%
+         * Also calculates average impressions from video views
+         * 
+         * @param array $mediaEdges
+         * @param int $followersCount
+         * @return array
+         */
+    protected function calculateEngagementMetricsFromProfile(array $mediaEdges, int $followersCount): array
     {
         if (empty($mediaEdges) || $followersCount === 0) {
             return [

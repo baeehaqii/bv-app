@@ -25,8 +25,16 @@ class DatabaseSeeder extends Seeder
         ]);
         $this->command->info('Shield generation completed!');
 
-        // Kemudian jalankan UserSeeder
+        // Jalankan UserSeeder
         $this->call(UserSeeder::class);
+
+        // Jalankan DataClientSeeder
+        $this->call(DataClientSeeder::class);
+        $this->command->info('DataClient seeding completed!');
+
+        // Jalankan DataVendorSeeder
+        $this->call(DataVendorSeeder::class);
+        $this->command->info('DataVendor seeding completed!');
 
         $this->command->info('Database seeding completed successfully!');
     }

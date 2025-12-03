@@ -11,7 +11,6 @@ use Filament\Widgets\FilamentInfoWidget;
 use Filament\Http\Middleware\Authenticate;
 use Resma\FilamentAwinTheme\FilamentAwinTheme;
 use Jeffgreco13\FilamentBreezy\BreezyCore;
-use App\Filament\AvatarProviders\LocalAvatarProvider;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Filament\Http\Middleware\AuthenticateSession;
@@ -35,7 +34,6 @@ class OfficePanelProvider extends PanelProvider
             ->globalSearchKeyBindings(['command+k', 'ctrl+k'])
             ->login()
             ->topbar(true)
-            ->defaultAvatarProvider(LocalAvatarProvider::class)
             ->brandLogo('https://res.cloudinary.com/dbr6xazzh/image/upload/v1763576028/01_Logo_Main_f2t5wp.avif')
             ->brandLogoHeight('5rem')
             ->brandName('Beyond Viral')
@@ -48,7 +46,8 @@ class OfficePanelProvider extends PanelProvider
                 Dashboard::class,
             ])
             ->plugins([
-                FilamentShieldPlugin::make(),
+                FilamentShieldPlugin::make()
+                    ->navigationGroup('Settings'),
                 BreezyCore::make()
                     ->myProfile(
                         shouldRegisterUserMenu: true, // Sets the 'account' link in the panel User Menu (default = true)

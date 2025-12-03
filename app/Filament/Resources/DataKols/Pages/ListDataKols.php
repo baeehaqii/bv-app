@@ -10,6 +10,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ListRecords;
 use App\Service\InstagramService;
+use App\Service\TiktokService;
 use Illuminate\Database\Eloquent\Model;
 
 class ListDataKols extends ListRecords
@@ -35,28 +36,40 @@ class ListDataKols extends ListRecords
                         ->helperText('Pilih platform social media'),
 
                     TextInput::make('link_userprofile')
-                        ->label('Profile URL / Username')
+                        ->label(fn($get) => match ($get('channel')) {
+                            'Instagram' => 'Instagram Profile URL / Username',
+                            'Tiktok' => 'TikTok Profile URL / Username',
+                            'Youtube' => 'YouTube Profile URL / Username',
+                            default => 'Profile URL / Username',
+                        })
                         ->required()
-                        ->placeholder('Contoh: adrianhorning atau https://instagram.com/adrianhorning')
+                        ->placeholder(fn($get) => match ($get('channel')) {
+                            'Instagram' => 'Contoh: adrianhorning atau https://instagram.com/adrianhorning',
+                            'Tiktok' => 'Contoh: @stoolpresidente atau https://tiktok.com/@stoolpresidente',
+                            'Youtube' => 'Contoh: youtube.com/@channel',
+                            default => 'Contoh: username atau URL',
+                        })
                         ->helperText('Masukkan username atau URL lengkap profil.')
                         ->suffixIcon('heroicon-m-magnifying-glass'),
                 ])
                 ->using(function (array $data, string $model): Model {
-                    // Hanya support Instagram untuk saat ini
-                    if ($data['channel'] !== 'Instagram') {
-                        Notification::make()
-                            ->warning()
-                            ->title('Channel belum didukung')
-                            ->body('Saat ini hanya Instagram yang support auto-fetch data.')
-                            ->send();
-
-                        // Tetap create data basic jika bukan Instagram
-                        return $model::create($data);
-                    }
-
                     try {
-                        $service = new InstagramService();
-                        $profile = $service->getProfile($data['link_userprofile']);
+                        $profile = match ($data['channel']) {
+                            'Instagram' => (new InstagramService())->getProfile($data['link_userprofile']),
+                            'Tiktok' => (new TiktokService())->getProfile($data['link_userprofile']),
+                            default => null,
+                        };
+
+                        if (!$profile) {
+                            Notification::make()
+                                ->warning()
+                                ->title('Channel belum didukung')
+                                ->body("Channel {$data['channel']} belum support auto-fetch data.")
+                                ->send();
+
+                            // Create basic data
+                            return $model::create($data);
+                        }
 
                         // Prepare data lengkap
                         $finalData = [
@@ -68,7 +81,7 @@ class ListDataKols extends ListRecords
                             'engagement_rate' => $profile['engagement_rate'],
                             'engagements' => $profile['total_engagements'],
                             'impressions' => $profile['average_impressions'],
-                            'status' => 'Active',
+                            'status' => 'New List',
                             'terakhir_update' => now()->format('Y-m-d'),
                         ];
 
@@ -106,7 +119,12 @@ class ListDataKols extends ListRecords
                         $notes[] = "Avg Likes: " . number_format($profile['average_likes']);
                         $notes[] = "Avg Comments: " . number_format($profile['average_comments']);
                         $notes[] = "Following: " . number_format($profile['following_count']);
-                        $notes[] = "Posts: " . number_format($profile['media_count']);
+
+                        $mediaLabel = match ($data['channel']) {
+                            'Tiktok' => 'Videos',
+                            default => 'Posts',
+                        };
+                        $notes[] = "{$mediaLabel}: " . number_format($profile['media_count']);
 
                         if (!empty($profile['external_url'])) {
                             $notes[] = "Website: {$profile['external_url']}";
@@ -118,7 +136,12 @@ class ListDataKols extends ListRecords
 
                     } catch (\Exception $e) {
                         // Jika gagal fetch, throw exception agar modal tidak tertutup dan error muncul
-                        throw new \Exception("Gagal mengambil data Instagram: " . $e->getMessage());
+                        $channelLabel = match ($data['channel']) {
+                            'Instagram' => 'Instagram',
+                            'Tiktok' => 'TikTok',
+                            default => $data['channel'],
+                        };
+                        throw new \Exception("Gagal mengambil data {$channelLabel}: " . $e->getMessage());
                     }
                 })
                 ->successNotification(

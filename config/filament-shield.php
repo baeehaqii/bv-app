@@ -14,7 +14,7 @@ return [
     */
 
     'shield_resource' => [
-        'slug' => 'shield/roles',
+        'slug' => 'roles',
         'show_model_path' => true,
         'cluster' => null,
         'tabs' => [
@@ -120,8 +120,17 @@ return [
         'merge' => true,
         'generate' => true,
         'methods' => [
-            'viewAny', 'view', 'create', 'update', 'delete', 'restore',
-            'forceDelete', 'forceDeleteAny', 'restoreAny', 'replicate', 'reorder',
+            'viewAny',
+            'view',
+            'create',
+            'update',
+            'delete',
+            'restore',
+            'forceDelete',
+            'forceDeleteAny',
+            'restoreAny',
+            'replicate',
+            'reorder',
         ],
         'single_parameter_methods' => [
             'viewAny',

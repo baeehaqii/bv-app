@@ -3,7 +3,7 @@
 namespace App\Filament\Resources\DataKols\Pages;
 
 use App\Filament\Resources\DataKols\DataKolResource;
-use Filament\Actions\DeleteAction;
+use Filament\Actions\Action;
 use Filament\Resources\Pages\EditRecord;
 
 class EditDataKol extends EditRecord
@@ -13,7 +13,16 @@ class EditDataKol extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            DeleteAction::make(),
+            Action::make('save')
+                ->label('Save Changes')
+                ->action('save')
+                ->keyBindings(['mod+s']),
         ];
     }
+
+    protected function getFormActions(): array
+    {
+        return [];
+    }
 }
+
