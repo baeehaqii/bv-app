@@ -2,22 +2,43 @@ SYSTEM INSTRUCTION: MEDIA PLAN & INTERNAL BUDGETING SYSTEM
 
 1. ROLE & OBJECTIVE
 
-Anda adalah Senior System Architect & Full Stack Developer. Tugas Anda adalah membangun sistem "Internal Budget & Media Planning". Sistem ini menggantikan spreadsheet manual yang kompleks menjadi aplikasi berbasis logika yang mengintegrasikan data KOL, perhitungan pajak, dan margin keuntungan.
+Anda adalah Senior System Architect & Full Stack Developer. Tugas Anda adalah membangun sistem "Internal Budget & Media Planning". Sistem ini menggantikan spreadsheet manual yang kompleks menjadi aplikasi berbasis logika yang mengintegrasikan data KOL, perhitungan pajak yang dinamis, margin otomatis, dan pembuatan quotation.
 
-PENTING: Sistem ini memiliki dua tampilan utama dengan tujuan berbeda:
+PENTING: Sistem ini memiliki tiga view/state utama:
 
-Media Plan (Front-End/Client View): Etalase proposal strategi untuk klien.
+Media Plan (Selection View): Tampilan awal untuk input multiple KOL (bisa banyak nama sekaligus), melihat performa, dan mencentang (select) kandidat.
 
-Internal Budget (Back-End/Finance View): Kalkulasi dapur, pajak, dan profitabilitas (CONFIDENTIAL).
+Shortlist & Quotation (Summary View): Tampilan khusus item yang dicentang untuk diajukan ke klien (Format PDF/Clean Table).
+
+Internal Budget (Back-End/Finance View): Kalkulasi dapur, pajak bertingkat, dan profitabilitas (CONFIDENTIAL).
+
+ATURAN UTAMA SISTEM:
+
+One-to-One Relationship: Satu dokumen Media Plan selalu berpasangan dengan tepat SATU dokumen Internal Budget. Item yang ditambahkan di Media Plan akan otomatis membuat baris costing di Internal Budget.
+
+Rate Synchronization: Harga yang tampil di Media Plan adalah hasil perhitungan final (Rounded) dari Internal Budget.
 
 2. DATA SOURCE: DataKOLResource
 
 Assumption: Database sudah tersedia dengan nama objek/tabel DataKOLResource.
-Database ini berisi data statis (profil) dan dinamis (performa) dari influencer.
 
-3. COMPONENT A: MEDIA PLAN (Client Proposal)
+Structure Reference: id, name, platform, category, followers, er, avg_views, contact_pic.
 
-Bagian ini berfokus pada seleksi KOL dan estimasi performa.
+Handling Multiple Links: Field url_profile atau links harus bertipe Array atau Collection karena satu KOL bisa memiliki banyak link konten (misal: 1 Link Profile IG + 2 Link Contoh Konten TikTok).
+
+3. COMPONENT A: MEDIA PLAN (Interactive Selection)
+
+Bagian ini berfokus pada seleksi KOL, estimasi performa, dan input Scope of Work (SOW).
+
+UI & UX Requirements (Updated)
+
+Header Summary (Live Accumulation): Di bagian paling atas tabel, harus ada baris "TOTAL" yang menghitung total secara real-time hanya dari baris yang dicentang (checked).
+
+Total Cost (Rate), Total Est. Views, Total Est. Engagement.
+
+Checkbox Selection: Kolom paling kiri adalah checkbox. User memilih KOL mana yang akan masuk ke tahap final/shortlist.
+
+Multiple Link Support: Dalam satu baris KOL, kolom "Link" harus bisa menampung banyak URL (input dinamis, tekan Enter untuk add new link).
 
 Data Fields & Logic Mapping
 
@@ -27,17 +48,23 @@ Data Type
 
 Source/Logic
 
+Select
+
+Boolean (Checkbox)
+
+User Action. Memicu update pada Header Summary.
+
 No
 
 Integer
 
-Auto-increment
+Auto-increment.
 
 PIC
 
 String
 
-Fetch from DataKOLResource based on Name.
+Fetch from DataKOLResource.
 
 Status
 
@@ -49,142 +76,102 @@ Name
 
 String
 
-KEY INPUT. User selects/types name. Triggers data fetching.
+KEY INPUT. User bisa input banyak baris (Baehaqi, Awan, Hendra, dll).
 
 Link
 
-URL
+Array of URLs
 
-Fetch from DataKOLResource.
+User Input / Fetch. Mendukung multiple links per KOL (misal: link profile + link portfolio).
 
 Channel
 
 Enum
 
-User Input ('Instagram' / 'Tiktok'). Critical for conditional fetching.
-
-Categories
-
-String
-
-Fetch from DataKOLResource.
+User Input ('Instagram' / 'Tiktok').
 
 Followers
 
 Integer
 
-Conditional Logic: If Channel == IG, fetch IG_Followers. If TT, fetch TT_Followers.
+Conditional Logic (IG/TT).
 
 Tier
 
 String
 
-Computed (Formula A).
+Computed (Nano/Micro/Macro/Mega).
 
 ER %
 
 Percentage
 
-Conditional Logic: Fetch based on Channel.
+Conditional Logic.
 
 Impression
 
 Integer
 
-Conditional Logic: Fetch avg_views based on Channel.
+Conditional Logic.
 
 Engagement
 
 Integer
 
-Computed (Formula B): Followers * ER.
+Followers * ER.
 
 CPI/CPV
 
 Currency
 
-Computed (Formula C): Price / Impression.
+Rate (Rounded) / Impression (Based on Selected Row).
 
 CPE
 
 Currency
 
-Computed (Formula D): Price / Engagement.
+Rate (Rounded) / Engagement (Based on Selected Row).
 
 Scope (Qty)
 
 Integer
 
-User Input (Default: 1).
+Sync to Internal Budget. Jumlah item.
 
 Scope (Item)
 
 String
 
-User Input (e.g., "IG Reels", "TT Video").
+Sync to Internal Budget. Detail pekerjaan (misal: "IG Reels").
 
 Rate
 
 Currency
 
-Sync from Internal Budget. Ini adalah Rounded (Published Price), BUKAN Cost.
+READ ONLY. Mengambil nilai Rounded dari Component B (Internal Budget).
 
-Notes
+Business Logic: Live Summary
 
-Text
+function calculateHeaderSummary(rows) {
+    let totalRate = 0;
+    let totalImpression = 0;
+    let totalEngagement = 0;
 
-User Input.
+    rows.forEach(row => {
+        if (row.isSelected) { // Hanya yang dicentang
+            totalRate += row.rate; // Menggunakan Rate Rounded
+            totalImpression += row.impression;
+            totalEngagement += row.engagement;
+        }
+    });
 
-Business Logic & Formulas (Excel to Code)
-
-Logic 1: Conditional Data Fetching (The VLOOKUP Replacement)
-
-Original Excel Logic:
-IF(Channel="Instagram", VLOOKUP(IG_Sheet), IF(Channel="Tiktok", VLOOKUP(TT_Sheet)))
-
-Programmatic Logic:
-
-function getKOLPerformance(kolName, channel) {
-    const kolData = DataKOLResource.find(k => k.name === kolName);
-    if (!kolData) return null;
-
-    if (channel === 'Instagram') {
-        return {
-            followers: kolData.ig_followers,
-            er: kolData.ig_er,
-            views: kolData.ig_avg_views
-        };
-    } else if (channel === 'Tiktok') {
-        return {
-            followers: kolData.tt_followers,
-            er: kolData.tt_er,
-            views: kolData.tt_avg_views
-        };
-    }
+    return { totalRate, totalImpression, totalEngagement };
 }
 
 
-Formula A: Tier Classification
+4. COMPONENT B: INTERNAL BUDGET (Advanced Costing)
 
-function calculateTier(followers) {
-    if (followers >= 1000000) return "Mega/Celeb";
-    if (followers >= 100000) return "Macro";
-    if (followers >= 10000) return "Micro";
-    return "Nano";
-}
-
-
-Formula B, C, D: Estimations & Efficiency
-
-EstimatedEngagement = Followers * ER
-
-CPI_CPV = PublishedPrice / EstimatedViews (Handle division by zero)
-
-CPE = PublishedPrice / EstimatedEngagement (Handle division by zero)
-
-4. COMPONENT B: INTERNAL BUDGET (Costing & Profit)
-
-Bagian ini berfokus pada perhitungan HPP (Harga Pokok Penjualan), Pajak, dan Margin. Data ini bersifat rahasia.
+Bagian ini menghitung HPP, Pajak Variabel, dan Margin Otomatis. Perubahan baris di Media Plan (Nama/SOW) akan merefleksikan baris di sini.
 
 Data Fields & Logic Mapping
 
@@ -194,17 +181,23 @@ Data Type
 
 Source/Logic
 
-Scope (Item/Qty)
+Qty
 
-String/Int
+Integer
 
-Sync from Media Plan Component.
+Sync from Media Plan.
+
+Scope (Item)
+
+String
+
+Sync from Media Plan.
 
 Rate (Base)
 
 Currency
 
-USER INPUT. Ini adalah Modal/HPP (Bayar ke Vendor).
+USER INPUT. Modal/HPP ke Vendor (Harga Net sebelum pajak).
 
 Subtotal
 
@@ -212,128 +205,167 @@ Currency
 
 Qty * Rate (Base).
 
+Vendor Tax Type
+
+Dropdown
+
+User Select: 'Pribadi', 'PT Non PKP', 'PT PKP', 'CV'.
+
 Gross Up Coeff
 
 Float
 
-Constant: 0.97 (Mewakili potongan PPh 3%).
+Computed (Formula H) based on Vendor Tax Type.
 
-Tax
+Tax Value
 
-Float
+Currency
 
-Reference only (e.g., 0.05). Tidak masuk rumus utama MU PPh.
+Hanya referensi visual (misal 5% atau PPN 11%).
 
 MU PPh (Real Cost)
 
 Currency
 
-Computed (Formula E). Ini uang riil yang keluar dari kas perusahaan.
+Computed (Formula I). Total uang keluar dari perusahaan (Modal + Pajak).
 
-MU (Target)
+Target Margin %
+
+Percentage
+
+Computed (Formula J). Otomatis berdasarkan range nominal Base Rate.
+
+MU (Target Price)
 
 Currency
 
-Computed. Guideline harga jual (misal target margin 40%).
+MU PPh / (1 - Target Margin %).
 
 Published Rate
 
 Currency
 
-USER INPUT. Harga jual final (manual adjustment).
+USER INPUT. Default value taken from MU (Target Price). Bisa diedit manual.
 
 Rounded
 
 Currency
 
-Computed (Formula F). Pembulatan harga untuk klien.
+Computed (Formula K). Pembulatan ke atas. Nilai ini dikirim balik ke Media Plan.
 
-Margin %
+Actual Margin %
 
 Percentage
 
-Computed (Formula G). Profitabilitas aktual.
+(Rounded - MU PPh) / Rounded.
 
-Business Logic & Formulas (Excel to Code)
+Business Logic & Formulas (Updated)
 
-Formula E: Real Cost Calculation (Gross Up PPh)
+Formula H & I: Dynamic Tax Calculation
 
-Sistem menggunakan koefisien 0.97 untuk mengakomodasi PPh.
-Original Excel Logic: Subtotal / 0.97
+Menentukan koefisien pembagi dan penambahan PPN berdasarkan tipe badan usaha vendor.
 
-// Variable: baseRate (Input User - Harga Vendor)
-const GROSS_UP_COEFF = 0.97;
-const realCost = baseRate / GROSS_UP_COEFF; 
-// Penjelasan: Jika vendor minta 10jt bersih, perusahaan harus keluar duit 10.3jt (300rb lari ke pajak)
+Pribadi: Koefisien 0.975 (PPh 2.5% / 21)
+
+PT Non PKP: Koefisien 0.98 (PPh 23 2%)
+
+PT PKP: Koefisien 0.98 + Add PPN 11% (Logic: Gross up PPh 23, lalu tambah PPN 11% dari base).
+
+CV: Koefisien 0.995 (PPh Final 0.5%)
+
+function calculateRealCost(baseRate, vendorType) {
+    let realCost = 0;
+
+    switch (vendorType) {
+        case 'Pribadi':
+            realCost = baseRate / 0.975;
+            break;
+        case 'PT Non PKP':
+            realCost = baseRate / 0.98;
+            break;
+        case 'PT PKP':
+            // Logic: (Base / 0.98) + (Base * 11%)
+            const grossUpValue = baseRate / 0.98;
+            const ppnValue = baseRate * 0.11;
+            realCost = grossUpValue + ppnValue;
+            break;
+        case 'CV':
+            realCost = baseRate / 0.995;
+            break;
+        default:
+            realCost = baseRate / 0.975; // Default to Pribadi
+    }
+    return realCost;
+}
 
 
-Formula F: Rounding Strategy
+Formula J: Automatic Target Margin
 
-Membulatkan harga ke atas agar terlihat rapi (misal ke ratusan ribu terdekat).
-Original Excel Logic: ROUNDUP(PublishedRate, -5)
+Margin otomatis berubah berdasarkan besaran Subtotal Rate (Modal Awal).
+
+Range 1: 100,000 - 2,999,999 -> 80%
+
+Range 2: 3,000,000 - 50,000,000 -> 40%
+
+Range 3: > 50,000,000 -> 30%
+
+function getAutoMargin(subtotalRate) {
+    if (subtotalRate > 50000000) {
+        return 0.30; // 30%
+    } else if (subtotalRate >= 3000000) {
+        return 0.40; // 40%
+    } else {
+        return 0.80; // 80%
+    }
+}
+
+
+Formula K: Rounding Strategy
+
+Membulatkan ke atas 100.000 terdekat.
 
 function roundPrice(price) {
-    // Round up to nearest 100,000
+    // Excel equivalent: ROUNDUP(Price, -5)
     return Math.ceil(price / 100000) * 100000;
 }
 
 
-Formula G: Actual Margin Calculation
+5. COMPONENT C: SHORTLIST & QUOTATION OUTPUT
 
-Menghitung keuntungan bersih persentase.
-Original Excel Logic: (RoundedPrice - RealCost) / RoundedPrice
+Fitur ini membuat tampilan bersih untuk klien berdasarkan item yang dicentang di Media Plan.
 
-function calculateMargin(roundedPrice, realCost) {
-    if (roundedPrice === 0) return 0;
-    const profit = roundedPrice - realCost;
-    const marginPercent = (profit / roundedPrice) * 100;
-    return marginPercent; // Return as percentage (e.g., 30.5)
-}
+Trigger: User mengklik tombol "Generate Quotation" atau "View Shortlist".
 
+Filter: Sistem hanya mengambil baris data dimana Select == true.
 
-5. SYSTEM INTEGRATION FLOW
+Display Format:
 
-Initiation: User membuat baris baru di Media Plan, memilih Name (KOL) dan Channel.
+Header: Logo Company, Client Name, Date.
 
-Data Fetch: Sistem mengambil data profil dari DataKOLResource dan mengisi kolom metrics (Followers, ER, dll).
+Table Columns: KOL Name, Channel, Link (bisa multiple), Followers, ER, Scope (Qty & Item), Rate (Rounded).
 
-Item Definition: User mengisi Scope of Work (misal: "IG Reels").
+Hide Internal Data: Kolom Margin, Real Cost, Tax Type TIDAK BOLEH muncul di sini.
 
-Costing (Internal):
+Export: Fitur untuk Export to PDF / Excel.
 
-Sistem memunculkan baris yang sesuai di modul Internal Budget.
+6. SYSTEM INTEGRATION FLOW (Full Cycle)
 
-User input Rate (Modal) (misal: 25.000.000).
+Selection (Media Plan): User menambah baris untuk KOL (Baehaqi, Awan, Hendra). User input beberapa link URL per KOL.
 
-Sistem menghitung Real Cost (25.773.196).
+Definition: User mengisi Scope of Work (Qty & Item) di Media Plan.
 
-Pricing Strategy:
+Sync Trigger: Sistem otomatis membuat baris shadow di Internal Budget.
 
-User input Published Rate (manual) atau sistem memberi saran.
+Costing (Internal Budget):
 
-Sistem melakukan Rounding (misal jadi 35.800.000).
+User (Finance/AM) input Rate Base (Modal) dan memilih Tipe Vendor (misal: Pribadi).
 
-Sistem menghitung Margin % (misal 28%).
+Sistem menghitung Real Cost & Target Price.
 
-Feedback Loop:
+Sistem menghitung Rounded Price.
 
-Nilai Rounded (35.800.000) dikirim kembali ke tabel Media Plan kolom Rate.
+Feedback: Nilai Rounded Price dikirim kembali ke Media Plan kolom Rate.
 
-Sistem menghitung ulang CPI/CPV di Media Plan berdasarkan harga baru tersebut.
+Review (Media Plan): User mencentang (checklist) KOL yang disetujui. Header Summary terupdate otomatis.
 
-6. VALIDATION RULES
-
-Margin Alert: Jika Margin % < 30%, berikan warning visual (warna merah) pada kolom Margin.
-
-Missing Data: Jika KOL tidak ditemukan di DataKOLResource, Rate default ke 0 dan beri notifikasi.
-
-Gross Up: Pastikan pembagi Real Cost selalu 0.97 (hardcoded logic) kecuali ada perubahan regulasi pajak.
-
-
-JANGAN MELAKUKAN :
-- JANGAN MERUBAH ATAU MENGHAPUS FILE YANG SUDAH ADA.
-- JANGAN MENAMBAHKAN FILE BARU DI LUAR DARI YANG DIMINTA.
-- JANGAN MEMBERIKAN PENJELASAN ATAU CATATAN APA PUN DI LUAR DARI KODE YANG DIMINTA.
-- JANGAN PUSH KE REPO.
-- JANGAN MEMBUAT FILE SUMMARY ATAU README.
-
+Finalize: User klik "Generate Quotation". Sistem membuat dokumen PDF bersih berisi KOL yang dicentang dengan harga Rounded.

@@ -11,6 +11,8 @@ use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ListRecords;
 use App\Service\InstagramService;
 use App\Service\TiktokService;
+use App\Service\YoutubeChannelsService;
+use App\Service\YoutubeShortsService;
 use Illuminate\Database\Eloquent\Model;
 
 class ListDataKols extends ListRecords
@@ -29,7 +31,8 @@ class ListDataKols extends ListRecords
                         ->options([
                             'Instagram' => 'Instagram',
                             'Tiktok' => 'Tiktok',
-                            'Youtube' => 'Youtube',
+                            'Youtube Channels' => 'Youtube Channels',
+                            'Youtube Shorts' => 'Youtube Shorts',
                         ])
                         ->required()
                         ->default('Instagram')
@@ -39,14 +42,16 @@ class ListDataKols extends ListRecords
                         ->label(fn($get) => match ($get('channel')) {
                             'Instagram' => 'Instagram Profile URL / Username',
                             'Tiktok' => 'TikTok Profile URL / Username',
-                            'Youtube' => 'YouTube Profile URL / Username',
+                            'Youtube Channels' => 'YouTube Channel URL / Username',
+                            'Youtube Shorts' => 'YouTube Channel URL / Username',
                             default => 'Profile URL / Username',
                         })
                         ->required()
                         ->placeholder(fn($get) => match ($get('channel')) {
                             'Instagram' => 'Contoh: adrianhorning atau https://instagram.com/adrianhorning',
                             'Tiktok' => 'Contoh: @stoolpresidente atau https://tiktok.com/@stoolpresidente',
-                            'Youtube' => 'Contoh: youtube.com/@channel',
+                            'Youtube Channels' => 'Contoh: @ThePatMcAfeeShow atau https://www.youtube.com/@ThePatMcAfeeShow',
+                            'Youtube Shorts' => 'Contoh: @ThePatMcAfeeShow atau https://www.youtube.com/@ThePatMcAfeeShow',
                             default => 'Contoh: username atau URL',
                         })
                         ->helperText('Masukkan username atau URL lengkap profil.')
@@ -57,6 +62,8 @@ class ListDataKols extends ListRecords
                         $profile = match ($data['channel']) {
                             'Instagram' => (new InstagramService())->getProfile($data['link_userprofile']),
                             'Tiktok' => (new TiktokService())->getProfile($data['link_userprofile']),
+                            'Youtube Channels' => (new YoutubeChannelsService())->getProfile($data['link_userprofile']),
+                            'Youtube Shorts' => (new YoutubeShortsService())->getProfile($data['link_userprofile']),
                             default => null,
                         };
 
@@ -122,6 +129,8 @@ class ListDataKols extends ListRecords
 
                         $mediaLabel = match ($data['channel']) {
                             'Tiktok' => 'Videos',
+                            'Youtube Channels' => 'Videos',
+                            'Youtube Shorts' => 'Shorts',
                             default => 'Posts',
                         };
                         $notes[] = "{$mediaLabel}: " . number_format($profile['media_count']);
@@ -139,6 +148,8 @@ class ListDataKols extends ListRecords
                         $channelLabel = match ($data['channel']) {
                             'Instagram' => 'Instagram',
                             'Tiktok' => 'TikTok',
+                            'Youtube Channels' => 'YouTube Channels',
+                            'Youtube Shorts' => 'YouTube Shorts',
                             default => $data['channel'],
                         };
                         throw new \Exception("Gagal mengambil data {$channelLabel}: " . $e->getMessage());

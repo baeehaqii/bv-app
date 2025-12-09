@@ -8,9 +8,4 @@ use Filament\Resources\Pages\CreateRecord;
 class CreateInternalBudget extends CreateRecord
 {
     protected static string $resource = InternalBudgetResource::class;
-
-    protected function mutateFormDataBeforeCreate(array $data): array
-    {
-        return $data;
-    }
 }

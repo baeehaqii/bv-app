@@ -75,12 +75,16 @@ class InstagramService
 
             $userData = $data['data']['user'] ?? [];
 
-            // Get posts for accurate engagement calculation
-            $postsData = $this->getUserPosts($username);
+            // Get posts for engagement calculation
+            // NOTE: enrichWithDetails DISABLED - causes timeout (each post = 3-5s API call)
+            // v2 API provides: likes, views (for videos) - sufficient for engagement calculation
+            // For accurate comments data, use background job: EnrichInstagramPostsJob
+            $postsData = $this->getUserPosts($username, 9, false);
 
             Log::info('📊 Instagram Posts Fetched', [
                 'username' => $username,
                 'posts_count' => count($postsData),
+                'enriched' => false,
             ]);
 
             // Parse and return formatted data
@@ -107,18 +111,20 @@ class InstagramService
     }
 
     /**
-     * Get user posts using v2 API for accurate engagement metrics
+     * Get user posts using v2 API for engagement metrics
      * 
      * @param string $username
      * @param int $count Number of posts to fetch (default 9)
+     * @param bool $enrichWithDetails Whether to fetch detailed metrics for each post (costs more credits)
      * @return array
      */
-    protected function getUserPosts(string $username, int $count = 9): array
+    public function getUserPosts(string $username, int $count = 9, bool $enrichWithDetails = false): array
     {
         try {
             Log::info('📡 Fetching Instagram Posts via v2 API', [
                 'username' => $username,
                 'count' => $count,
+                'enrich_details' => $enrichWithDetails,
                 'endpoint' => 'https://api.scrapecreators.com/v2/instagram/user/posts',
             ]);
 
@@ -165,9 +171,15 @@ class InstagramService
 
             $posts = $data['items'] ?? [];
 
+            // Optionally enrich with detailed metrics per post
+            if ($enrichWithDetails && !empty($posts)) {
+                $posts = $this->enrichPostsWithDetails($posts);
+            }
+
             Log::info('✅ Instagram Posts Retrieved Successfully', [
                 'username' => $username,
                 'posts_count' => count($posts),
+                'enriched' => $enrichWithDetails,
             ]);
 
             return $posts;
@@ -180,6 +192,167 @@ class InstagramService
             ]);
             return [];
         }
+    }
+
+    /**
+     * Get detailed info for a single post/reel
+     * Endpoint: /v1/instagram/post
+     * Response structure: data.xdt_shortcode_media or data directly contains the media
+     * 
+     * @param string $shortcode Post shortcode (e.g., "DRh6_WXjRBc")
+     * @return array|null Returns normalized post data
+     */
+    protected function getPostDetails(string $shortcode): ?array
+    {
+        try {
+            $postUrl = "https://www.instagram.com/p/{$shortcode}/";
+
+            $response = Http::timeout(10)
+                ->withHeaders([
+                    'x-api-key' => $this->apiKey,
+                ])->get("{$this->baseUrl}/post", [
+                        'url' => $postUrl,
+                    ]);
+
+            if (!$response->successful()) {
+                $status = $response->status();
+                $message = match ($status) {
+                    402 => 'Payment Required - API credits may be exhausted',
+                    429 => 'Rate limited - too many requests',
+                    404 => 'Post not found',
+                    default => 'API error'
+                };
+
+                Log::warning("❌ Post details API error: {$message}", [
+                    'shortcode' => $shortcode,
+                    'status' => $status,
+                ]);
+                return null;
+            }
+
+            $responseData = $response->json();
+
+            if (!isset($responseData['success']) || !$responseData['success']) {
+                return null;
+            }
+
+            $data = $responseData['data'] ?? [];
+
+            // ScrapeCreators may return data in different structures:
+            // 1. data.xdt_shortcode_media (newer format)
+            // 2. data directly contains the media (older format)
+            $media = $data['xdt_shortcode_media'] ?? $data;
+
+            // Log raw response structure for debugging
+            Log::info('📋 Post API Response Structure', [
+                'shortcode' => $shortcode,
+                'has_xdt_shortcode_media' => isset($data['xdt_shortcode_media']),
+                'media_keys' => array_keys($media),
+            ]);
+
+            // Extract and normalize the metrics
+            // Comments: edge_media_to_comment.count or comment_count
+            $commentCount = $media['edge_media_to_comment']['count']
+                ?? $media['edge_media_to_parent_comment']['count']
+                ?? $media['comment_count']
+                ?? 0;
+
+            // Likes: edge_media_preview_like.count or like_count
+            $likeCount = $media['edge_media_preview_like']['count']
+                ?? $media['like_count']
+                ?? 0;
+
+            // Views: video_view_count or play_count
+            $viewCount = $media['video_view_count']
+                ?? $media['video_play_count']
+                ?? $media['play_count']
+                ?? 0;
+
+            // Log extracted values
+            Log::info('📋 Extracted Post Metrics', [
+                'shortcode' => $shortcode,
+                'likes' => $likeCount,
+                'comments' => $commentCount,
+                'views' => $viewCount,
+            ]);
+
+            return [
+                'like_count' => $likeCount,
+                'comment_count' => $commentCount,
+                'play_count' => $viewCount,
+                'is_video' => $media['is_video'] ?? false,
+                'media_type' => $media['media_type'] ?? 1,
+            ];
+
+        } catch (Exception $e) {
+            Log::warning('Failed to fetch post details', [
+                'shortcode' => $shortcode,
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
+    }
+
+    /**
+     * Enrich posts with detailed metrics from individual post API
+     * Note: This costs additional API credits (1 per post)
+     * Limited to first 5 posts to avoid timeout
+     * 
+     * @param array $posts
+     * @param int $maxEnrich Maximum number of posts to enrich (default 3 to avoid timeout)
+     * @return array
+     */
+    protected function enrichPostsWithDetails(array $posts, int $maxEnrich = 3): array
+    {
+        $enrichedPosts = [];
+        $enrichedCount = 0;
+        $errorCount = 0;
+        $maxErrors = 2; // Stop enriching after 2 consecutive errors
+
+        foreach ($posts as $post) {
+            // Only enrich first N posts to save time and credits
+            if ($enrichedCount < $maxEnrich && $errorCount < $maxErrors) {
+                $shortcode = $post['code'] ?? ($post['shortcode'] ?? null);
+
+                if ($shortcode) {
+                    $details = $this->getPostDetails($shortcode);
+
+                    if ($details) {
+                        $errorCount = 0; // Reset error count on success
+
+                        // Merge normalized metrics from getPostDetails
+                        $post['comment_count'] = $details['comment_count'];
+                        $post['like_count'] = $details['like_count'];
+                        $post['play_count'] = $details['play_count'];
+
+                        Log::info('✅ Post enriched successfully', [
+                            'shortcode' => $shortcode,
+                            'likes' => $post['like_count'],
+                            'comments' => $post['comment_count'],
+                            'views' => $post['play_count'],
+                        ]);
+
+                        $enrichedCount++;
+                    } else {
+                        $errorCount++;
+                        Log::warning('⚠️ Skipping enrichment due to error', [
+                            'shortcode' => $shortcode,
+                            'error_count' => $errorCount,
+                        ]);
+                    }
+                }
+            }
+
+            $enrichedPosts[] = $post;
+        }
+
+        Log::info('📊 Enrichment Summary', [
+            'total_posts' => count($posts),
+            'enriched_posts' => $enrichedCount,
+            'skipped_due_to_errors' => $errorCount >= $maxErrors,
+        ]);
+
+        return $enrichedPosts;
     }
 
     /**
@@ -343,6 +516,8 @@ class InstagramService
         $totalEngagement = 0;
         $postCount = count($validPosts);
         $videoPostCount = 0;
+        $photoPostCount = 0;
+        $carouselPostCount = 0;
 
         Log::info('📈 Starting Instagram Engagement Calculation', [
             'posts_count' => $postCount,
@@ -353,50 +528,140 @@ class InstagramService
             // Basic metrics
             $likes = $post['like_count'] ?? 0;
             $comments = $post['comment_count'] ?? 0;
-            $views = $post['video_view_count'] ?? 0;
 
-            // Additional engagement metrics (saves, shares, reposts)
+            // Determine media type
+            // Instagram media_type: 1 = Photo, 2 = Video/Reel, 8 = Carousel
+            $mediaType = $post['media_type'] ?? 1;
+            $productType = $post['product_type'] ?? '';
+
+            // Check if video/reel
+            $isVideo = $mediaType == 2
+                || $productType === 'clips'  // Reels
+                || $productType === 'feed'   // IGTV/Video
+                || ($post['is_video'] ?? false) === true;
+
+            // Check if photo
+            $isPhoto = $mediaType == 1 && !$isVideo;
+
+            // Check if carousel (can contain both photos and videos)
+            $isCarousel = $mediaType == 8;
+
+            // Views - check multiple possible field names
+            // play_count is common for reels, video_view_count for videos
+            $views = 0;
+            if ($isVideo || $isCarousel) {
+                $views = $post['play_count']
+                    ?? $post['video_play_count']
+                    ?? $post['video_view_count']
+                    ?? $post['ig_play_count']
+                    ?? $post['view_count']
+                    ?? 0;
+            }
+
+            // Additional engagement metrics
             $saves = $post['save_count'] ?? 0;
             $shares = $post['share_count'] ?? 0;
-            $reposts = $post['repost_count'] ?? 0;
+            $reposts = $post['reshare_count'] ?? $post['repost_count'] ?? 0;
+
+            // Determine media type string for logging
+            $mediaTypeStr = match (true) {
+                $isCarousel => 'Carousel',
+                $isVideo => 'Video/Reel',
+                $isPhoto => 'Photo',
+                default => 'Unknown'
+            };
 
             Log::info("📊 Post #{$index} Stats", [
                 'post_id' => $post['id'] ?? 'unknown',
                 'shortcode' => $post['code'] ?? ($post['shortcode'] ?? 'N/A'),
                 'taken_at' => isset($post['taken_at']) ? date('Y-m-d H:i:s', $post['taken_at']) : 'N/A',
+                'media_type' => $mediaType,
+                'media_type_str' => $mediaTypeStr,
+                'product_type' => $productType,
+                'is_photo' => $isPhoto,
+                'is_video' => $isVideo,
+                'is_carousel' => $isCarousel,
                 'likes' => $likes,
                 'comments' => $comments,
                 'shares' => $shares,
                 'saves' => $saves,
                 'reposts' => $reposts,
                 'views' => $views,
-                'is_video' => $views > 0,
             ]);
 
             $totalLikes += $likes;
             $totalComments += $comments;
 
-            if ($views > 0) {
-                $totalViews += $views;
+            // Track post types
+            if ($isVideo) {
                 $videoPostCount++;
+                if ($views > 0) {
+                    $totalViews += $views;
+                }
+            } elseif ($isCarousel) {
+                $carouselPostCount++;
+                if ($views > 0) {
+                    $totalViews += $views;
+                    $videoPostCount++; // Count carousel with views as video for impression calc
+                }
+            } else {
+                $photoPostCount++;
             }
 
             // Total engagement = likes + comments + saves + shares + reposts
             $totalEngagement += $likes + $comments + $saves + $shares + $reposts;
         }
 
+        Log::info('📊 Post Type Summary', [
+            'total_posts' => $postCount,
+            'photo_posts' => $photoPostCount,
+            'video_posts' => $videoPostCount,
+            'carousel_posts' => $carouselPostCount,
+            'total_views' => $totalViews,
+        ]);
+
         // Calculate averages
         $averageLikes = $postCount > 0 ? round($totalLikes / $postCount) : 0;
         $averageComments = $postCount > 0 ? round($totalComments / $postCount) : 0;
 
-        // Avg views: AVERAGE dari total views 9 postingan (hanya video posts)
-        $averageImpressions = $videoPostCount > 0 ? round($totalViews / $videoPostCount) : 0;
+        // Average Impressions calculation:
+        // 1. If we have video views, use average of video views
+        // 2. If no videos (all photos), estimate impressions based on industry standard
+        //    - Photos typically get impressions ~= likes * 3 to 5 (varies by account size)
+        //    - Or estimate as percentage of followers (typically 10-30% reach)
+        if ($videoPostCount > 0) {
+            $averageImpressions = round($totalViews / $videoPostCount);
+        } else {
+            // Estimate impressions for photo-only accounts
+            // Using formula: Average engagement * multiplier based on follower size
+            // Or: followers * estimated reach rate (10% for large accounts, 20-30% for smaller)
+            $averageEngagement = $postCount > 0 ? ($totalLikes + $totalComments) / $postCount : 0;
+
+            if ($followersCount > 1000000) {
+                // Mega influencers: ~10% reach
+                $averageImpressions = round($followersCount * 0.10);
+            } elseif ($followersCount > 100000) {
+                // Macro: ~15% reach
+                $averageImpressions = round($followersCount * 0.15);
+            } elseif ($followersCount > 10000) {
+                // Micro: ~20% reach
+                $averageImpressions = round($followersCount * 0.20);
+            } else {
+                // Nano: ~25-30% reach
+                $averageImpressions = round($followersCount * 0.25);
+            }
+
+            Log::info('📊 Estimated Impressions (no videos found)', [
+                'method' => 'reach_estimate',
+                'follower_count' => $followersCount,
+                'estimated_impressions' => $averageImpressions,
+            ]);
+        }
 
         // Average Engagement per Post
         $averageEngagementPerPost = $postCount > 0 ? $totalEngagement / $postCount : 0;
 
         // ER% = (Average Engagement per Post / Followers) × 100
-        // Formula standard industri menggunakan AVERAGE, bukan TOTAL
         $engagementRate = $followersCount > 0
             ? round(($averageEngagementPerPost / $followersCount) * 100, 2)
             : 0;
@@ -415,7 +680,7 @@ class InstagramService
 
         return [
             'engagement_rate' => $engagementRate,
-            'total_engagements' => $totalEngagement, // Total dari 9 postingan
+            'total_engagements' => $totalEngagement,
             'average_likes' => $averageLikes,
             'average_comments' => $averageComments,
             'average_impressions' => $averageImpressions,

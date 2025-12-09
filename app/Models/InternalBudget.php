@@ -4,89 +4,155 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class InternalBudget extends Model
 {
     protected $guarded = [];
 
     protected $casts = [
-        'rate' => 'decimal:2',
-        'subtotal' => 'decimal:2',
-        'gross_up_coeff' => 'decimal:2',
-        'tax' => 'decimal:4',
-        'mu_pph' => 'decimal:2',
-        'mu_target' => 'decimal:2',
-        'published_rate' => 'decimal:2',
-        'rounded' => 'decimal:2',
-        'margin_percent' => 'decimal:2',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
     ];
 
+    /**
+     * Status options
+     */
+    const STATUS_OPTIONS = [
+        'draft' => 'Draft',
+        'pending' => 'Pending Review',
+        'approved' => 'Approved',
+        'rejected' => 'Rejected',
+    ];
+
+    /**
+     * Parse formatted number to float
+     * Indonesian format: titik = ribuan, koma = desimal
+     * "2.000.000" → 2000000
+     * "2.000.000,50" → 2000000.50
+     * "99,98" → 99.98
+     */
+    private static function parseNumber($value): float
+    {
+        if (empty($value))
+            return 0;
+        if (is_numeric($value))
+            return (float) $value;
+
+        $value = (string) $value;
+
+        // Remove all dots (thousand separator in Indonesian format)
+        $cleaned = str_replace('.', '', $value);
+        // Replace comma with dot (decimal separator in Indonesian format)
+        $cleaned = str_replace(',', '.', $cleaned);
+
+        return (float) $cleaned;
+    }
+
+    /**
+     * Get the media plan this budget belongs to
+     */
     public function mediaPlan(): BelongsTo
     {
         return $this->belongsTo(MediaPlan::class);
     }
 
     /**
-     * Calculate Real Cost (MU PPh)
-     * Formula: rate / gross_up_coeff
+     * Get all budget items
      */
-    public function calculateMuPph(): float
+    public function items(): HasMany
     {
-        if (empty($this->rate)) {
-            return 0;
-        }
-
-        return $this->rate / $this->gross_up_coeff;
+        return $this->hasMany(InternalBudgetItem::class)->orderBy('sort_order');
     }
 
     /**
-     * Calculate Subtotal
-     * Formula: qty * rate
+     * Recalculate all totals from items
      */
-    public function calculateSubtotal(): float
+    public function recalculateTotals(): void
     {
-        return ($this->qty ?? 1) * ($this->rate ?? 0);
+        $items = $this->items()->get();
+
+        $totalRate = 0;
+        $totalSubtotal = 0;
+        $totalMuPph = 0;
+        $totalPublishedRate = 0;
+        $totalRounded = 0;
+        $marginSum = 0;
+        $marginCount = 0;
+
+        foreach ($items as $item) {
+            $totalRate += self::parseNumber($item->rate_base);
+            $totalSubtotal += self::parseNumber($item->subtotal);
+            $totalMuPph += self::parseNumber($item->mu_pph);
+            $totalPublishedRate += self::parseNumber($item->published_rate);
+            $totalRounded += self::parseNumber($item->rounded);
+
+            $margin = self::parseNumber($item->actual_margin_percent);
+            if ($margin > 0) {
+                $marginSum += $margin;
+                $marginCount++;
+            }
+        }
+
+        $this->total_rate = $totalRate;
+        $this->total_subtotal = $totalSubtotal;
+        $this->total_mu_pph = $totalMuPph;
+        $this->total_published_rate = $totalPublishedRate;
+        $this->total_rounded = $totalRounded;
+        $this->average_margin_percent = $marginCount > 0 ? $marginSum / $marginCount : 0;
+
+        $this->generateWarnings();
+        $this->saveQuietly();
     }
 
     /**
-     * Calculate Rounded Price
-     * Formula: ceil(published_rate / 100000) * 100000
+     * Check for margin warnings (< 30%) and budget warnings
      */
-    public function calculateRounded(): float
+    public function generateWarnings(): void
     {
-        if (empty($this->published_rate)) {
-            return 0;
+        $warnings = [];
+
+        foreach ($this->items as $item) {
+            $margin = self::parseNumber($item->actual_margin_percent);
+            if ($margin > 0 && $margin < 30) {
+                $warnings[] = "⚠️ {$item->scope_item}: Margin " . number_format($margin, 2) . "% < 30%";
+            }
         }
 
-        return ceil($this->published_rate / 100000) * 100000;
+        $muPph = self::parseNumber($this->total_mu_pph);
+        if ($muPph > 97500000) {
+            $warnings[] = "⚠️ MU PPh > IDR 97,500,000";
+        }
+
+        $this->warnings = empty($warnings) ? null : implode("\n", $warnings);
     }
 
     /**
-     * Calculate Margin Percent
-     * Formula: (rounded - mu_pph) / rounded * 100
+     * Calculate summary only from selected KOLs items
      */
-    public function calculateMargin(): float
+    public function calculateSelectedSummary(): array
     {
-        if (empty($this->rounded) || $this->rounded == 0) {
-            return 0;
+        $selectedKolIds = $this->mediaPlan?->selectedKols()->pluck('id') ?? collect([]);
+        $selectedItems = $this->items()->whereIn('media_plan_kol_id', $selectedKolIds)->get();
+
+        $totalRate = 0;
+        $totalSubtotal = 0;
+        $totalMuPph = 0;
+        $totalRounded = 0;
+
+        foreach ($selectedItems as $item) {
+            $totalRate += self::parseNumber($item->rate_base);
+            $totalSubtotal += self::parseNumber($item->subtotal);
+            $totalMuPph += self::parseNumber($item->mu_pph);
+            $totalRounded += self::parseNumber($item->rounded);
         }
 
-        $profit = $this->rounded - $this->mu_pph;
-        return ($profit / $this->rounded) * 100;
-    }
-
-    /**
-     * Calculate MU Target (guideline price)
-     * Assuming 40% margin target
-     */
-    public function calculateMuTarget(): float
-    {
-        if (empty($this->mu_pph)) {
-            return 0;
-        }
-
-        // For 40% margin: price = cost / (1 - margin)
-        $marginTarget = 0.40;
-        return $this->mu_pph / (1 - $marginTarget);
+        return [
+            'total_rate' => $totalRate,
+            'total_subtotal' => $totalSubtotal,
+            'total_mu_pph' => $totalMuPph,
+            'total_rounded' => $totalRounded,
+            'item_count' => $selectedItems->count(),
+        ];
     }
 }

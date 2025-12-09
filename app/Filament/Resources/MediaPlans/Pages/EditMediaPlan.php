@@ -3,7 +3,7 @@
 namespace App\Filament\Resources\MediaPlans\Pages;
 
 use App\Filament\Resources\MediaPlans\MediaPlanResource;
-use App\Models\InternalBudget;
+use App\Models\InternalBudgetItem;
 use Filament\Actions;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
@@ -12,47 +12,201 @@ class EditMediaPlan extends EditRecord
 {
     protected static string $resource = MediaPlanResource::class;
 
+    protected array $kolsData = [];
+
+    protected function mutateFormDataBeforeFill(array $data): array
+    {
+        // Load KOLs relationship data
+        $data['kols'] = $this->record->kols->map(function ($kol) {
+            return [
+                'id' => $kol->id,
+                'is_selected' => $kol->is_selected,
+                'row_number' => $kol->row_number,
+                'pic' => $kol->pic,
+                'status' => $kol->status,
+                'channel' => $kol->channel,
+                'data_kol_id' => $kol->data_kol_id,
+                'name' => $kol->name,
+                'links' => $kol->links ?? [],
+                'followers' => $kol->followers,
+                'tier' => $kol->tier,
+                'er_percent' => $kol->er_percent,
+                'impression' => $kol->impression,
+                'engagement' => $kol->engagement,
+                'scope_items' => $kol->scope_items ?? [],
+                'rate' => $kol->rate,
+                'cpi_cpv' => $kol->cpi_cpv,
+                'cpe' => $kol->cpe,
+                'notes' => $kol->notes,
+            ];
+        })->toArray();
+
+        return $data;
+    }
+
+    protected function mutateFormDataBeforeSave(array $data): array
+    {
+        // Store kols data temporarily and remove from main data
+        $this->kolsData = $data['kols'] ?? [];
+        unset($data['kols']);
+
+        return $data;
+    }
+
+    protected function afterSave(): void
+    {
+        // Ensure internal budget exists
+        $internalBudget = $this->record->internalBudget;
+        if (!$internalBudget) {
+            $internalBudget = $this->record->internalBudget()->create([
+                'status' => 'draft',
+            ]);
+        }
+
+        // Get existing KOL IDs
+        $existingKolIds = collect($this->kolsData)
+            ->pluck('id')
+            ->filter()
+            ->toArray();
+
+        // Delete KOLs that are not in the form anymore
+        $deletedKols = $this->record->kols()
+            ->whereNotIn('id', $existingKolIds)
+            ->get();
+
+        foreach ($deletedKols as $kol) {
+            // Delete related internal budget items
+            $kol->internalBudgetItems()->delete();
+            $kol->delete();
+        }
+
+        $sortOrder = $internalBudget->items()->max('sort_order') ?? 0;
+        $maxRowNumber = $this->record->kols()->max('row_number') ?? 0;
+
+        // Update or create KOLs
+        foreach ($this->kolsData as $kolData) {
+            // Remove temporary fields
+            unset($kolData['search_link']);
+            unset($kolData['categories']);
+
+            $kolId = $kolData['id'] ?? null;
+            unset($kolData['id']);
+
+            // Ensure links is array
+            if (isset($kolData['links']) && is_string($kolData['links'])) {
+                $kolData['links'] = [$kolData['links']];
+            }
+
+            if ($kolId) {
+                // Update existing KOL
+                $mediaPlanKol = $this->record->kols()->find($kolId);
+                if ($mediaPlanKol) {
+                    $oldScopeItems = $mediaPlanKol->scope_items ?? [];
+                    $newScopeItems = $kolData['scope_items'] ?? [];
+
+                    $mediaPlanKol->update($kolData);
+
+                    // If scope items changed, update internal budget items
+                    if ($oldScopeItems !== $newScopeItems) {
+                        // Delete existing budget items for this KOL
+                        $mediaPlanKol->internalBudgetItems()->delete();
+
+                        // Create new budget items for each scope item
+                        foreach ($newScopeItems as $scopeItem) {
+                            $internalBudget->items()->create([
+                                'media_plan_kol_id' => $mediaPlanKol->id,
+                                'scope_item' => $scopeItem,
+                                'qty' => 1,
+                                'rate_base' => 0,
+                                'sort_order' => ++$sortOrder,
+                            ]);
+                        }
+                    }
+                }
+            } else {
+                // Create new KOL
+                $kolData['row_number'] = ++$maxRowNumber;
+                $mediaPlanKol = $this->record->kols()->create($kolData);
+
+                // Create internal budget items for each scope item
+                $scopeItems = $kolData['scope_items'] ?? ['Deliverable'];
+                foreach ($scopeItems as $scopeItem) {
+                    $internalBudget->items()->create([
+                        'media_plan_kol_id' => $mediaPlanKol->id,
+                        'scope_item' => $scopeItem,
+                        'qty' => 1,
+                        'rate_base' => 0,
+                        'sort_order' => ++$sortOrder,
+                    ]);
+                }
+            }
+        }
+
+        // Update CPI/CPV and CPE for each KOL
+        foreach ($this->record->kols as $kol) {
+            $kol->syncRateFromBudget();
+        }
+
+        // Recalculate budget totals
+        $internalBudget->refresh();
+        $internalBudget->recalculateTotals();
+    }
+
     protected function getHeaderActions(): array
     {
         return [
-            Actions\Action::make('create_internal_budget')
-                ->label('Create Internal Budget')
-                ->icon('heroicon-m-plus')
+            Actions\Action::make('view_internal_budget')
+                ->label('View Internal Budget')
+                ->icon('heroicon-m-currency-dollar')
                 ->color('success')
+                ->url(
+                    fn($record) => $record->internalBudget
+                    ? route('filament.office.resources.internal-budgets.edit', ['record' => $record->internalBudget->id])
+                    : null
+                )
+                ->visible(fn($record) => $record->internalBudget !== null),
+
+            Actions\Action::make('download_pdf')
+                ->label('Download PDF')
+                ->icon('heroicon-m-document-arrow-down')
+                ->color('primary')
+                ->url(fn($record) => route('media-plan.pdf', ['mediaPlan' => $record->id]))
+                ->openUrlInNewTab()
+                ->visible(fn($record) => $record->internalBudget?->status === 'approved')
+                ->tooltip('Download Media Plan as PDF'),
+
+            Actions\Action::make('preview_pdf')
+                ->label('Preview PDF')
+                ->icon('heroicon-m-eye')
+                ->color('gray')
+                ->url(fn($record) => route('media-plan.pdf.preview', ['mediaPlan' => $record->id]))
+                ->openUrlInNewTab()
+                ->visible(fn($record) => $record->internalBudget?->status === 'approved')
+                ->tooltip('Preview Media Plan PDF in browser'),
+
+            Actions\Action::make('generate_quotation')
+                ->label('Generate Quotation')
+                ->icon('heroicon-m-document-text')
+                ->color('info')
+                ->disabled(fn($record) => $record->internalBudget?->status !== 'approved')
+                ->tooltip(fn($record) => $record->internalBudget?->status !== 'approved'
+                    ? 'Internal Budget harus di-approve terlebih dahulu'
+                    : 'Generate quotation for client')
                 ->action(function ($record) {
-                    // Check if internal budget already exists
-                    if ($record->internalBudget) {
+                    $selectedCount = $record->kols()->where('is_selected', true)->count();
+
+                    if ($selectedCount === 0) {
                         Notification::make()
+                            ->title('No KOLs selected')
+                            ->body('Please select at least one KOL to generate quotation.')
                             ->warning()
-                            ->title('Internal Budget Already Exists')
-                            ->body('This Media Plan already has an Internal Budget.')
                             ->send();
                         return;
                     }
 
-                    // Create Internal Budget
-                    $internalBudget = InternalBudget::create([
-                        'media_plan_id' => $record->id,
-                        'scopeofwork_item' => $record->scopeofwork,
-                        'qty' => 1,
-                        'rate' => null,
-                        'subtotal' => 0,
-                        'gross_up_coeff' => 0.97,
-                        'tax' => 0.05,
-                        'mu_pph' => null,
-                        'mu_target' => null,
-                        'published_rate' => null,
-                        'rounded' => null,
-                        'margin_percent' => null,
-                    ]);
-
-                    Notification::make()
-                        ->success()
-                        ->title('Internal Budget Created')
-                        ->body('Internal Budget has been created for this Media Plan.')
-                        ->send();
-                })
-                ->visible(fn($record) => !$record->internalBudget),
+                    // Redirect to PDF download
+                    return redirect()->route('media-plan.pdf', ['mediaPlan' => $record->id]);
+                }),
 
             Actions\DeleteAction::make(),
         ];

@@ -4,8 +4,12 @@ namespace App\Filament\Resources\MediaPlans\Tables;
 
 use Filament\Tables\Table;
 use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Columns\BadgeColumn;
 use Filament\Tables\Filters\SelectFilter;
+use Filament\Actions\EditAction;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\ViewAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
 
 class MediaPlansTable
 {
@@ -13,92 +17,88 @@ class MediaPlansTable
     {
         return $table
             ->columns([
-                TextColumn::make('brand')
-                    ->label('Brand')
-                    ->searchable()
-                    ->sortable(),
-
                 TextColumn::make('quotation_number')
                     ->label('Quotation #')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->copyable()
+                    ->copyMessage('Quotation number copied'),
+
+                TextColumn::make('brand')
+                    ->label('Brand')
+                    ->searchable()
+                    ->sortable()
+                    ->weight('bold'),
 
                 TextColumn::make('campaign_name')
                     ->label('Campaign')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->limit(30),
 
-                TextColumn::make('username')
-                    ->label('KOL Username')
-                    ->searchable()
-                    ->sortable(),
-
-                TextColumn::make('channel')
-                    ->label('Channel')
+                TextColumn::make('kols_count')
+                    ->label('Total KOLs')
+                    ->counts('kols')
                     ->badge()
-                    ->color(fn($state) => match ($state) {
-                        'Instagram' => 'blue',
-                        'Tiktok' => 'black',
-                        default => 'gray',
-                    }),
+                    ->color('gray')
+                    ->alignCenter(),
 
-                TextColumn::make('categories')
-                    ->label('Category'),
-
-                TextColumn::make('tier')
-                    ->label('Tier')
+                // Selected KOLs count
+                TextColumn::make('selected_kols_count')
+                    ->label('Selected')
+                    ->state(fn($record) => $record->kols()->where('is_selected', true)->count())
                     ->badge()
+                    ->color('success')
+                    ->alignCenter(),
+
+                TextColumn::make('kols.name')
+                    ->label('KOL(s)')
+                    ->listWithLineBreaks()
+                    ->limitList(3)
+                    ->expandableLimitedList()
+                    ->searchable(),
+
+                TextColumn::make('kols.channel')
+                    ->label('Channel(s)')
+                    ->badge()
+                    ->separator(',')
                     ->color(fn($state) => match ($state) {
-                        'Mega' => 'success',
-                        'Macro' => 'warning',
-                        'Micro' => 'info',
-                        'Nano' => 'secondary',
+                        'Instagram' => 'pink',
+                        'Tiktok' => 'gray',
+                        'Youtube Channels' => 'danger',
+                        'Youtube Shorts' => 'warning',
                         default => 'gray',
-                    }),
+                    })
+                    ->toggleable(),
 
-                TextColumn::make('followers')
-                    ->label('Followers')
-                    ->numeric()
-                    ->formatStateUsing(fn($state) => number_format($state))
-                    ->sortable()
-                    ->alignRight(),
-
-                TextColumn::make('er')
-                    ->label('ER %')
-                    ->numeric()
-                    ->suffix('%')
-                    ->sortable()
-                    ->alignRight(),
-
-                TextColumn::make('engagement')
-                    ->label('Engagement')
-                    ->numeric()
-                    ->formatStateUsing(fn($state) => number_format($state))
-                    ->sortable()
-                    ->alignRight(),
-
-                TextColumn::make('rate')
-                    ->label('Rate')
+                // Summary from Internal Budget
+                TextColumn::make('internalBudget.total_rounded')
+                    ->label('Total Budget')
                     ->money('IDR', locale: 'id')
                     ->sortable()
-                    ->alignRight(),
+                    ->alignRight()
+                    ->weight('bold')
+                    ->color('success'),
 
-                TextColumn::make('cpi_cpv')
-                    ->label('CPI/CPV')
-                    ->numeric()
-                    ->formatStateUsing(fn($state) => $state ? 'Rp ' . number_format($state) : '-')
-                    ->alignRight(),
+                TextColumn::make('internalBudget.average_margin_percent')
+                    ->label('Avg Margin')
+                    ->suffix('%')
+                    ->sortable()
+                    ->alignCenter()
+                    ->color(fn($state) => ($state ?? 0) < 30 ? 'danger' : 'success')
+                    ->toggleable(isToggledHiddenByDefault: true),
 
-                TextColumn::make('cpe')
-                    ->label('CPE')
-                    ->numeric()
-                    ->formatStateUsing(fn($state) => $state ? 'Rp ' . number_format($state) : '-')
-                    ->alignRight(),
-
-                TextColumn::make('date')
-                    ->label('Date')
-                    ->date('d M Y')
-                    ->sortable(),
+                TextColumn::make('internalBudget.status')
+                    ->label('Budget Status')
+                    ->badge()
+                    ->color(fn(string $state): string => match ($state) {
+                        'draft' => 'gray',
+                        'pending' => 'warning',
+                        'approved' => 'success',
+                        'rejected' => 'danger',
+                        default => 'gray',
+                    })
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('created_at')
                     ->label('Created At')
@@ -108,26 +108,46 @@ class MediaPlansTable
             ])
             ->filters([
                 SelectFilter::make('channel')
+                    ->label('Filter by Channel')
                     ->options([
                         'Instagram' => 'Instagram',
                         'Tiktok' => 'Tiktok',
-                    ]),
+                        'Youtube Channels' => 'Youtube Channels',
+                        'Youtube Shorts' => 'Youtube Shorts',
+                    ])
+                    ->query(function ($query, $state) {
+                        if ($state['value']) {
+                            $query->whereHas('kols', function ($q) use ($state) {
+                                $q->where('channel', $state['value']);
+                            });
+                        }
+                    }),
 
-                SelectFilter::make('tier')
+                SelectFilter::make('budget_status')
+                    ->label('Budget Status')
                     ->options([
-                        'Mega' => 'Mega',
-                        'Macro' => 'Macro',
-                        'Micro' => 'Micro',
-                        'Nano' => 'Nano',
-                    ]),
-
-                SelectFilter::make('categories')
-                    ->options(function () {
-                        return \App\Models\MediaPlan::distinct()
-                            ->pluck('categories', 'categories')
-                            ->toArray();
+                        'draft' => 'Draft',
+                        'pending' => 'Pending',
+                        'approved' => 'Approved',
+                        'rejected' => 'Rejected',
+                    ])
+                    ->query(function ($query, $state) {
+                        if ($state['value']) {
+                            $query->whereHas('internalBudget', function ($q) use ($state) {
+                                $q->where('status', $state['value']);
+                            });
+                        }
                     }),
             ])
-            ->defaultSort('created_at', 'desc');
+            ->recordActions([
+                EditAction::make(),
+            ])
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
+                ]),
+            ])
+            ->defaultSort('created_at', 'desc')
+            ->striped();
     }
 }

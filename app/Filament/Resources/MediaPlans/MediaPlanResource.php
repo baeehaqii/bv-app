@@ -29,7 +29,7 @@ class MediaPlanResource extends Resource
     // Enable global search
     public static function getGloballySearchableAttributes(): array
     {
-        return ['brand', 'username', 'campaign_name', 'quotation_number'];
+        return ['brand', 'campaign_name', 'quotation_number'];
     }
 
     public static function getGlobalSearchResultTitle($record): string
@@ -41,8 +41,8 @@ class MediaPlanResource extends Resource
     {
         return [
             'Brand' => $record->brand ?? 'N/A',
-            'KOL' => $record->username ?? 'N/A',
-            'Channel' => $record->channel ?? 'N/A',
+            'Quotation' => $record->quotation_number ?? 'N/A',
+            'KOLs Count' => $record->kols->count() . ' KOL(s)',
         ];
     }
 

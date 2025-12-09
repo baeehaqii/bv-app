@@ -5,6 +5,8 @@ namespace App\Filament\Resources\DataKols\Schemas;
 use Filament\Schemas\Schema;
 use App\Service\InstagramService;
 use App\Service\TiktokService;
+use App\Service\YoutubeChannelsService;
+use App\Service\YoutubeShortsService;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -26,7 +28,8 @@ class DataKolForm
                             ->options([
                                 'Instagram' => 'Instagram',
                                 'Tiktok' => 'Tiktok',
-                                'Youtube' => 'Youtube',
+                                'Youtube Channels' => 'Youtube Channels',
+                                'Youtube Shorts' => 'Youtube Shorts',
                             ])
                             ->live(onBlur: true)
                             ->afterStateUpdated(fn(callable $set) => $set('link_userprofile', null))
@@ -36,19 +39,22 @@ class DataKolForm
                             ->label(fn(callable $get) => match ($get('channel')) {
                                 'Instagram' => 'Instagram Profile URL',
                                 'Tiktok' => 'TikTok Profile URL',
-                                'Youtube' => 'YouTube Channel URL',
+                                'Youtube Channels' => 'YouTube Channel URL',
+                                'Youtube Shorts' => 'YouTube Channel URL',
                                 default => 'Profile URL',
                             })
                             ->placeholder(fn(callable $get) => match ($get('channel')) {
                                 'Instagram' => 'https://www.instagram.com/username/ atau username saja',
                                 'Tiktok' => 'https://www.tiktok.com/@username atau @username saja',
-                                'Youtube' => 'https://www.youtube.com/@username atau username saja',
+                                'Youtube Channels' => 'https://www.youtube.com/@username atau username saja',
+                                'Youtube Shorts' => 'https://www.youtube.com/@username atau username saja',
                                 default => 'Profile URL',
                             })
                             ->helperText(fn(callable $get) => match ($get('channel')) {
                                 'Instagram' => '📋 Masukkan URL/username, tekan Tab/Enter, kemudian tunggu data ter-fetch dari Instagram',
                                 'Tiktok' => '📋 Masukkan URL/username, tekan Tab/Enter, kemudian tunggu data ter-fetch dari TikTok',
-                                'Youtube' => '📋 Masukkan URL/username, tekan Tab/Enter, kemudian tunggu data ter-fetch dari YouTube',
+                                'Youtube Channels' => '📋 Masukkan URL/username, tekan Tab/Enter, kemudian tunggu data ter-fetch dari YouTube',
+                                'Youtube Shorts' => '📋 Masukkan URL/username, tekan Tab/Enter, kemudian tunggu data ter-fetch dari YouTube Shorts',
                                 default => '📋 Masukkan URL/username dan tunggu data ter-fetch',
                             })
                             ->required(fn(callable $get) => !empty($get('channel')))
@@ -64,6 +70,8 @@ class DataKolForm
                                     $profile = match ($channel) {
                                         'Instagram' => (new InstagramService())->getProfile($state),
                                         'Tiktok' => (new TiktokService())->getProfile($state),
+                                        'Youtube Channels' => (new YoutubeChannelsService())->getProfile($state),
+                                        'Youtube Shorts' => (new YoutubeShortsService())->getProfile($state),
                                         default => null,
                                     };
 
@@ -116,6 +124,8 @@ class DataKolForm
 
                                     $mediaLabel = match ($channel) {
                                         'Tiktok' => 'Videos',
+                                        'Youtube Channels' => 'Videos',
+                                        'Youtube Shorts' => 'Shorts',
                                         default => 'Posts',
                                     };
                                     $notes[] = "{$mediaLabel}: " . number_format($profile['media_count']);
@@ -131,13 +141,20 @@ class DataKolForm
                                     $channelLabel = match ($channel) {
                                         'Instagram' => 'Instagram',
                                         'Tiktok' => 'TikTok',
+                                        'Youtube Channels' => 'YouTube Channels',
+                                        'Youtube Shorts' => 'YouTube Shorts',
                                         default => $channel,
+                                    };
+
+                                    $followerLabel = match ($channel) {
+                                        'Youtube Channels', 'Youtube Shorts' => 'subscribers',
+                                        default => 'followers',
                                     };
 
                                     Notification::make()
                                         ->title("✅ Data {$channelLabel} berhasil diambil!")
                                         ->success()
-                                        ->body("Profile @{$profile['username']} dengan " . number_format($profile['followers_count']) . " followers. Silahkan klik Create untuk menyimpan.")
+                                        ->body("Profile @{$profile['username']} dengan " . number_format($profile['followers_count']) . " {$followerLabel}. Silahkan klik Create untuk menyimpan.")
                                         ->send();
 
                                 } catch (\Exception $e) {
@@ -145,6 +162,8 @@ class DataKolForm
                                     $channelLabel = match ($get('channel')) {
                                         'Instagram' => 'Instagram',
                                         'Tiktok' => 'TikTok',
+                                        'Youtube Channels' => 'YouTube Channels',
+                                        'Youtube Shorts' => 'YouTube Shorts',
                                         default => $get('channel'),
                                     };
 
