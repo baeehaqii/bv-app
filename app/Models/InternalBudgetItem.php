@@ -12,6 +12,8 @@ class InternalBudgetItem extends Model
     protected $casts = [
         'qty' => 'integer',
         'sort_order' => 'integer',
+        'use_flexible_margin' => 'boolean',
+        'use_flexible_tax' => 'boolean',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         // Note: Removed decimal casts - mutators handle number parsing
@@ -94,6 +96,22 @@ class InternalBudgetItem extends Model
     }
 
     /**
+     * Mutator for tax_rate_percent
+     */
+    public function setTaxRatePercentAttribute($value): void
+    {
+        $this->attributes['tax_rate_percent'] = $value ? self::parseFormattedNumber($value) : null;
+    }
+
+    /**
+     * Mutator for margin_percent_override
+     */
+    public function setMarginPercentOverrideAttribute($value): void
+    {
+        $this->attributes['margin_percent_override'] = $value ? self::parseFormattedNumber($value) : null;
+    }
+
+    /**
      * Mutator for target_margin_percent
      */
     public function setTargetMarginPercentAttribute($value): void
@@ -135,6 +153,14 @@ class InternalBudgetItem extends Model
     public function mediaPlanKol(): BelongsTo
     {
         return $this->belongsTo(MediaPlanKol::class);
+    }
+
+    /**
+     * Get the Master PPH this item uses
+     */
+    public function masterPph(): BelongsTo
+    {
+        return $this->belongsTo(MasterPph::class);
     }
 
     /**
@@ -214,9 +240,17 @@ class InternalBudgetItem extends Model
      * Range 1: 100,000 - 2,999,999 -> 80%
      * Range 2: 3,000,000 - 50,000,000 -> 40%
      * Range 3: > 50,000,000 -> 30%
+     * 
+     * If use_flexible_margin is true, uses margin_percent_override instead
      */
     public function calculateAutoTargetMargin(): float
     {
+        // If flexible margin is enabled, use the override value
+        if ($this->use_flexible_margin && $this->margin_percent_override !== null) {
+            return (float) $this->margin_percent_override;
+        }
+
+        // Otherwise use auto calculation based on subtotal
         $subtotal = $this->subtotal ?? 0;
 
         if ($subtotal > 50000000) {
@@ -229,7 +263,7 @@ class InternalBudgetItem extends Model
     }
 
     /**
-     * Calculate MU** Target (guideline price based on auto margin)
+     * Calculate MU** Target (guideline price based on margin)
      * Formula: mu_pph / (1 - target_margin_percent/100)
      */
     public function calculateMuTarget(): float

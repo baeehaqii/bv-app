@@ -25,6 +25,8 @@ class EditMediaPlan extends EditRecord
                 'pic' => $kol->pic,
                 'status' => $kol->status,
                 'channel' => $kol->channel,
+                'categories' => $kol->categories,
+                'domisili' => $kol->domisili,
                 'data_kol_id' => $kol->data_kol_id,
                 'name' => $kol->name,
                 'links' => $kol->links ?? [],
@@ -157,8 +159,7 @@ class EditMediaPlan extends EditRecord
         return [
             Actions\Action::make('view_internal_budget')
                 ->label('View Internal Budget')
-                ->icon('heroicon-m-currency-dollar')
-                ->color('success')
+                ->icon('heroicon-m-eye')
                 ->url(
                     fn($record) => $record->internalBudget
                     ? route('filament.office.resources.internal-budgets.edit', ['record' => $record->internalBudget->id])
@@ -166,14 +167,14 @@ class EditMediaPlan extends EditRecord
                 )
                 ->visible(fn($record) => $record->internalBudget !== null),
 
-            Actions\Action::make('download_pdf')
-                ->label('Download PDF')
-                ->icon('heroicon-m-document-arrow-down')
-                ->color('primary')
-                ->url(fn($record) => route('media-plan.pdf', ['mediaPlan' => $record->id]))
-                ->openUrlInNewTab()
-                ->visible(fn($record) => $record->internalBudget?->status === 'approved')
-                ->tooltip('Download Media Plan as PDF'),
+            // Actions\Action::make('download_pdf')
+            //     ->label('Download PDF')
+            //     ->icon('heroicon-m-document-arrow-down')
+            //     ->color('primary')
+            //     ->url(fn($record) => route('media-plan.pdf', ['mediaPlan' => $record->id]))
+            //     ->openUrlInNewTab()
+            //     ->visible(fn($record) => $record->internalBudget?->status === 'approved')
+            //     ->tooltip('Download Media Plan as PDF'),
 
             Actions\Action::make('preview_pdf')
                 ->label('Preview PDF')
@@ -184,31 +185,29 @@ class EditMediaPlan extends EditRecord
                 ->visible(fn($record) => $record->internalBudget?->status === 'approved')
                 ->tooltip('Preview Media Plan PDF in browser'),
 
-            Actions\Action::make('generate_quotation')
-                ->label('Generate Quotation')
-                ->icon('heroicon-m-document-text')
-                ->color('info')
-                ->disabled(fn($record) => $record->internalBudget?->status !== 'approved')
-                ->tooltip(fn($record) => $record->internalBudget?->status !== 'approved'
-                    ? 'Internal Budget harus di-approve terlebih dahulu'
-                    : 'Generate quotation for client')
-                ->action(function ($record) {
-                    $selectedCount = $record->kols()->where('is_selected', true)->count();
+            // Actions\Action::make('generate_quotation')
+            //     ->label('Generate Quotation')
+            //     ->icon('heroicon-m-document-text')
+            //     ->color('info')
+            //     ->disabled(fn($record) => $record->internalBudget?->status !== 'approved')
+            //     ->tooltip(fn($record) => $record->internalBudget?->status !== 'approved'
+            //         ? 'Internal Budget harus di-approve terlebih dahulu'
+            //         : 'Generate quotation for client')
+            //     ->action(function ($record) {
+            //         $selectedCount = $record->kols()->where('is_selected', true)->count();
 
-                    if ($selectedCount === 0) {
-                        Notification::make()
-                            ->title('No KOLs selected')
-                            ->body('Please select at least one KOL to generate quotation.')
-                            ->warning()
-                            ->send();
-                        return;
-                    }
+            //         if ($selectedCount === 0) {
+            //             Notification::make()
+            //                 ->title('No KOLs selected')
+            //                 ->body('Please select at least one KOL to generate quotation.')
+            //                 ->warning()
+            //                 ->send();
+            //             return;
+            //         }
 
-                    // Redirect to PDF download
-                    return redirect()->route('media-plan.pdf', ['mediaPlan' => $record->id]);
-                }),
-
-            Actions\DeleteAction::make(),
+            //         // Redirect to PDF download
+            //         return redirect()->route('media-plan.pdf', ['mediaPlan' => $record->id]);
+            //     }),
         ];
     }
 }

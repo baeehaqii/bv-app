@@ -34,6 +34,9 @@ class OfficePanelProvider extends PanelProvider
             ->globalSearchKeyBindings(['command+k', 'ctrl+k'])
             ->login()
             ->topbar(true)
+            // ->font('Plus Jakarta Sans')
+            ->font('Poppins')
+            ->favicon('https://res.cloudinary.com/dbr6xazzh/image/upload/v1763576028/01_Logo_Main_f2t5wp.avif')
             ->brandLogo('https://res.cloudinary.com/dbr6xazzh/image/upload/v1763576028/01_Logo_Main_f2t5wp.avif')
             ->brandLogoHeight('5rem')
             ->brandName('Beyond Viral')
@@ -44,6 +47,12 @@ class OfficePanelProvider extends PanelProvider
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\Filament\Pages')
             ->pages([
                 Dashboard::class,
+            ])
+            ->navigationGroups([
+                'Database',
+                'Media Planning',
+                'Master Data',
+                'Settings',
             ])
             ->plugins([
                 FilamentShieldPlugin::make()
@@ -64,7 +73,7 @@ class OfficePanelProvider extends PanelProvider
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\Filament\Widgets')
             ->widgets([
                 AccountWidget::class,
-                FilamentInfoWidget::class,
+                // FilamentInfoWidget::class,
             ])
             ->middleware([
                 EncryptCookies::class,

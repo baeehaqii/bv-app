@@ -9,6 +9,7 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Repeater;
+use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Section;
 use Filament\Support\RawJs;
 
@@ -141,25 +142,65 @@ class InternalBudgetForm
         // Step 1: Calculate subtotal (Qty × Rate)
         $subtotal = $qty * $rateBase;
 
-        // Step 2: Get Progressive PPh Coefficient based on Subtotal
-        $pphCoefficient = self::getPphCoefficient($subtotal);
+        // Step 2: Get PPh Coefficient from selected Master PPH
+        $masterPphId = $get('master_pph_id');
+        if ($masterPphId) {
+            $masterPph = \App\Models\MasterPph::find($masterPphId);
+            if ($masterPph) {
+                $pphCoefficient = $masterPph->getCalculatedCoefficient();
+            } else {
+                $pphCoefficient = 0.975; // Fallback to Pribadi
+            }
+        } else {
+            $pphCoefficient = 0.975; // Fallback to Pribadi
+        }
 
         // Step 3: MU PPh (Real Cost) = Subtotal / Coefficient
         $muPph = $subtotal / $pphCoefficient;
 
-        // Step 4: Get Tax Rate for display
-        $taxRate = self::getTaxRate($muPph);
+        // Step 4: Get Tax Rate for display - use flexible tax if enabled
+        $useFlexibleTax = $get('use_flexible_tax') ?? false;
+        if ($useFlexibleTax) {
+            $taxRateOverride = $get('tax_rate_percent');
+            if ($taxRateOverride !== null && $taxRateOverride !== '') {
+                $taxRate = self::parseNumber($taxRateOverride) / 100; // Convert to decimal
+            } else {
+                $taxRate = self::getTaxRate($muPph); // Fallback to auto if toggle enabled but no value
+            }
+        } else {
+            // Auto calculate based on MU PPh
+            $taxRate = self::getTaxRate($muPph);
+        }
 
-        // Step 5: MU Target = MU PPh / 0.7 (fixed ~30% margin target)
-        $muTarget = $muPph / 0.7;
+        // Step 5: Calculate target margin - use flexible margin if enabled
+        $useFlexibleMargin = $get('use_flexible_margin') ?? false;
+        if ($useFlexibleMargin) {
+            $marginOverride = $get('margin_percent_override');
+            if ($marginOverride !== null && $marginOverride !== '') {
+                $targetMargin = self::parseNumber($marginOverride);
+            } else {
+                $targetMargin = 30.0; // Fallback to 30% if toggle enabled but no value
+            }
+        } else {
+            // Get margin from database using MasterMargin model
+            $targetMargin = \App\Models\MasterMargin::getMarginForAmount($subtotal);
+        }
 
-        // Step 6: Published Rate = MU Target (can be manually adjusted)
+        // Step 6: MU Target = MU PPh / (1 - margin/100)
+        $marginDecimal = $targetMargin / 100;
+        if ($marginDecimal >= 1) {
+            $muTarget = $muPph; // Prevent division by zero
+        } else {
+            $muTarget = $muPph / (1 - $marginDecimal);
+        }
+
+        // Step 7: Published Rate = MU Target (can be manually adjusted)
         $publishedRate = $muTarget;
 
-        // Step 7: Rounded = ROUNDUP to nearest 100,000
+        // Step 8: Rounded = ROUNDUP to nearest 100,000
         $rounded = ceil($publishedRate / 100000) * 100000;
 
-        // Step 8: Actual Margin = (Rounded - MU PPh) / Rounded × 100
+        // Step 9: Actual Margin = (Rounded - MU PPh) / Rounded × 100
         $actualMargin = $rounded > 0 ? (($rounded - $muPph) / $rounded) * 100 : 0;
 
         // Format helper for money display (US format: 1,000,000)
@@ -175,10 +216,19 @@ class InternalBudgetForm
         $set('rounded', $formatMoney($rounded));
         $set('actual_margin_percent', round($actualMargin, 2));
 
+        // Store target margin for database
+        if (empty($get('target_margin_percent'))) {
+            $set('target_margin_percent', $targetMargin);
+        }
+
         // Log final values
         \Illuminate\Support\Facades\Log::info('📊 Budget Result', [
             'subtotal' => $subtotal,
             'pph_coefficient' => $pphCoefficient,
+            'use_flexible_tax' => $useFlexibleTax,
+            'tax_rate_display' => $taxRate * 100, // Display as percentage
+            'use_flexible_margin' => $useFlexibleMargin,
+            'target_margin' => $targetMargin,
             'mu_pph' => round($muPph),
             'mu_target' => round($muTarget),
             'rounded' => round($rounded),
@@ -281,8 +331,7 @@ class InternalBudgetForm
                                             ->toArray();
                                     })
                                     ->required()
-                                    ->searchable()
-                                    ->helperText('Pilih dari scope items KOL'),
+                                    ->searchable(),
 
                                 TextInput::make('qty')
                                     ->label('Qty')
@@ -297,7 +346,6 @@ class InternalBudgetForm
                                 // Note: Don't use ->numeric() here as it conflicts with $money mask
                                 TextInput::make('rate_base')
                                     ->label('💵 Rate (Base)')
-                                    ->helperText('Harga modal dari vendor')
                                     ->placeholder('Masukan Nominal')
                                     ->required()
                                     ->prefix('Rp')
@@ -306,14 +354,27 @@ class InternalBudgetForm
                                     ->live(debounce: 500)
                                     ->afterStateUpdated(fn($get, $set) => self::calculateItemValues($get, $set)),
 
-                                // PPh Coefficient - auto calculated based on subtotal
+                                // PPH Type selector
+                                Select::make('master_pph_id')
+                                    ->label('Tax Type')
+                                    ->options(\App\Models\MasterPph::getActiveOptions())
+                                    ->default(function () {
+                                        // Default to "Pribadi" if exists
+                                        return \App\Models\MasterPph::where('name', 'Pribadi')->value('id');
+                                    })
+                                    ->required()
+                                    ->live()
+                                    ->afterStateUpdated(fn($get, $set) => self::calculateItemValues($get, $set))
+                                    ->helperText('Select tax calculation method'),
+
+                                // PPh Coefficient - auto calculated based on selected PPH type
                                 TextInput::make('pph_coefficient')
                                     ->label('Koefisien PPh')
-                                    ->helperText('Auto (0.97-0.775)')
+                                    ->helperText('Auto from Tax Type')
                                     ->readOnly()
                                     ->dehydrated(false), // Don't save to DB
 
-                                // Tax Rate - auto calculated based on MU PPh
+                                // Tax Rate - auto calculated based on MU PPh OR flexible input
                                 TextInput::make('tax_rate')
                                     ->label('Tax Rate')
                                     ->suffix('%')
@@ -342,11 +403,11 @@ class InternalBudgetForm
                                         // Recalculate rounded and margin when published rate is manually changed
                                         $publishedRate = self::parseNumber($state);
                                         $muPph = self::parseNumber($get('mu_pph'));
-                                        
+
                                         if ($publishedRate > 0) {
                                             $rounded = ceil($publishedRate / 100000) * 100000;
                                             $margin = (($rounded - $muPph) / $rounded) * 100;
-                                            
+
                                             $formatMoney = fn($value) => number_format(round($value), 0, '.', ',');
                                             $set('rounded', $formatMoney($rounded));
                                             $set('actual_margin_percent', round($margin, 2));
@@ -369,6 +430,52 @@ class InternalBudgetForm
                                     ->dehydrateStateUsing(fn($state) => self::parseNumber($state))
                                     ->readOnly(),
 
+                                // Flexible Tax Rate Override - Toggle
+                                Toggle::make('use_flexible_tax')
+                                    ->label('Use Custom Tax Rate')
+                                    ->helperText('Enable untuk override tax rate otomatis')
+                                    ->inline()
+                                    ->live()
+                                    ->afterStateUpdated(fn($get, $set) => self::calculateItemValues($get, $set)),
+
+                                // Flexible Tax Rate Override - Input
+                                TextInput::make('tax_rate_percent')
+                                    ->label('Custom Tax Rate %')
+                                    ->helperText('Tax rate kustom (contoh: 5, 15, 25)')
+                                    ->suffix('%')
+                                    ->numeric()
+                                    ->step('0.01')
+                                    ->minValue(0)
+                                    ->maxValue(100)
+                                    ->nullable()
+                                    ->visible(fn(callable $get) => $get('use_flexible_tax') === true)
+                                    ->live(debounce: 300)
+                                    ->afterStateUpdated(function ($state, callable $get, callable $set) {
+                                        self::calculateItemValues($get, $set);
+                                    }),
+
+                                // Flexible Margin Override - Toggle
+                                Toggle::make('use_flexible_margin')
+                                    ->label('Use Custom Margin')
+                                    ->helperText('Enable untuk override margin otomatis')
+                                    ->inline()
+                                    ->live()
+                                    ->afterStateUpdated(fn($get, $set) => self::calculateItemValues($get, $set)),
+
+                                // Flexible Margin Override - Input
+                                TextInput::make('margin_percent_override')
+                                    ->label('Custom Margin %')
+                                    ->helperText('Margin target (contoh: 30, 40, 80)')
+                                    ->suffix('%')
+                                    ->numeric()
+                                    ->step('0.01')
+                                    ->nullable()
+                                    ->visible(fn(callable $get) => $get('use_flexible_margin') === true)
+                                    ->live(debounce: 300)
+                                    ->afterStateUpdated(function ($state, callable $get, callable $set) {
+                                        self::calculateItemValues($get, $set);
+                                    }),
+
                                 // Hidden fields for database
                                 TextInput::make('subtotal')
                                     ->hidden()
@@ -388,7 +495,7 @@ class InternalBudgetForm
                                     ->rows(1)
                                     ->columnSpanFull(),
                             ])
-                            ->columns(3)
+                            ->columns(2)
                             ->collapsible()
                             ->cloneable()
                             ->defaultItems(0)

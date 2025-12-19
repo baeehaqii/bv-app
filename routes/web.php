@@ -13,4 +13,6 @@ Route::middleware(['auth'])->group(function () {
         ->name('media-plan.pdf');
     Route::get('/media-plan/{mediaPlan}/pdf/preview', [MediaPlanPdfController::class, 'preview'])
         ->name('media-plan.pdf.preview');
+    Route::get('/media-plan/{mediaPlan}/pdf/html', [MediaPlanPdfController::class, 'previewHtml'])
+        ->name('media-plan.pdf.html');
 });

@@ -18,15 +18,79 @@ use Filament\Forms\Components\Checkbox;
 use Filament\Forms\Components\TagsInput;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\ToggleButtons;
+use Filament\Forms\Components\ViewField;
 use Filament\Schemas\Components\Wizard;
 use Filament\Schemas\Components\Wizard\Step;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Fieldset;
+use Filament\Forms\Components\DatePicker;
 use Filament\Notifications\Notification;
+use Filament\Actions\Action;
+use Filament\Schemas\Components\Actions;
+use Filament\Support\RawJs;
 
 class MediaPlanForm
 {
+    /**
+     * Parse formatted number string to float
+     * Converts "2.000.000" or "2.000.000,50" to 2000000.50
+     */
+    private static function parseNumber($value): float
+    {
+        if (empty($value))
+            return 0;
+        if (is_numeric($value))
+            return (float) $value;
+
+        $value = (string) $value;
+
+        // Remove all non-numeric except . and ,
+        $value = preg_replace('/[^\d.,]/', '', $value);
+
+        $dotCount = substr_count($value, '.');
+        $commaCount = substr_count($value, ',');
+
+        // Case 1: Only commas (US format from $money mask) - "400,000"
+        if ($commaCount > 0 && $dotCount == 0) {
+            return (float) str_replace(',', '', $value);
+        }
+
+        // Case 2: Only dots (Indonesia format) - "400.000"
+        if ($dotCount > 0 && $commaCount == 0) {
+            // Check if it's thousand separator (more than 1 dot or position)
+            if ($dotCount > 1) {
+                return (float) str_replace('.', '', $value);
+            }
+            // Check position - if 3 digits after single dot, it's thousand separator
+            $parts = explode('.', $value);
+            if (count($parts) == 2 && strlen($parts[1]) == 3) {
+                return (float) str_replace('.', '', $value);
+            }
+            // Otherwise treat as decimal
+            return (float) $value;
+        }
+
+        // Case 3: Both (e.g., "1.234,56" Indonesia or "1,234.56" US)
+        if ($dotCount > 0 && $commaCount > 0) {
+            $lastDot = strrpos($value, '.');
+            $lastComma = strrpos($value, ',');
+
+            if ($lastDot > $lastComma) {
+                // US format: "1,234.56" - comma thousand, dot decimal
+                return (float) str_replace(',', '', $value);
+            } else {
+                // Indonesia format: "1.234,56" - dot thousand, comma decimal
+                $cleaned = str_replace('.', '', $value);
+                $cleaned = str_replace(',', '.', $cleaned);
+                return (float) $cleaned;
+            }
+        }
+
+        return (float) $value;
+    }
+
     public static function configure(Schema $schema): Schema
     {
         return $schema
@@ -36,99 +100,107 @@ class MediaPlanForm
                         ->icon('heroicon-m-document-text')
                         ->description('Campaign details & client info')
                         ->schema([
-                            TextInput::make('brand')
-                                ->label('Brand/Client')
-                                ->placeholder('e.g., ICHITAN CHIZ TEA')
-                                ->required(),
-                            TextInput::make('pic_client')
-                                ->label('PIC Client')
-                                ->placeholder('e.g., Rohmah')
-                                ->required(),
-                            TextInput::make('campaign_type')
-                                ->label('Campaign Type')
-                                ->placeholder('e.g., Content Creation'),
-                            TextInput::make('campaign_name')
-                                ->label('Campaign Name')
-                                ->placeholder('e.g., Ichitan Monthly Creator')
-                                ->required(),
-                            TextInput::make('campaign_period_start')
-                                ->label('Campaign Period Start')
-                                ->placeholder('e.g., November 2025'),
-                            TextInput::make('campaign_period_end')
-                                ->label('Campaign Period End')
-                                ->placeholder('e.g., December 2025'),
-                            TextInput::make('platform')
-                                ->label('Platform')
-                                ->placeholder('e.g., Social Media'),
-                            TextInput::make('domisili')
-                                ->label('Domisili')
-                                ->placeholder('e.g., Jakarta'),
-                        ])->columns(2),
+                            Section::make('Campaign Information')
+                                ->schema([
+
+                                    Select::make('campaign_type')
+                                        ->label('Campaign Type')->required()
+                                        ->options([
+                                            'Content Creation' => 'Content Creation',
+                                            'Social Media' => 'Social Media',
+                                            'Digital Marketing' => 'Digital Marketing',
+                                        ])
+                                        ->placeholder('Pilih Campaign Type'),
+                                    TextInput::make('campaign_name')
+                                        ->label('Campaign Name')
+                                        ->placeholder('e.g., Ichitan Monthly Creator')
+                                        ->required(),
+                                    Datepicker::make('campaign_period_start')
+                                        ->label('Campaign Period Start')->native(false)->displayFormat('d/m/Y')
+                                        ->placeholder('e.g., November 2025')->default(now())->required(),
+                                    Datepicker::make('campaign_period_end')
+                                        ->label('Campaign Period End')->native(false)->displayFormat('d/m/Y')
+                                        ->placeholder('e.g., December 2025')->required(),
+                                    TextInput::make('platform')
+                                        ->label('Platform')->required()
+                                        ->placeholder('e.g., Social Media'),
+
+                                ])->columns(2),
+
+                            Section::make('Detail Brand')
+                                ->schema([
+                                    TextInput::make('brand')
+                                        ->label('Brand/Client')
+                                        ->placeholder('e.g., ICHITAN CHIZ TEA')
+                                        ->required(),
+                                    TextInput::make('pic_client')
+                                        ->label('PIC Client')
+                                        ->placeholder('e.g., Rohmah')
+                                        ->required(),
+                                    TextInput::make('domisili')
+                                        ->label('Domisili')->required()
+                                        ->placeholder('e.g., Jakarta'),
+                                ])->columns(3),
+                        ]),
 
                     Step::make('Select KOL')
                         ->icon('heroicon-m-user-group')
                         ->description('Choose or search for multiple KOLs')
                         ->schema([
-                            // Header Summary Section (Live Accumulation)
-                            Section::make('📊 Summary (Selected Only)')
+                            Section::make('📊 Summary List KOL')
                                 ->description('Ringkasan otomatis dari KOL yang dicentang')
                                 ->schema([
                                     Grid::make(4)
                                         ->schema([
                                             Placeholder::make('selected_count_display')
                                                 ->label('Selected KOLs')
+                                                ->extraAttributes(['class' => 'text-primary-600 dark:text-primary-400'])
                                                 ->content(fn(callable $get) => self::getSelectedCount($get('kols') ?? [])),
                                             Placeholder::make('total_rate_display')
                                                 ->label('Total Rate')
+                                                ->extraAttributes(['class' => 'text-primary-600 dark:text-primary-400'])
                                                 ->content(fn(callable $get) => 'Rp ' . number_format(self::getTotalRate($get('kols') ?? []), 0, ',', '.')),
                                             Placeholder::make('total_impression_display')
                                                 ->label('Total Est. Views')
+                                                ->extraAttributes(['class' => 'text-primary-600 dark:text-primary-400'])
                                                 ->content(fn(callable $get) => number_format(self::getTotalImpression($get('kols') ?? []), 0, ',', '.')),
                                             Placeholder::make('total_engagement_display')
                                                 ->label('Total Est. Engagement')
+                                                ->extraAttributes(['class' => 'text-primary-600 dark:text-primary-400'])
                                                 ->content(fn(callable $get) => number_format(self::getTotalEngagement($get('kols') ?? []), 0, ',', '.')),
                                         ]),
                                 ])
-                                ->collapsible()
-                                ->extraAttributes(['class' => 'bg-primary-50 dark:bg-primary-900/20']),
+                                ->collapsible(),
 
                             Repeater::make('kols')
                                 ->label('KOL List')
                                 ->schema([
-                                    // Row 1: Selection & Status
-                                    Fieldset::make('Selection')
+                                    Section::make('KOL Information')
+                                        ->description('Pilih apakah akan menggunakan KOL yang sudah ada di database atau menambahkan KOL baru')
                                         ->schema([
-                                            Checkbox::make('is_selected')
-                                                ->label('Select for Quotation')
-                                                ->default(false)
+                                            ToggleButtons::make('kol_source')
+                                                ->label('Sumber KOL')
+                                                ->options([
+                                                    'existing' => 'KOL Existing',
+                                                    'new' => 'KOL Baru',
+                                                ])
+                                                ->icons([
+                                                    'existing' => 'heroicon-m-user-group',
+                                                    'new' => 'heroicon-m-plus-circle',
+                                                ])
+                                                ->inline()
+                                                ->default('existing')
                                                 ->live()
-                                                ->columnSpan(1),
+                                                ->dehydrated(false)
+                                                ->afterStateUpdated(function (callable $set) {
+                                                    // Reset related fields when switching
+                                                    $set('data_kol_id', null);
+                                                    $set('channel', null);
+                                                    $set('categories', null);
+                                                })
+                                                ->columnSpanFull(),
 
-                                            Hidden::make('row_number'),
-
-                                            Select::make('status')
-                                                ->label('Status')
-                                                ->options([
-                                                    'New List' => 'New List',
-                                                    'Approaching' => 'Approaching',
-                                                    'Locked' => 'Locked',
-                                                    'Canceled' => 'Canceled',
-                                                ])
-                                                ->default('New List')
-                                                ->columnSpan(1),
-
-                                            Select::make('pic')
-                                                ->label('PIC')
-                                                ->options([
-                                                    'ROHMAH' => 'ROHMAH',
-                                                    'NABILLA' => 'NABILLA',
-                                                ])
-                                                ->columnSpan(1),
-                                        ])->columns(3),
-
-                                    // Row 2: Channel & Category & KOL Selection
-                                    Fieldset::make('KOL Information')
-                                        ->schema([
+                                            // === EXISTING KOL FIELDS (only visible when 'existing' selected) ===
                                             Select::make('channel')
                                                 ->label('Channel')
                                                 ->options([
@@ -143,6 +215,7 @@ class MediaPlanForm
                                                     $set('data_kol_id', null);
                                                 })
                                                 ->required()
+                                                ->visible(fn(callable $get) => $get('kol_source') === 'existing')
                                                 ->columnSpan(1),
 
                                             Select::make('categories')
@@ -161,10 +234,11 @@ class MediaPlanForm
                                                 ->live(onBlur: true)
                                                 ->afterStateUpdated(fn(callable $set) => $set('data_kol_id', null))
                                                 ->searchable()
+                                                ->visible(fn(callable $get) => $get('kol_source') === 'existing')
                                                 ->columnSpan(1),
 
                                             Select::make('data_kol_id')
-                                                ->label('Select from Database')
+                                                ->label('Pilih KOL dari Database')
                                                 ->options(function (callable $get) {
                                                     $channel = $get('channel');
                                                     $category = $get('categories');
@@ -203,84 +277,290 @@ class MediaPlanForm
                                                     $er = (float) $kol->engagement_rate;
                                                     $engagement = intval($followers * ($er / 100));
                                                     $set('engagement', $engagement);
+
+                                                    Notification::make()
+                                                        ->title('✅ KOL berhasil dipilih!')
+                                                        ->success()
+                                                        ->body("Data @{$kol->username} berhasil diambil dari database.")
+                                                        ->send();
                                                 })
                                                 ->searchable()
-                                                ->columnSpan(2),
+                                                ->preload()
+                                                ->visible(fn(callable $get) => $get('kol_source') === 'existing')
+                                                ->helperText('Pilih KOL yang sudah tersimpan di database')
+                                                ->columnSpan(1),
 
-                                            TextInput::make('search_link')
-                                                ->label('Or Search by Link')
-                                                ->placeholder('https://instagram.com/username')
-                                                ->helperText('Jika KOL tidak ada di database, input link profile')
-                                                ->live(onBlur: true)
-                                                ->afterStateUpdated(function (?string $state, callable $set, callable $get) {
-                                                    if (empty($state) || empty($get('channel'))) {
-                                                        return;
-                                                    }
+                                            // === NEW KOL - Action Button (only visible when 'new' selected) ===
+                                            Actions::make([
+                                                Action::make('create_new_kol')
+                                                    ->label('Tambah KOL Baru ke Database')
+                                                    ->icon('heroicon-o-user-plus')
+                                                    ->size('lg')
+                                                    ->slideOver()
+                                                    ->modalWidth('4xl')
+                                                    ->modalHeading('Tambah KOL Baru ke Database')
+                                                    ->modalDescription('Data KOL akan disimpan ke database dan otomatis terhubung ke Media Plan ini.')
+                                                    ->modalIcon('heroicon-o-user-plus')
+                                                    ->form([
+                                                        Section::make('Social Media Data')
+                                                            ->columnSpanFull()
+                                                            ->schema([
+                                                                Select::make('channel')
+                                                                    ->label('Channel')
+                                                                    ->options([
+                                                                        'Instagram' => 'Instagram',
+                                                                        'Tiktok' => 'Tiktok',
+                                                                        'Youtube Channels' => 'Youtube Channels',
+                                                                        'Youtube Shorts' => 'Youtube Shorts',
+                                                                    ])
+                                                                    ->live(onBlur: true)
+                                                                    ->afterStateUpdated(fn(callable $set) => $set('link_userprofile', null))
+                                                                    ->required(),
 
-                                                    $channel = $get('channel');
+                                                                TextInput::make('link_userprofile')
+                                                                    ->label(fn(callable $get) => match ($get('channel')) {
+                                                                        'Instagram' => 'Instagram Profile URL',
+                                                                        'Tiktok' => 'TikTok Profile URL',
+                                                                        'Youtube Channels' => 'YouTube Channel URL',
+                                                                        'Youtube Shorts' => 'YouTube Channel URL',
+                                                                        default => 'Profile URL',
+                                                                    })
+                                                                    ->placeholder(fn(callable $get) => match ($get('channel')) {
+                                                                        'Instagram' => 'https://www.instagram.com/username/',
+                                                                        'Tiktok' => 'https://www.tiktok.com/@username',
+                                                                        'Youtube Channels' => 'https://www.youtube.com/@username',
+                                                                        'Youtube Shorts' => 'https://www.youtube.com/@username',
+                                                                        default => 'Profile URL',
+                                                                    })
+                                                                    ->helperText('📋 Masukkan URL/username, tekan Tab/Enter untuk fetch data')
+                                                                    ->required(fn(callable $get) => !empty($get('channel')))
+                                                                    ->live(onBlur: true)
+                                                                    ->afterStateUpdated(function (?string $state, callable $set, callable $get) {
+                                                                        if (empty($state) || empty($get('channel'))) {
+                                                                            return;
+                                                                        }
 
-                                                    try {
-                                                        $profile = match ($channel) {
-                                                            'Instagram' => (new InstagramService())->getProfile($state),
-                                                            'Tiktok' => (new TiktokService())->getProfile($state),
-                                                            'Youtube Channels' => (new YoutubeChannelsService())->getProfile($state),
-                                                            'Youtube Shorts' => (new YoutubeShortsService())->getProfile($state),
-                                                            default => null,
-                                                        };
+                                                                        $channel = $get('channel');
 
-                                                        if (!$profile) {
-                                                            throw new \Exception('Channel tidak didukung');
+                                                                        try {
+                                                                            $profile = match ($channel) {
+                                                                                'Instagram' => (new InstagramService())->getProfile($state),
+                                                                                'Tiktok' => (new TiktokService())->getProfile($state),
+                                                                                'Youtube Channels' => (new YoutubeChannelsService())->getProfile($state),
+                                                                                'Youtube Shorts' => (new YoutubeShortsService())->getProfile($state),
+                                                                                default => null,
+                                                                            };
+
+                                                                            if (!$profile) {
+                                                                                throw new \Exception('Channel tidak didukung');
+                                                                            }
+
+                                                                            // Auto-fill fields
+                                                                            $set('username', $profile['username']);
+                                                                            $set('followers', $profile['followers_count']);
+                                                                            $set('tier', $profile['tier']);
+                                                                            $set('engagement_rate', $profile['engagement_rate']);
+                                                                            $set('engagements', $profile['total_engagements']);
+                                                                            $set('impressions', $profile['average_impressions']);
+
+                                                                            if (!empty($profile['category_name'])) {
+                                                                                $set('category', $profile['category_name']);
+                                                                            }
+
+                                                                            Notification::make()
+                                                                                ->title("✅ Data {$channel} berhasil diambil!")
+                                                                                ->success()
+                                                                                ->body("Profile @{$profile['username']} dengan " . number_format($profile['followers_count']) . " followers.")
+                                                                                ->send();
+
+                                                                        } catch (\Exception $e) {
+                                                                            Notification::make()
+                                                                                ->title("❌ Gagal mengambil data")
+                                                                                ->danger()
+                                                                                ->body($e->getMessage())
+                                                                                ->send();
+                                                                        }
+                                                                    }),
+
+                                                                TextInput::make('username')
+                                                                    ->label('Username')
+                                                                    ->readOnly()
+                                                                    ->dehydrated()
+                                                                    ->prefixIcon('heroicon-o-at-symbol'),
+
+                                                                TextInput::make('followers')
+                                                                    ->label('Followers')
+                                                                    ->numeric()
+                                                                    ->readOnly()
+                                                                    ->dehydrated()
+                                                                    ->prefixIcon('heroicon-o-users'),
+
+                                                                TextInput::make('tier')
+                                                                    ->label('Tier')
+                                                                    ->readOnly()
+                                                                    ->dehydrated()
+                                                                    ->prefixIcon('heroicon-o-star'),
+
+                                                                TextInput::make('engagement_rate')
+                                                                    ->label('Engagement Rate')
+                                                                    ->suffix('%')
+                                                                    ->numeric()
+                                                                    ->readOnly()
+                                                                    ->dehydrated()
+                                                                    ->prefixIcon('heroicon-o-chart-bar'),
+
+                                                                TextInput::make('engagements')
+                                                                    ->label('Total Engagements')
+                                                                    ->numeric()
+                                                                    ->readOnly()
+                                                                    ->dehydrated()
+                                                                    ->prefixIcon('heroicon-o-heart'),
+
+                                                                TextInput::make('impressions')
+                                                                    ->label('Avg Impressions')
+                                                                    ->numeric()
+                                                                    ->readOnly()
+                                                                    ->dehydrated()
+                                                                    ->prefixIcon('heroicon-o-eye'),
+
+                                                                Select::make('category')
+                                                                    ->options([
+                                                                        'Gamers & Lifestyle' => 'Gamers & Lifestyle',
+                                                                        'Lifestyle' => 'Lifestyle',
+                                                                        'Techno' => 'Techno',
+                                                                        'Beauty' => 'Beauty',
+                                                                        'Kpop' => 'Kpop',
+                                                                        'Otomotif' => 'Otomotif',
+                                                                        'Sport' => 'Sport',
+                                                                        'Family' => 'Family',
+                                                                        'Comedy' => 'Comedy',
+                                                                        'Sport & Lifestyle' => 'Sport & Lifestyle',
+                                                                        'Fashion & Lifestyle' => 'Fashion & Lifestyle',
+                                                                        'DIY' => 'DIY',
+                                                                        'Travel' => 'Travel',
+                                                                        'Home Living' => 'Home Living',
+                                                                        'Photography' => 'Photography',
+                                                                        'Beauty & Lifestyle' => 'Beauty & Lifestyle',
+                                                                        'Music' => 'Music',
+                                                                        'Home Cook' => 'Home Cook',
+                                                                        'Couple' => 'Couple',
+                                                                        'Foodies' => 'Foodies',
+                                                                    ])
+                                                                    ->label('Category')
+                                                                    ->searchable(),
+
+                                                                Select::make('status')
+                                                                    ->label('Status')
+                                                                    ->options([
+                                                                        'New List' => 'New List',
+                                                                        'Approaching' => 'Approaching',
+                                                                        'Waiting Feedback' => 'Waiting Feedback',
+                                                                        'Not Available' => 'Not Available',
+                                                                    ])
+                                                                    ->default('New List'),
+                                                            ])->columns(3),
+
+                                                        Section::make('Additional Info')
+                                                            ->columnSpanFull()
+                                                            ->schema([
+                                                                TextInput::make('contact')
+                                                                    ->label('Contact')
+                                                                    ->email(),
+
+                                                                DatePicker::make('terakhir_update')
+                                                                    ->label('Terakhir Update')
+                                                                    ->default(now()),
+
+                                                                Textarea::make('notes')
+                                                                    ->label('Notes')
+                                                                    ->rows(3)
+                                                                    ->columnSpanFull(),
+                                                            ])->columns(2),
+                                                    ])
+                                                    ->action(function (array $data, callable $set) {
+                                                        // Validate required fields
+                                                        if (empty($data['username']) || empty($data['channel'])) {
+                                                            Notification::make()
+                                                                ->danger()
+                                                                ->title('Data belum lengkap')
+                                                                ->body('Pastikan data sudah ter-fetch dari API sebelum menyimpan.')
+                                                                ->send();
+                                                            return;
                                                         }
 
-                                                        // Auto-fill fields
-                                                        $set('name', $profile['username']);
-                                                        $set('links', [$profile['link_userprofile'] ?? $state]);
-                                                        $set('followers', $profile['followers_count']);
-                                                        $set('tier', $profile['tier']);
-                                                        $set('er_percent', $profile['engagement_rate']);
-                                                        $set('impression', $profile['average_impressions']);
+                                                        // Create new KOL
+                                                        $kol = DataKol::create([
+                                                            'channel' => $data['channel'],
+                                                            'link_userprofile' => $data['link_userprofile'],
+                                                            'username' => $data['username'],
+                                                            'followers' => $data['followers'] ?? 0,
+                                                            'tier' => $data['tier'] ?? null,
+                                                            'engagement_rate' => $data['engagement_rate'] ?? 0,
+                                                            'engagements' => $data['engagements'] ?? 0,
+                                                            'impressions' => $data['impressions'] ?? 0,
+                                                            'category' => $data['category'] ?? null,
+                                                            'status' => $data['status'] ?? 'New List',
+                                                            'contact' => $data['contact'] ?? null,
+                                                            'terakhir_update' => $data['terakhir_update'] ?? now(),
+                                                            'notes' => $data['notes'] ?? null,
+                                                        ]);
 
-                                                        // Calculate engagement
-                                                        $followers = $profile['followers_count'];
-                                                        $er = $profile['engagement_rate'];
-                                                        $engagement = intval($followers * ($er / 100));
+                                                        // Auto-fill KOL data in the parent form
+                                                        $set('data_kol_id', $kol->id);
+                                                        $set('channel', $kol->channel);
+                                                        $set('name', $kol->username);
+                                                        $set('links', [$kol->link_userprofile]);
+                                                        $set('followers', (int) $kol->followers);
+                                                        $set('tier', $kol->tier);
+                                                        $set('er_percent', (float) $kol->engagement_rate);
+                                                        $set('impression', (int) $kol->impressions);
+                                                        $engagement = intval($kol->followers * ($kol->engagement_rate / 100));
                                                         $set('engagement', $engagement);
 
-                                                        // Show success notification
                                                         Notification::make()
-                                                            ->title("✅ Data {$channel} berhasil diambil!")
                                                             ->success()
-                                                            ->body("Profile @{$profile['username']} dengan " . number_format($followers) . " followers.")
+                                                            ->title('✅ KOL berhasil ditambahkan!')
+                                                            ->body("@{$kol->username} telah disimpan ke database dan data form telah terisi otomatis.")
                                                             ->send();
-
-                                                        $set('search_link', null);
-
-                                                    } catch (\Exception $e) {
-                                                        Notification::make()
-                                                            ->title("❌ Gagal mengambil data")
-                                                            ->danger()
-                                                            ->body($e->getMessage())
-                                                            ->send();
-                                                    }
-                                                })
-                                                ->columnSpan(2),
+                                                    }),
+                                            ])
+                                                ->visible(fn(callable $get) => $get('kol_source') === 'new')
+                                                ->extraAttributes([
+                                                    'x-init' => '$nextTick(() => { $el.querySelector("button")?.click() })',
+                                                ])
+                                                ->columnSpanFull(),
                                         ])->columns(3),
 
                                     // Row 3: KOL Details
-                                    Fieldset::make('KOL Details')
+                                    section::make('KOL Details')
                                         ->schema([
+                                            Select::make('channel')
+                                                ->label('Channel')
+                                                ->options([
+                                                    'Instagram' => 'Instagram',
+                                                    'Tiktok' => 'Tiktok',
+                                                    'Youtube Channels' => 'Youtube Channels',
+                                                    'Youtube Shorts' => 'Youtube Shorts',
+                                                ])
+                                                ->required()
+                                                ->default('Instagram')
+                                                ->columnSpan(1),
+
                                             TextInput::make('name')
                                                 ->label('KOL Name')
                                                 ->placeholder('Username / Nama')
                                                 ->required()
-                                                ->columnSpan(1),
+                                                ->columnSpan(2),
+
+                                            TextInput::make('domisili')
+                                                ->label('Domisili')
+                                                ->placeholder('e.g., Jakarta, Bandung'),
 
                                             // Multiple Links Support
                                             TagsInput::make('links')
                                                 ->label('Links')
                                                 ->placeholder('Tekan Enter untuk tambah link')
-                                                ->helperText('Bisa input multiple links (Profile + Portfolio)')
-                                                ->columnSpan(2),
+                                                ->helperText('Bisa input multiple links (Profile + Portfolio)'),
 
                                             TextInput::make('followers')
                                                 ->label('Followers')
@@ -296,8 +576,7 @@ class MediaPlanForm
                                                     $er = (float) $get('er_percent');
                                                     $engagement = intval($followers * ($er / 100));
                                                     $set('engagement', $engagement);
-                                                })
-                                                ->columnSpan(1),
+                                                }),
 
                                             TextInput::make('tier')
                                                 ->label('Tier')
@@ -317,12 +596,11 @@ class MediaPlanForm
                                                     $er = (float) $state;
                                                     $engagement = intval($followers * ($er / 100));
                                                     $set('engagement', $engagement);
-                                                })
-                                                ->columnSpan(1),
+                                                }),
                                         ])->columns(3),
 
                                     // Row 4: Performance Metrics
-                                    Fieldset::make('Performance Metrics')
+                                    section::make('Performance Metrics')
                                         ->schema([
                                             TextInput::make('impression')
                                                 ->label('Impression/Avg Views')
@@ -339,25 +617,27 @@ class MediaPlanForm
 
                                             TextInput::make('cpi_cpv')
                                                 ->label('CPI/CPV')
-                                                ->numeric()
                                                 ->prefix('Rp')
+                                                ->mask(RawJs::make('$money($input)'))
+                                                ->formatStateUsing(fn($state) => $state ? number_format(round($state), 0, '.', ',') : '0')
+                                                ->dehydrateStateUsing(fn($state) => round(self::parseNumber($state)))
                                                 ->readOnly()
-                                                ->dehydrated()
                                                 ->helperText('Rate / Impression')
                                                 ->columnSpan(1),
 
                                             TextInput::make('cpe')
                                                 ->label('CPE')
-                                                ->numeric()
                                                 ->prefix('Rp')
+                                                ->mask(RawJs::make('$money($input)'))
+                                                ->formatStateUsing(fn($state) => $state ? number_format(round($state), 0, '.', ',') : '0')
+                                                ->dehydrateStateUsing(fn($state) => round(self::parseNumber($state)))
                                                 ->readOnly()
-                                                ->dehydrated()
                                                 ->helperText('Rate / Engagement')
                                                 ->columnSpan(1),
                                         ])->columns(4),
 
                                     // Row 5: Scope of Work
-                                    Fieldset::make('Scope of Work')
+                                    section::make('Scope of Work')
                                         ->schema([
                                             TagsInput::make('scope_items')
                                                 ->label('Item Descriptions')
@@ -370,14 +650,46 @@ class MediaPlanForm
 
                                             TextInput::make('rate')
                                                 ->label('Rate (from Internal Budget)')
-                                                ->numeric()
                                                 ->prefix('Rp')
+                                                ->mask(RawJs::make('$money($input)'))
+                                                ->formatStateUsing(fn($state) => $state ? number_format(round($state), 0, '.', ',') : '0')
+                                                ->dehydrateStateUsing(fn($state) => round(self::parseNumber($state)))
                                                 ->readOnly()
-                                                ->dehydrated()
                                                 ->default(0)
                                                 ->helperText('Auto-filled from Internal Budget (Rounded)')
                                                 ->columnSpan(1),
                                         ])->columns(4),
+
+                                    // Row 1: Selection & Status
+                                    Fieldset::make('Selection')
+                                        ->schema([
+                                            Checkbox::make('is_selected')
+                                                ->label('Select for Quotation')
+                                                ->default(false)
+                                                ->live()
+                                                ->columnSpan(1),
+
+                                            Hidden::make('row_number'),
+
+                                            Select::make('status')
+                                                ->label('Status')
+                                                ->options([
+                                                    'New List' => 'New List',
+                                                    'Approaching' => 'Approaching',
+                                                    'Locked' => 'Locked',
+                                                    'Canceled' => 'Canceled',
+                                                ])
+                                                ->default('New List')
+                                                ->columnSpan(1),
+
+                                            Select::make('pic')
+                                                ->label('PIC')
+                                                ->options([
+                                                    'ROHMAH' => 'ROHMAH',
+                                                    'NABILLA' => 'NABILLA',
+                                                ])
+                                                ->columnSpan(1),
+                                        ])->columns(3),
 
                                     // Notes
                                     Textarea::make('notes')
@@ -388,16 +700,20 @@ class MediaPlanForm
                                 ])
                                 ->columns(1)
                                 ->collapsible()
+                                ->collapsed()
                                 ->itemLabel(function (array $state): ?string {
                                     $name = $state['name'] ?? 'New KOL';
+                                    $channel = $state['channel'] ?? '';
                                     $selected = ($state['is_selected'] ?? false) ? '✅ ' : '';
-                                    $rate = isset($state['rate']) && $state['rate'] > 0
-                                        ? ' - Rp ' . number_format($state['rate'], 0, ',', '.')
+                                    $rateValue = self::parseNumber($state['rate'] ?? 0);
+                                    $rate = $rateValue > 0
+                                        ? ' - Rp ' . number_format($rateValue, 0, ',', '.')
                                         : '';
-                                    return $selected . $name . $rate;
+                                    $channelLabel = $channel ? " ({$channel})" : '';
+                                    return $selected . $name . $channelLabel . $rate;
                                 })
                                 ->defaultItems(1)
-                                ->addActionLabel('➕ Add Another KOL')
+                                ->addActionLabel('Add Another KOL')
                                 ->reorderable()
                                 ->columnSpanFull()
                                 ->live(),
@@ -424,7 +740,7 @@ class MediaPlanForm
     {
         return collect($kols)
             ->filter(fn($kol) => $kol['is_selected'] ?? false)
-            ->sum(fn($kol) => (float) ($kol['rate'] ?? 0));
+            ->sum(fn($kol) => self::parseNumber($kol['rate'] ?? 0));
     }
 
     /**

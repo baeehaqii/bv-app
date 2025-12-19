@@ -21,9 +21,9 @@ class MediaPlanKol extends Model
         'impression' => 'integer',
         'engagement' => 'integer',
         'er_percent' => 'decimal:4',
-        'cpi_cpv' => 'decimal:2',
-        'cpe' => 'decimal:2',
-        'rate' => 'decimal:2',
+        'cpi_cpv' => 'float',
+        'cpe' => 'float',
+        'rate' => 'float',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];

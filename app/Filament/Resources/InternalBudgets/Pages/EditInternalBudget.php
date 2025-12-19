@@ -16,7 +16,7 @@ class EditInternalBudget extends EditRecord
         return [
             Actions\Action::make('view_media_plan')
                 ->label('View Media Plan')
-                ->icon('heroicon-m-chart-bar-square')
+                ->icon('heroicon-m-eye')
                 ->color('info')
                 ->url(
                     fn($record) => $record->mediaPlan
@@ -25,33 +25,32 @@ class EditInternalBudget extends EditRecord
                 )
                 ->visible(fn($record) => $record->mediaPlan !== null),
 
-            Actions\Action::make('recalculate')
-                ->label('Recalculate Totals')
-                ->icon('heroicon-m-arrow-path')
-                ->color('warning')
-                ->action(function ($record) {
-                    $record->recalculateTotals();
+            // Actions\Action::make('recalculate')
+            //     ->label('Recalculate Totals')
+            //     ->icon('heroicon-m-arrow-path')
+            //     ->color('warning')
+            //     ->action(function ($record) {
+            //         $record->recalculateTotals();
 
-                    // Sync rates back to KOLs
-                    foreach ($record->items as $item) {
-                        if ($item->mediaPlanKol) {
-                            $item->mediaPlanKol->syncRateFromBudget();
-                        }
-                    }
+            //         // Sync rates back to KOLs
+            //         foreach ($record->items as $item) {
+            //             if ($item->mediaPlanKol) {
+            //                 $item->mediaPlanKol->syncRateFromBudget();
+            //             }
+            //         }
 
-                    Notification::make()
-                        ->title('Totals Recalculated')
-                        ->body('Budget totals and KOL rates have been updated.')
-                        ->success()
-                        ->send();
+            //         Notification::make()
+            //             ->title('Totals Recalculated')
+            //             ->body('Budget totals and KOL rates have been updated.')
+            //             ->success()
+            //             ->send();
 
-                    $this->refreshFormData(['total_rate', 'total_subtotal', 'total_mu_pph', 'total_published_rate', 'total_rounded', 'average_margin_percent', 'warnings']);
-                }),
+            //         $this->refreshFormData(['total_rate', 'total_subtotal', 'total_mu_pph', 'total_published_rate', 'total_rounded', 'average_margin_percent', 'warnings']);
+            //     }),
 
             Actions\Action::make('approve')
                 ->label('Approve Budget')
                 ->icon('heroicon-m-check-circle')
-                ->color('success')
                 ->visible(fn($record) => $record->status !== 'approved')
                 ->requiresConfirmation()
                 ->action(function ($record) {
@@ -63,7 +62,7 @@ class EditInternalBudget extends EditRecord
                         ->send();
                 }),
 
-            Actions\DeleteAction::make(),
+            // Actions\DeleteAction::make(),
         ];
     }
 }
