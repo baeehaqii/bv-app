@@ -308,6 +308,11 @@ class InternalBudgetForm
                                                 // Set first scope item as default
                                                 $set('scope_item', $kol->scope_items[0] ?? null);
                                             }
+
+                                            // Auto-set tax type from KOL's tipe_pajak_kol
+                                            if ($kol && $kol->tipe_pajak_kol) {
+                                                $set('master_pph_id', $kol->tipe_pajak_kol);
+                                            }
                                         }
                                     }),
 
@@ -358,14 +363,23 @@ class InternalBudgetForm
                                 Select::make('master_pph_id')
                                     ->label('Tax Type')
                                     ->options(\App\Models\MasterPph::getActiveOptions())
-                                    ->default(function () {
-                                        // Default to "Pribadi" if exists
+                                    ->default(function (callable $get) {
+                                        // Try to get from selected KOL first
+                                        $kolId = $get('media_plan_kol_id');
+                                        if ($kolId) {
+                                            $kol = MediaPlanKol::find($kolId);
+                                            if ($kol && $kol->tipe_pajak_kol) {
+                                                return $kol->tipe_pajak_kol;
+                                            }
+                                        }
+                                        // Fallback to "Pribadi" if exists
                                         return \App\Models\MasterPph::where('name', 'Pribadi')->value('id');
                                     })
                                     ->required()
                                     ->live()
                                     ->afterStateUpdated(fn($get, $set) => self::calculateItemValues($get, $set))
-                                    ->helperText('Select tax calculation method'),
+                                    ->helperText('Auto dari KOL, bisa diedit manual')
+                                    ->dehydrated(),
 
                                 // PPh Coefficient - auto calculated based on selected PPH type
                                 TextInput::make('pph_coefficient')

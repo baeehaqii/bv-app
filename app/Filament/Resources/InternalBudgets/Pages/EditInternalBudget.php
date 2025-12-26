@@ -25,32 +25,26 @@ class EditInternalBudget extends EditRecord
                 )
                 ->visible(fn($record) => $record->mediaPlan !== null),
 
-            // Actions\Action::make('recalculate')
-            //     ->label('Recalculate Totals')
-            //     ->icon('heroicon-m-arrow-path')
-            //     ->color('warning')
-            //     ->action(function ($record) {
-            //         $record->recalculateTotals();
+            Actions\Action::make('preview_pdf')
+                ->label('Preview PDF')
+                ->icon('heroicon-m-document-text')
+                ->color('gray')
+                ->url(fn($record) => route('internal-budget.pdf.preview', ['internalBudget' => $record->id]))
+                ->openUrlInNewTab()
+                ->tooltip('Preview Internal Budget PDF in browser'),
 
-            //         // Sync rates back to KOLs
-            //         foreach ($record->items as $item) {
-            //             if ($item->mediaPlanKol) {
-            //                 $item->mediaPlanKol->syncRateFromBudget();
-            //             }
-            //         }
-
-            //         Notification::make()
-            //             ->title('Totals Recalculated')
-            //             ->body('Budget totals and KOL rates have been updated.')
-            //             ->success()
-            //             ->send();
-
-            //         $this->refreshFormData(['total_rate', 'total_subtotal', 'total_mu_pph', 'total_published_rate', 'total_rounded', 'average_margin_percent', 'warnings']);
-            //     }),
+            Actions\Action::make('download_pdf')
+                ->label('Download PDF')
+                ->icon('heroicon-m-arrow-down-tray')
+                ->color('success')
+                ->url(fn($record) => route('internal-budget.pdf', ['internalBudget' => $record->id]))
+                ->openUrlInNewTab()
+                ->tooltip('Download Internal Budget as PDF'),
 
             Actions\Action::make('approve')
                 ->label('Approve Budget')
                 ->icon('heroicon-m-check-circle')
+                ->color('warning')
                 ->visible(fn($record) => $record->status !== 'approved')
                 ->requiresConfirmation()
                 ->action(function ($record) {

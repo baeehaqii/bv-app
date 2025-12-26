@@ -3,6 +3,12 @@
 namespace App\Filament\Resources\DataKols\Pages;
 
 use App\Filament\Resources\DataKols\DataKolResource;
+use App\Filament\Resources\DataKols\Widgets\KolStatsWidget;
+use App\Filament\Widgets\EngagementRateDistributionChart;
+use App\Filament\Widgets\KolByCategoryChart;
+use App\Filament\Widgets\KolByChannelChart;
+use App\Filament\Widgets\KolByTierChart;
+use App\Filament\Widgets\TopKolByFollowersChart;
 use App\Models\DataKol;
 use Filament\Actions\CreateAction;
 use Filament\Forms\Components\Select;
@@ -14,14 +20,76 @@ use App\Service\TiktokService;
 use App\Service\YoutubeChannelsService;
 use App\Service\YoutubeShortsService;
 use Illuminate\Database\Eloquent\Model;
+use Filament\Actions\Action;
 
 class ListDataKols extends ListRecords
 {
     protected static string $resource = DataKolResource::class;
 
+    public $dateFilter = 'all';
+
+    public function getHeaderWidgetsColumns(): int|array
+    {
+        return 2;
+    }
+
+    protected function getHeaderWidgets(): array
+    {
+        return [
+            KolStatsWidget::class,
+        ];
+    }
+
+    protected function getWidgetsData(): array
+    {
+        return [
+            'dateFilter' => $this->dateFilter,
+        ];
+    }
+
+    public function updatedDateFilter()
+    {
+        // This will trigger widget refresh when filter changes
+    }
+
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('dateFilter')
+                ->label(fn() => match ($this->dateFilter) {
+                    'today' => 'Filter: Today',
+                    '7days' => 'Filter: 7 Days',
+                    '14days' => 'Filter: 14 Days',
+                    '30days' => 'Filter: 30 Days',
+                    '60days' => 'Filter: 60 Days',
+                    '90days' => 'Filter: 90 Days',
+                    default => 'Filter: All Time',
+                })
+                ->icon('heroicon-o-funnel')
+                ->color('primary')
+                ->form([
+                    Select::make('filter')
+                        ->label('Select Date Range')
+                        ->options([
+                            'today' => 'Today',
+                            '7days' => '7 Days',
+                            '14days' => '14 Days',
+                            '30days' => '30 Days',
+                            '60days' => '60 Days',
+                            '90days' => '90 Days',
+                            'all' => 'All Time',
+                        ])
+                        ->default($this->dateFilter)
+                        ->required()
+                        ->native(false),
+                ])
+                ->action(function (array $data) {
+                    $this->dateFilter = $data['filter'];
+                })
+                ->modalHeading('Filter by Date Range')
+                ->modalSubmitActionLabel('Apply Filter')
+                ->modalWidth('sm'),
+
             CreateAction::make()
                 ->label('New Data KOL')
                 ->icon('heroicon-o-plus')

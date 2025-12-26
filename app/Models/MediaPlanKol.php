@@ -15,6 +15,7 @@ class MediaPlanKol extends Model
     protected $casts = [
         'is_selected' => 'boolean',
         'row_number' => 'integer',
+        'tipe_pajak_kol' => 'integer',
         'links' => 'array', // JSON array for multiple links
         'scope_items' => 'array', // JSON array for scope of work items
         'followers' => 'integer',
@@ -52,6 +53,14 @@ class MediaPlanKol extends Model
     public function dataKol(): BelongsTo
     {
         return $this->belongsTo(DataKol::class);
+    }
+
+    /**
+     * Get the tax type (PPh) for this KOL
+     */
+    public function tipePajakKol(): BelongsTo
+    {
+        return $this->belongsTo(MasterPph::class, 'tipe_pajak_kol');
     }
 
     /**

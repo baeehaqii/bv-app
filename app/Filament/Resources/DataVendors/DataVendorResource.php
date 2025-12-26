@@ -18,7 +18,7 @@ class DataVendorResource extends Resource
 {
     protected static ?string $model = DataVendor::class;
 
-    protected static string|BackedEnum|null $navigationIcon = 'heroicon-m-swatch';
+    protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-swatch';
     protected static string|\UnitEnum|null $navigationGroup = "Database";
     protected static ?int $navigationSort = 2;
     protected static ?string $navigationLabel = 'Database Vendor';

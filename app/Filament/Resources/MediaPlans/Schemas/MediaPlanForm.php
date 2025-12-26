@@ -4,6 +4,8 @@ namespace App\Filament\Resources\MediaPlans\Schemas;
 
 use Filament\Schemas\Schema;
 use App\Models\DataKol;
+use App\Models\MasterPph;
+use App\Enums\VendorTaxType;
 use App\Service\InstagramService;
 use App\Service\TiktokService;
 use App\Service\YoutubeChannelsService;
@@ -555,6 +557,28 @@ class MediaPlanForm
                                             TextInput::make('domisili')
                                                 ->label('Domisili')
                                                 ->placeholder('e.g., Jakarta, Bandung'),
+
+                                            Select::make('tipe_pajak_kol')
+                                                ->label('Golongan Pajak')
+                                                ->options(function () {
+                                                    return MasterPph::active()
+                                                        ->ordered()
+                                                        ->get()
+                                                        ->mapWithKeys(function ($pph) {
+                                                            $label = $pph->name;
+                                                            if ($pph->include_ppn) {
+                                                                $label .= " ({$pph->coefficient} + PPN {$pph->ppn_percent}%)";
+                                                            } else {
+                                                                $label .= " ({$pph->coefficient})";
+                                                            }
+                                                            return [$pph->id => $label];
+                                                        })
+                                                        ->toArray();
+                                                })
+                                                ->default(fn() => MasterPph::active()->ordered()->first()?->id)
+                                                ->helperText('Menentukan besaran pajak untuk influencer')
+                                                ->required()
+                                                ->columnSpan(1),
 
                                             // Multiple Links Support
                                             TagsInput::make('links')

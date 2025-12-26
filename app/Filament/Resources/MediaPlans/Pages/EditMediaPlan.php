@@ -27,6 +27,7 @@ class EditMediaPlan extends EditRecord
                 'channel' => $kol->channel,
                 'categories' => $kol->categories,
                 'domisili' => $kol->domisili,
+                'tipe_pajak_kol' => $kol->tipe_pajak_kol,
                 'data_kol_id' => $kol->data_kol_id,
                 'name' => $kol->name,
                 'links' => $kol->links ?? [],
@@ -120,7 +121,15 @@ class EditMediaPlan extends EditRecord
                                 'scope_item' => $scopeItem,
                                 'qty' => 1,
                                 'rate_base' => 0,
+                                'master_pph_id' => $mediaPlanKol->tipe_pajak_kol ?? \App\Models\MasterPph::where('name', 'Pribadi')->value('id'),
                                 'sort_order' => ++$sortOrder,
+                            ]);
+                        }
+                    } else {
+                        // Update master_pph_id for existing budget items if tipe_pajak_kol changed
+                        if (isset($kolData['tipe_pajak_kol']) && $kolData['tipe_pajak_kol'] != $mediaPlanKol->getOriginal('tipe_pajak_kol')) {
+                            $mediaPlanKol->internalBudgetItems()->update([
+                                'master_pph_id' => $kolData['tipe_pajak_kol']
                             ]);
                         }
                     }
@@ -138,6 +147,7 @@ class EditMediaPlan extends EditRecord
                         'scope_item' => $scopeItem,
                         'qty' => 1,
                         'rate_base' => 0,
+                        'master_pph_id' => $mediaPlanKol->tipe_pajak_kol ?? \App\Models\MasterPph::where('name', 'Pribadi')->value('id'),
                         'sort_order' => ++$sortOrder,
                     ]);
                 }

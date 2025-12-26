@@ -11,6 +11,7 @@ use Filament\Widgets\FilamentInfoWidget;
 use Filament\Http\Middleware\Authenticate;
 use Resma\FilamentAwinTheme\FilamentAwinTheme;
 use Jeffgreco13\FilamentBreezy\BreezyCore;
+use Leandrocfe\FilamentApexCharts\FilamentApexChartsPlugin;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Filament\Http\Middleware\AuthenticateSession;
@@ -46,11 +47,14 @@ class OfficePanelProvider extends PanelProvider
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\Filament\Pages')
             ->pages([
-                Dashboard::class,
+                // Dashboard is auto-discovered from app/Filament/Pages
             ])
             ->navigationGroups([
-                'Database',
+                'Campign Area ',
                 'Media Planning',
+                'Finance',
+                'Human Capital ',
+                'Database',
                 'Master Data',
                 'Settings',
             ])
@@ -68,11 +72,12 @@ class OfficePanelProvider extends PanelProvider
                         force: false // Force all users to enable 2FA (default = false)
                     )
                     ->enableBrowserSessions(), // Enable browser session management
-                FilamentAwinTheme::make()
+                FilamentAwinTheme::make(),
+                FilamentApexChartsPlugin::make(),
             ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\Filament\Widgets')
             ->widgets([
-                AccountWidget::class,
+                // AccountWidget::class,
                 // FilamentInfoWidget::class,
             ])
             ->middleware([

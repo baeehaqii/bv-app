@@ -1,0 +1,78 @@
+/* Stats Widget Counter Animation */
+.fi-wi-stats-overview-stat-value {
+    animation: countUp 1.5s ease-out forwards;
+}
+
+@keyframes countUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Stats Card Fade In Animation */
+.fi-wi-stats-overview-stat {
+    animation: fadeInUp 0.8s ease-out forwards;
+    opacity: 0;
+}
+
+.fi-wi-stats-overview-stat:nth-child(1) {
+    animation-delay: 0s;
+}
+
+.fi-wi-stats-overview-stat:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.fi-wi-stats-overview-stat:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Chart Widget Animation */
+.fi-wi-chart {
+    animation: fadeIn 0.6s ease-out forwards;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+/* Smooth hover effects for stats */
+.fi-wi-stats-overview-stat {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.fi-wi-stats-overview-stat:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+}
+
+/* Chart card hover effects */
+.fi-wi-chart {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.fi-wi-chart:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+}

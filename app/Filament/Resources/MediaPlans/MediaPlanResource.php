@@ -18,7 +18,7 @@ class MediaPlanResource extends Resource
 {
     protected static ?string $model = MediaPlan::class;
 
-    protected static string|BackedEnum|null $navigationIcon = 'heroicon-m-chart-bar-square';
+    protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-chart-bar-square';
     protected static string|\UnitEnum|null $navigationGroup = "Media Planning";
     protected static ?int $navigationSort = 1;
     protected static ?string $navigationLabel = 'Media Plan';

@@ -53,18 +53,18 @@ class CreateMediaPlan extends CreateRecord
             // Create the MediaPlanKol record
             $mediaPlanKol = $this->record->kols()->create($kolData);
 
-            // Create internal budget item for this KOL
-            $scopeItem = $kolData['scope_item'] ?? 'Deliverable';
-            $scopeQty = $kolData['scope_qty'] ?? 1;
-
-            $internalBudget->items()->create([
-                'media_plan_kol_id' => $mediaPlanKol->id,
-                'scope_item' => $scopeItem,
-                'qty' => $scopeQty,
-                'rate_base' => 0,
-                'vendor_tax_type' => 'Pribadi',
-                'sort_order' => ++$sortOrder,
-            ]);
+            // Create internal budget items for each scope item
+            $scopeItems = $kolData['scope_items'] ?? ['Deliverable'];
+            foreach ($scopeItems as $scopeItem) {
+                $internalBudget->items()->create([
+                    'media_plan_kol_id' => $mediaPlanKol->id,
+                    'scope_item' => $scopeItem,
+                    'qty' => 1,
+                    'rate_base' => 0,
+                    'master_pph_id' => $mediaPlanKol->tipe_pajak_kol ?? \App\Models\MasterPph::where('name', 'Pribadi')->value('id'),
+                    'sort_order' => ++$sortOrder,
+                ]);
+            }
         }
 
         // Recalculate budget totals

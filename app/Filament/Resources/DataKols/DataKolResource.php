@@ -18,7 +18,7 @@ class DataKolResource extends Resource
 {
     protected static ?string $model = DataKol::class;
 
-    protected static string|BackedEnum|null $navigationIcon = 'heroicon-m-swatch';
+    protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-swatch';
     protected static string|\UnitEnum|null $navigationGroup = "Database";
     protected static ?int $navigationSort = 0;
     protected static ?string $navigationLabel = 'Database KOL';
