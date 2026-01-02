@@ -26,7 +26,7 @@ class BvEmployeResource extends Resource
     protected static ?string $pluralModelLabel = 'Data Karyawan';
     protected static ?string $slug = 'data-karyawan';
 
-    protected static ?string $recordTitleAttribute = 'BvEmploye';
+    protected static ?string $recordTitleAttribute = 'nama_lengkap';
 
     public static function form(Schema $schema): Schema
     {

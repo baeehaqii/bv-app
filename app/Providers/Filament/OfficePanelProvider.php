@@ -50,8 +50,9 @@ class OfficePanelProvider extends PanelProvider
                 // Dashboard is auto-discovered from app/Filament/Pages
             ])
             ->navigationGroups([
-                'Campign Area ',
+                'Sales',
                 'Media Planning',
+                'Campign Area ',
                 'Finance',
                 'Human Capital ',
                 'Database',

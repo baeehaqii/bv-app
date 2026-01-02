@@ -21,12 +21,12 @@ class BvCampignResource extends Resource
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-megaphone';
     protected static string|\UnitEnum|null $navigationGroup = "Campign Area ";
     protected static ?int $navigationSort = 1;
-    protected static ?string $navigationLabel = 'Data Campign';
-    protected static ?string $modelLabel = 'Data Campign';
-    protected static ?string $pluralModelLabel = 'Data Campign';
-    protected static ?string $slug = 'data-campign';
+    protected static ?string $navigationLabel = 'Campign Ongoing';
+    protected static ?string $modelLabel = 'Campign Ongoing';
+    protected static ?string $pluralModelLabel = 'Campign Ongoing';
+    protected static ?string $slug = 'campign-ongoing';
 
-    protected static ?string $recordTitleAttribute = 'BvCampign';
+    protected static ?string $recordTitleAttribute = 'campaign_name';
 
     public static function form(Schema $schema): Schema
     {

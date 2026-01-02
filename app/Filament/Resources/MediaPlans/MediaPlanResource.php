@@ -21,10 +21,10 @@ class MediaPlanResource extends Resource
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-chart-bar-square';
     protected static string|\UnitEnum|null $navigationGroup = "Media Planning";
     protected static ?int $navigationSort = 1;
-    protected static ?string $navigationLabel = 'Media Plan';
-    protected static ?string $modelLabel = 'Media Plan';
-    protected static ?string $pluralModelLabel = 'Media Plans';
-    protected static ?string $slug = 'media-plan';
+    protected static ?string $navigationLabel = 'Media Plan External';
+    protected static ?string $modelLabel = 'Media Plan External';
+    protected static ?string $pluralModelLabel = 'Media Plan External';
+    protected static ?string $slug = 'media-plan-external';
 
     // Enable global search
     public static function getGloballySearchableAttributes(): array

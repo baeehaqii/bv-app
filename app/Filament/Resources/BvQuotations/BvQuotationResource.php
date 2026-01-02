@@ -26,7 +26,7 @@ class BvQuotationResource extends Resource
     protected static ?string $pluralModelLabel = 'Quotation';
     protected static ?string $slug = 'quotation';
 
-    protected static ?string $recordTitleAttribute = 'BvQuotation';
+    protected static ?string $recordTitleAttribute = 'quotation_number';
 
     public static function form(Schema $schema): Schema
     {

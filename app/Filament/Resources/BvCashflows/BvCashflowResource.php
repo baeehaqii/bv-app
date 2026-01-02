@@ -26,7 +26,7 @@ class BvCashflowResource extends Resource
     protected static ?string $pluralModelLabel = 'Cashflow';
     protected static ?string $slug = 'cashflow';
 
-    protected static ?string $recordTitleAttribute = 'BvCashflow';
+    protected static ?string $recordTitleAttribute = 'description';
 
     public static function form(Schema $schema): Schema
     {
