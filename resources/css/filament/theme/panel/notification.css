@@ -1,0 +1,11 @@
+.fi-no-database .fi-no-notification-unread-ctn::before {
+    @apply bg-white -z-10 inset-1 rounded-[calc(var(--radius-2xl)-var(--spacing))] border border-gray-300 w-[calc(100%-0.5rem)] h-[calc(100%-0.5rem)];
+}
+
+.dark .fi-no-database .fi-no-notification-unread-ctn::before {
+    @apply bg-gray-800 border-gray-700;
+}
+
+.fi-no-database .fi-no-notification-unread-ctn {
+    @apply relative z-0 mx-3 my-1.5 border border-gray-300 bg-gray-50 rounded-2xl dark:bg-gray-800 dark:border-gray-700;
+}

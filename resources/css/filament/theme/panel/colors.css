@@ -1,0 +1,30 @@
+@theme inline {
+    /* Purple Brand Colors */
+    --color-primary-50: #f3e5ff;
+    --color-primary-100: #e0ccff;
+    --color-primary-200: #c299ff;
+    --color-primary-300: #a366ff;
+    --color-primary-400: #8533ff;
+    --color-primary-500: #6600ff;
+    --color-primary-600: #48009f;
+    --color-primary-700: #3a007f;
+    --color-primary-800: #2b005f;
+    --color-primary-900: #1d003f;
+    --color-primary-950: #0f001f;
+
+    /* Neon Green Accent */
+    --color-accent-DEFAULT: #d9fe00;
+
+    /* Custom Gray colors with purple tint */
+    --color-gray-50: #faf8fc;
+    --color-gray-100: #f3f0f7;
+    --color-gray-200: #e8e3ee;
+    --color-gray-300: #d4cce0;
+    --color-gray-400: #b8adc9;
+    --color-gray-500: #9b8db3;
+    --color-gray-600: #7d6e9c;
+    --color-gray-700: #625785;
+    --color-gray-800: #4a4166;
+    --color-gray-900: #332d47;
+    --color-gray-950: #1d1829;
+}

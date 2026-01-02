@@ -1,0 +1,153 @@
+/* SUBMIT BUTTON - PURPLE SOLID (Same as Topbar) */
+/* Override Filament inline classes */
+button[type="submit"].fi-btn,
+button[type="submit"].fi-color,
+button[type="submit"].fi-color-primary,
+[type="submit"],
+button[type="submit"],
+.fi-modal-footer [type="submit"],
+.fi-modal-footer .fi-btn-primary,
+.fi-modal-footer .fi-ac-btn-action[type="submit"] {
+    border-radius: 9999px !important;
+    transition: all 0.3s ease !important;
+    background-color: #48009f !important;
+    background: #48009f !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+    box-shadow: 0px 3px 3px 2px rgb(216, 254, 0) !important;
+    padding: 0.625rem 1.5rem !important;
+    border: none !important;
+}
+
+/* Override hover state from Filament */
+button[type="submit"].fi-btn:hover,
+button[type="submit"].fi-color:hover,
+button[type="submit"].fi-color-primary:hover,
+button[type="submit"]:hover,
+[type="submit"]:hover,
+.fi-modal-footer [type="submit"]:hover,
+.fi-modal-footer .fi-btn-primary:hover {
+    background-color: #48009f !important;
+    background: #48009f !important;
+    color: #ffffff !important;
+}
+
+[type="submit"] span,
+button[type="submit"] span,
+.fi-modal-footer [type="submit"] span,
+.fi-modal-footer .fi-btn-primary span,
+.fi-modal-footer .fi-ac-btn-action[type="submit"] span {
+    color: #ffffff !important;
+}
+
+/* TOP ACTION BUTTON - +New Data KOL (Same style as submit button) */
+.fi-page-header-actions .fi-btn:not(.fi-modal-footer *),
+.fi-page-header .fi-btn:not(.fi-modal-footer *),
+.fi-header .fi-btn:not(.fi-modal-footer *),
+.fi-page-header-actions button[type="button"],
+.fi-page-header button[type="button"],
+.fi-header button[type="button"] {
+    border-radius: 9999px !important;
+    transition: all 0.3s ease;
+    background-color: #48009f !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+    box-shadow: 0px 3px 3px 2px rgb(216, 254, 0) !important;
+    padding: 0.625rem 1.5rem;
+    border: none !important;
+}
+
+.fi-page-header-actions .fi-btn:not(.fi-modal-footer *) span,
+.fi-page-header .fi-btn:not(.fi-modal-footer *) span,
+.fi-header .fi-btn:not(.fi-modal-footer *) span,
+.fi-page-header-actions button[type="button"] span,
+.fi-page-header button[type="button"] span,
+.fi-header button[type="button"] span {
+    color: #ffffff !important;
+}
+
+/* CANCEL/SECONDARY BUTTON - Light Gray with Purple Border */
+.fi-modal-footer button:not([type="submit"]),
+.fi-modal-footer .fi-btn:not(.fi-btn-primary),
+.fi-modal-footer .fi-ac-btn-action:not([type="submit"]) {
+    border-radius: 9999px !important;
+    transition: all 0.3s ease !important;
+    background-color: #48009f !important;
+    color: #ffffff !important;
+    font-weight: 500;
+    border: 2px solid #48009f !important;
+    padding: 0.625rem 1.5rem;
+}
+
+.fi-modal-footer button:not([type="submit"]) span,
+.fi-modal-footer .fi-btn:not(.fi-btn-primary) span,
+.fi-modal-footer .fi-ac-btn-action:not([type="submit"]) span {
+    color: #ffffff !important;
+}
+
+.fi-modal-footer button:not([type="submit"]):hover,
+.fi-modal-footer .fi-btn:not(.fi-btn-primary):hover,
+.fi-modal-footer .fi-ac-btn-action:not([type="submit"]):hover {
+    background-color: #48009f !important;
+    color: white !important;
+    box-shadow: 0px 3px 2px 2px rgb(216, 254, 0) !important;
+    transform: translateY(-2px);
+}
+
+.fi-modal-footer button:not([type="submit"]):active,
+.fi-modal-footer .fi-btn:not(.fi-btn-primary):active,
+.fi-modal-footer .fi-ac-btn-action:not([type="submit"]):active {
+    background-color: #e8e3ee !important;
+    color: #48009f !important;
+    transform: translateY(0);
+}
+
+/* ACTION BUTTON - Next/Previous (Step form) */
+.fi-ac-btn-action[type="button"] {
+    border-radius: 9999px !important;
+    transition: all 0.3s ease !important;
+    background-color: #48009f !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+    box-shadow: 0px 3px 3px 2px rgb(216, 254, 0) !important;
+    padding: 0.625rem 1.5rem !important;
+    border: none !important;
+}
+
+.fi-ac-btn-action[type="button"]:hover {
+    background-color: #48009f !important;
+    color: #ffffff !important;
+}
+
+.fi-ac-btn-action[type="button"] span {
+    color: #ffffff !important;
+}
+
+/* FORM BUTTON/LABEL - Radio & Checkbox buttons */
+.fi-btn.fi-color,
+.fi-btn.fi-color-info,
+.fi-btn.fi-color-primary,
+label.fi-btn {
+    border-radius: 9999px !important;
+    transition: all 0.3s ease !important;
+    background-color: #48009f !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+    padding: 0.625rem 1.5rem !important;
+    border: none !important;
+}
+
+label.fi-btn:hover,
+.fi-btn.fi-color:hover,
+.fi-btn.fi-color-info:hover,
+.fi-btn.fi-color-primary:hover {
+    background-color: #48009f !important;
+    color: #ffffff !important;
+}
+
+label.fi-btn span,
+.fi-btn.fi-color span,
+.fi-btn.fi-color-info span,
+.fi-btn.fi-color-primary span {
+    color: #ffffff !important;
+}

@@ -1,0 +1,22 @@
+/* Global Search Field - Position above topbar */
+.fi-global-search-field {
+    @apply relative z-50;
+}
+
+/* Global Search Results */
+.fi-global-search-results-ctn {
+    @apply rounded-lg border-0 relative z-50;
+}
+
+.fi-global-search-result-group-header {
+    @apply bg-gray-100 dark:bg-gray-700 p-4;
+}
+
+.fi-global-search-result-group-results {
+    @apply bg-white dark:bg-gray-800;
+}
+
+/* Ensure global search is above topbar */
+.fi-topbar {
+    @apply relative z-40;
+}

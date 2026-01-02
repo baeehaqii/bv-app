@@ -9,7 +9,6 @@ use Filament\Pages\Dashboard;
 use Filament\Widgets\AccountWidget;
 use Filament\Widgets\FilamentInfoWidget;
 use Filament\Http\Middleware\Authenticate;
-use Resma\FilamentAwinTheme\FilamentAwinTheme;
 use Jeffgreco13\FilamentBreezy\BreezyCore;
 use Leandrocfe\FilamentApexCharts\FilamentApexChartsPlugin;
 use Illuminate\Session\Middleware\StartSession;
@@ -73,9 +72,9 @@ class OfficePanelProvider extends PanelProvider
                         force: false // Force all users to enable 2FA (default = false)
                     )
                     ->enableBrowserSessions(), // Enable browser session management
-                FilamentAwinTheme::make(),
                 FilamentApexChartsPlugin::make(),
             ])
+            ->viteTheme('resources/css/filament/theme/theme.css')
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\Filament\Widgets')
             ->widgets([
                 // AccountWidget::class,

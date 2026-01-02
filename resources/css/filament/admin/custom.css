@@ -1,3 +1,6 @@
+/* Flowforge Kanban Board Styles */
+@source "../../../../vendor/relaticle/flowforge/resources/views/**/*.blade.php";
+
 /* Stats Widget Counter Animation */
 .fi-wi-stats-overview-stat-value {
     animation: countUp 1.5s ease-out forwards;
@@ -64,7 +67,8 @@
 
 .fi-wi-stats-overview-stat:hover {
     transform: translateY(-2px);
-    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1),
+        0 8px 10px -6px rgba(0, 0, 0, 0.1);
 }
 
 /* Chart card hover effects */
@@ -74,5 +78,6 @@
 
 .fi-wi-chart:hover {
     transform: translateY(-2px);
-    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1),
+        0 8px 10px -6px rgba(0, 0, 0, 0.1);
 }

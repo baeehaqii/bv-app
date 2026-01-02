@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "57505ffd08bb333d06ec9b4cb5b6d5f0",
+    "content-hash": "8e96c5992bb959912ad53e779fad5334",
     "packages": [
         {
             "name": "anourvalar/eloquent-serialize",
@@ -5983,6 +5983,86 @@
                 "source": "https://github.com/ramsey/uuid/tree/4.9.2"
             },
             "time": "2025-12-14T04:43:48+00:00"
+        },
+        {
+            "name": "relaticle/flowforge",
+            "version": "v2.2.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/Relaticle/flowforge.git",
+                "reference": "fc39ac8656f63a40f7f543f31ba9a171f3486759"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/Relaticle/flowforge/zipball/fc39ac8656f63a40f7f543f31ba9a171f3486759",
+                "reference": "fc39ac8656f63a40f7f543f31ba9a171f3486759",
+                "shasum": ""
+            },
+            "require": {
+                "filament/filament": "^4.0",
+                "php": "^8.3",
+                "spatie/laravel-package-tools": "^1.15.0"
+            },
+            "require-dev": {
+                "larastan/larastan": "^3.0",
+                "laravel/pint": "^1.0",
+                "nunomaduro/collision": "^8.0",
+                "orchestra/testbench": "^9.0",
+                "pestphp/pest": "^4.0",
+                "pestphp/pest-plugin-arch": "^4.0",
+                "pestphp/pest-plugin-laravel": "^4.0",
+                "pestphp/pest-plugin-livewire": "^4.0",
+                "phpstan/extension-installer": "^1.4",
+                "phpstan/phpstan-deprecation-rules": "^2.0",
+                "phpstan/phpstan-phpunit": "^2.0",
+                "spatie/laravel-ray": "^1.26"
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "aliases": {
+                        "Flowforge": "Relaticle\\Flowforge\\Facades\\Flowforge"
+                    },
+                    "providers": [
+                        "Relaticle\\Flowforge\\FlowforgeServiceProvider"
+                    ]
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Relaticle\\Flowforge\\": "src/",
+                    "Relaticle\\Flowforge\\Database\\Factories\\": "database/factories/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "manukminasyan",
+                    "email": "manuk.minasyan1@gmail.com",
+                    "role": "Developer"
+                }
+            ],
+            "description": "Flowforge is a lightweight Kanban board package for Filament that works with existing Eloquent models.",
+            "homepage": "https://github.com/relaticle/flowforge",
+            "keywords": [
+                "Relaticle",
+                "flowforge",
+                "laravel"
+            ],
+            "support": {
+                "issues": "https://github.com/relaticle/flowforge/issues",
+                "source": "https://github.com/relaticle/flowforge"
+            },
+            "funding": [
+                {
+                    "url": "https://github.com/Relaticle",
+                    "type": "github"
+                }
+            ],
+            "time": "2025-12-13T20:39:16+00:00"
         },
         {
             "name": "resma/filament-awin-theme",

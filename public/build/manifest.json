@@ -1,6 +1,6 @@
 {
   "resources/css/app.css": {
-    "file": "assets/app-BR4c7Mq7.css",
+    "file": "assets/app-BkloT4HH.css",
     "src": "resources/css/app.css",
     "isEntry": true,
     "name": "app",
@@ -8,19 +8,19 @@
       "app.css"
     ]
   },
-  "resources/js/app.js": {
-    "file": "assets/app-l0sNRNKZ.js",
-    "name": "app",
-    "src": "resources/js/app.js",
-    "isEntry": true
-  },
-  "vendor/resma/filament-awin-theme/resources/css/theme.css": {
-    "file": "assets/theme-8zB_L_4v.css",
-    "src": "vendor/resma/filament-awin-theme/resources/css/theme.css",
+  "resources/css/filament/theme/theme.css": {
+    "file": "assets/theme-BScNJCth.css",
+    "src": "resources/css/filament/theme/theme.css",
     "isEntry": true,
     "name": "theme",
     "names": [
       "theme.css"
     ]
+  },
+  "resources/js/app.js": {
+    "file": "assets/app-l0sNRNKZ.js",
+    "name": "app",
+    "src": "resources/js/app.js",
+    "isEntry": true
   }
 }

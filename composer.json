@@ -16,6 +16,7 @@
         "laravel/tinker": "^2.10.1",
         "leandrocfe/filament-apex-charts": "^4.0",
         "livewire/volt": "^1.7.0",
+        "relaticle/flowforge": "^2.2",
         "resma/filament-awin-theme": "^1.1"
     },
     "require-dev": {
