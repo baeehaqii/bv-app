@@ -2,19 +2,46 @@
 
 namespace App\Filament\Widgets;
 
+use Carbon\Carbon;
 use Filament\Widgets\ChartWidget;
+use Filament\Widgets\Concerns\InteractsWithPageFilters;
 
 class ClientStatusChart extends ChartWidget
 {
-    protected ?string $heading = 'Client Status Distribution';
+    use InteractsWithPageFilters;
+
     protected static ?int $sort = 2;
     protected int|string|array $columnSpan = 1;
     protected static bool $isLazy = false; // Disable lazy loading for animation
 
+    public function getHeading(): ?string
+    {
+        $period = $this->filters['period'] ?? 'monthly';
+        $label = $this->getPeriodLabel($period);
+
+        return "Client Status Distribution - {$label}";
+    }
+
     protected function getData(): array
     {
-        // Static demo data
-        $data = [12, 8, 5, 3];
+        $period = $this->filters['period'] ?? 'monthly';
+
+        // Static demo data - adjusted based on period
+        // In production, you would query your database here
+        $multiplier = match ($period) {
+            'daily' => 0.1,
+            'weekly' => 0.5,
+            'monthly' => 1,
+            'quarterly' => 3,
+            default => 1,
+        };
+
+        $data = [
+            (int) (12 * $multiplier),
+            (int) (8 * $multiplier),
+            (int) (5 * $multiplier),
+            (int) (3 * $multiplier),
+        ];
         $labels = ['New List', 'Approaching', 'Waiting Feedback', 'Not Available'];
 
         $backgroundColors = [
@@ -77,4 +104,18 @@ class ClientStatusChart extends ChartWidget
             ],
         ];
     }
+
+    private function getPeriodLabel(string $period): string
+    {
+        $now = Carbon::now();
+
+        return match ($period) {
+            'daily' => $now->translatedFormat('d F Y'),
+            'weekly' => 'Minggu ke-' . $now->weekOfYear . ' ' . $now->year,
+            'monthly' => $now->translatedFormat('F Y'),
+            'quarterly' => 'Q' . $now->quarter . ' ' . $now->year,
+            default => $now->translatedFormat('F Y'),
+        };
+    }
 }
+

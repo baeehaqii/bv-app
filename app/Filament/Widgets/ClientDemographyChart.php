@@ -2,19 +2,47 @@
 
 namespace App\Filament\Widgets;
 
+use Carbon\Carbon;
 use Filament\Widgets\ChartWidget;
+use Filament\Widgets\Concerns\InteractsWithPageFilters;
 
 class ClientDemographyChart extends ChartWidget
 {
-    protected ?string $heading = 'Client by Category';
+    use InteractsWithPageFilters;
+
     protected static ?int $sort = 3;
     protected int|string|array $columnSpan = 1;
     protected static bool $isLazy = false; // Disable lazy loading for animation
 
+    public function getHeading(): ?string
+    {
+        $period = $this->filters['period'] ?? 'monthly';
+        $label = $this->getPeriodLabel($period);
+
+        return "Client by Category - {$label}";
+    }
+
     protected function getData(): array
     {
-        // Static demo data
-        $data = [8, 6, 5, 4, 3];
+        $period = $this->filters['period'] ?? 'monthly';
+
+        // Static demo data - adjusted based on period
+        // In production, you would query your database here
+        $multiplier = match ($period) {
+            'daily' => 0.1,
+            'weekly' => 0.5,
+            'monthly' => 1,
+            'quarterly' => 3,
+            default => 1,
+        };
+
+        $data = [
+            (int) (8 * $multiplier),
+            (int) (6 * $multiplier),
+            (int) (5 * $multiplier),
+            (int) (4 * $multiplier),
+            (int) (3 * $multiplier),
+        ];
         $labels = ['F&B', 'Beauty', 'Fashion', 'Technology', 'Home Care'];
 
         // Vibrant color palette
@@ -82,4 +110,18 @@ class ClientDemographyChart extends ChartWidget
             ],
         ];
     }
+
+    private function getPeriodLabel(string $period): string
+    {
+        $now = Carbon::now();
+
+        return match ($period) {
+            'daily' => $now->translatedFormat('d F Y'),
+            'weekly' => 'Minggu ke-' . $now->weekOfYear . ' ' . $now->year,
+            'monthly' => $now->translatedFormat('F Y'),
+            'quarterly' => 'Q' . $now->quarter . ' ' . $now->year,
+            default => $now->translatedFormat('F Y'),
+        };
+    }
 }
+

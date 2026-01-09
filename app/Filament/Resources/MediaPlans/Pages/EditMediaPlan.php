@@ -172,52 +172,53 @@ class EditMediaPlan extends EditRecord
                 ->icon('heroicon-m-eye')
                 ->url(
                     fn($record) => $record->internalBudget
-                    ? route('filament.office.resources.internal-budgets.edit', ['record' => $record->internalBudget->id])
+                    ? route('filament.office.resources.media-plan-internal.edit', ['record' => $record->internalBudget->id])
                     : null
                 )
                 ->visible(fn($record) => $record->internalBudget !== null),
 
-            // Actions\Action::make('download_pdf')
-            //     ->label('Download PDF')
-            //     ->icon('heroicon-m-document-arrow-down')
-            //     ->color('primary')
-            //     ->url(fn($record) => route('media-plan.pdf', ['mediaPlan' => $record->id]))
-            //     ->openUrlInNewTab()
-            //     ->visible(fn($record) => $record->internalBudget?->status === 'approved')
-            //     ->tooltip('Download Media Plan as PDF'),
+            Actions\Action::make('generate_quotation')
+                ->label('Generate Quotation')
+                ->icon('heroicon-m-document-arrow-down')
+                ->color('success')
+                ->requiresConfirmation()
+                ->modalHeading('Generate Quotation PDF')
+                ->modalDescription('This will generate a quotation PDF for selected KOLs only. Make sure you have selected the KOLs you want to include.')
+                ->modalSubmitActionLabel('Generate PDF')
+                ->action(function ($record) {
+                    $selectedKols = $record->selectedKols()->get();
 
-            Actions\Action::make('preview_pdf')
-                ->label('Preview PDF')
+                    if ($selectedKols->isEmpty()) {
+                        Notification::make()
+                            ->title('No KOLs Selected')
+                            ->body('Please select at least one KOL before generating quotation.')
+                            ->danger()
+                            ->send();
+                        return;
+                    }
+
+                    // Redirect to quotation download route
+                    return redirect()->route('quotation.download', ['mediaPlan' => $record->id]);
+                }),
+
+            Actions\Action::make('preview_quotation')
+                ->label('Preview Quotation')
                 ->icon('heroicon-m-eye')
                 ->color('gray')
+                ->url(fn($record) => route('quotation.preview', ['mediaPlan' => $record->id]))
+                ->openUrlInNewTab()
+                ->visible(fn($record) => $record->selectedKols()->count() > 0)
+                ->tooltip('Preview Quotation in browser'),
+
+            Actions\Action::make('preview_pdf')
+                ->label('Preview Media Plan')
+                ->icon('heroicon-m-document-text')
+                ->color('info')
                 ->url(fn($record) => route('media-plan.pdf.preview', ['mediaPlan' => $record->id]))
                 ->openUrlInNewTab()
                 ->visible(fn($record) => $record->internalBudget?->status === 'approved')
                 ->tooltip('Preview Media Plan PDF in browser'),
-
-            // Actions\Action::make('generate_quotation')
-            //     ->label('Generate Quotation')
-            //     ->icon('heroicon-m-document-text')
-            //     ->color('info')
-            //     ->disabled(fn($record) => $record->internalBudget?->status !== 'approved')
-            //     ->tooltip(fn($record) => $record->internalBudget?->status !== 'approved'
-            //         ? 'Internal Budget harus di-approve terlebih dahulu'
-            //         : 'Generate quotation for client')
-            //     ->action(function ($record) {
-            //         $selectedCount = $record->kols()->where('is_selected', true)->count();
-
-            //         if ($selectedCount === 0) {
-            //             Notification::make()
-            //                 ->title('No KOLs selected')
-            //                 ->body('Please select at least one KOL to generate quotation.')
-            //                 ->warning()
-            //                 ->send();
-            //             return;
-            //         }
-
-            //         // Redirect to PDF download
-            //         return redirect()->route('media-plan.pdf', ['mediaPlan' => $record->id]);
-            //     }),
         ];
     }
 }
+

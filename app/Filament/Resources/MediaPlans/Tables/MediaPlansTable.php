@@ -6,10 +6,10 @@ use Filament\Tables\Table;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Actions\EditAction;
-use Filament\Actions\DeleteAction;
-use Filament\Actions\ViewAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\Action;
+
 
 class MediaPlansTable
 {
@@ -141,6 +141,13 @@ class MediaPlansTable
             ])
             ->recordActions([
                 EditAction::make(),
+                Action::make('quotation')
+                    ->label('Quotation')
+                    ->icon('heroicon-o-document-arrow-down')
+                    ->color('success')
+                    ->url(fn($record) => route('quotation.preview', ['mediaPlan' => $record->id]))
+                    ->openUrlInNewTab()
+                    ->visible(fn($record) => $record->kols()->where('is_selected', true)->count() > 0),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
@@ -151,3 +158,5 @@ class MediaPlansTable
             ->striped();
     }
 }
+
+

@@ -488,17 +488,8 @@ class InstagramService
             ];
         }
 
-        // Filter posts older than 24 hours
-        $now = time();
-        $oneDayAgo = $now - (24 * 60 * 60);
-
-        $validPosts = array_filter($posts, function ($post) use ($oneDayAgo) {
-            $postTime = $post['taken_at'] ?? 0;
-            return $postTime > 0 && $postTime < $oneDayAgo;
-        });
-
-        // Limit to 9 posts
-        $validPosts = array_slice($validPosts, 0, 9);
+        // Use up to 9 most recent posts (no 24h filter)
+        $validPosts = array_slice($posts, 0, 9);
 
         if (empty($validPosts)) {
             return [
@@ -518,6 +509,7 @@ class InstagramService
         $videoPostCount = 0;
         $photoPostCount = 0;
         $carouselPostCount = 0;
+        $totalPhotoImpressions = 0;
 
         Log::info('📈 Starting Instagram Engagement Calculation', [
             'posts_count' => $postCount,
@@ -535,9 +527,11 @@ class InstagramService
             $productType = $post['product_type'] ?? '';
 
             // Check if video/reel
+            // Note: product_type='feed' is NOT a video indicator, it just means regular feed post
+            // product_type='clips' = Reels, product_type='igtv' = IGTV
             $isVideo = $mediaType == 2
                 || $productType === 'clips'  // Reels
-                || $productType === 'feed'   // IGTV/Video
+                || $productType === 'igtv'   // IGTV
                 || ($post['is_video'] ?? false) === true;
 
             // Check if photo
@@ -592,7 +586,7 @@ class InstagramService
             $totalLikes += $likes;
             $totalComments += $comments;
 
-            // Track post types
+            // Track post types and views
             if ($isVideo) {
                 $videoPostCount++;
                 if ($views > 0) {
@@ -603,9 +597,19 @@ class InstagramService
                 if ($views > 0) {
                     $totalViews += $views;
                     $videoPostCount++; // Count carousel with views as video for impression calc
+                } else {
+                    // Carousel without views - estimate impressions
+                    $photoPostCount++;
+                    // Estimated impressions for photo = likes * multiplier (industry standard ~3-5x)
+                    $estimatedPhotoImpressions = ($likes + $comments) * 4;
+                    $totalPhotoImpressions += $estimatedPhotoImpressions;
                 }
             } else {
+                // Photo post
                 $photoPostCount++;
+                // Estimated impressions for photo = (likes + comments) * multiplier (industry standard ~3-5x)
+                $estimatedPhotoImpressions = ($likes + $comments) * 4;
+                $totalPhotoImpressions += $estimatedPhotoImpressions;
             }
 
             // Total engagement = likes + comments + saves + shares + reposts
@@ -618,6 +622,7 @@ class InstagramService
             'video_posts' => $videoPostCount,
             'carousel_posts' => $carouselPostCount,
             'total_views' => $totalViews,
+            'total_photo_impressions' => $totalPhotoImpressions,
         ]);
 
         // Calculate averages
@@ -625,38 +630,33 @@ class InstagramService
         $averageComments = $postCount > 0 ? round($totalComments / $postCount) : 0;
 
         // Average Impressions calculation:
-        // 1. If we have video views, use average of video views
-        // 2. If no videos (all photos), estimate impressions based on industry standard
-        //    - Photos typically get impressions ~= likes * 3 to 5 (varies by account size)
-        //    - Or estimate as percentage of followers (typically 10-30% reach)
-        if ($videoPostCount > 0) {
-            $averageImpressions = round($totalViews / $videoPostCount);
+        // Combine video views + estimated photo impressions
+        $totalImpressions = $totalViews + $totalPhotoImpressions;
+
+        if ($postCount > 0 && $totalImpressions > 0) {
+            $averageImpressions = round($totalImpressions / $postCount);
         } else {
-            // Estimate impressions for photo-only accounts
-            // Using formula: Average engagement * multiplier based on follower size
-            // Or: followers * estimated reach rate (10% for large accounts, 20-30% for smaller)
-            $averageEngagement = $postCount > 0 ? ($totalLikes + $totalComments) / $postCount : 0;
+            // Fallback: estimate based on followers if no data available
+            $averageImpressions = match (true) {
+                $followersCount > 1000000 => round($followersCount * 0.10), // Mega: 10%
+                $followersCount > 100000 => round($followersCount * 0.15),  // Macro: 15%
+                $followersCount > 10000 => round($followersCount * 0.20),   // Micro: 20%
+                default => round($followersCount * 0.25),                    // Nano: 25%
+            };
 
-            if ($followersCount > 1000000) {
-                // Mega influencers: ~10% reach
-                $averageImpressions = round($followersCount * 0.10);
-            } elseif ($followersCount > 100000) {
-                // Macro: ~15% reach
-                $averageImpressions = round($followersCount * 0.15);
-            } elseif ($followersCount > 10000) {
-                // Micro: ~20% reach
-                $averageImpressions = round($followersCount * 0.20);
-            } else {
-                // Nano: ~25-30% reach
-                $averageImpressions = round($followersCount * 0.25);
-            }
-
-            Log::info('📊 Estimated Impressions (no videos found)', [
-                'method' => 'reach_estimate',
+            Log::info('📊 Using Fallback Impressions (no data)', [
+                'method' => 'follower_reach_estimate',
                 'follower_count' => $followersCount,
                 'estimated_impressions' => $averageImpressions,
             ]);
         }
+
+        Log::info('📊 Impressions Calculation', [
+            'total_video_views' => $totalViews,
+            'total_photo_impressions_estimated' => $totalPhotoImpressions,
+            'total_combined_impressions' => $totalImpressions,
+            'average_impressions' => $averageImpressions,
+        ]);
 
         // Average Engagement per Post
         $averageEngagementPerPost = $postCount > 0 ? $totalEngagement / $postCount : 0;
@@ -669,6 +669,7 @@ class InstagramService
         Log::info('✅ Final Instagram Engagement Metrics', [
             'postCount' => $postCount,
             'videoPostCount' => $videoPostCount,
+            'photoPostCount' => $photoPostCount,
             'totalEngagements' => $totalEngagement,
             'averageEngagementPerPost' => round($averageEngagementPerPost),
             'totalLikes' => $totalLikes,
@@ -903,5 +904,92 @@ class InstagramService
             'is_business' => $fullProfile['is_business_account'],
             'external_url' => $fullProfile['external_url'],
         ];
+    }
+
+    /**
+     * Get post/reel stats from Instagram URL
+     * 
+     * @param string $postUrl Instagram post or reel URL
+     * @return array
+     * @throws Exception
+     */
+    public function getPostStats(string $postUrl): array
+    {
+        try {
+            Log::info('🔍 Instagram Post Stats Request', [
+                'url' => $postUrl,
+            ]);
+
+            // Call API to get post details
+            $response = Http::timeout(30)
+                ->withHeaders([
+                    'x-api-key' => $this->apiKey,
+                ])->get("{$this->baseUrl}/post", [
+                        'url' => $postUrl,
+                    ]);
+
+            if (!$response->successful()) {
+                Log::error('❌ Instagram Post API Error', [
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                ]);
+                throw new Exception('Failed to fetch Instagram post: ' . $response->body());
+            }
+
+            $responseData = $response->json();
+
+            if (!isset($responseData['success']) || !$responseData['success']) {
+                throw new Exception('API returned unsuccessful response');
+            }
+
+            $data = $responseData['data'] ?? [];
+            $media = $data['xdt_shortcode_media'] ?? $data;
+
+            // Extract username
+            $owner = $media['owner'] ?? [];
+            $username = $owner['username'] ?? null;
+
+            // Extract metrics
+            $likeCount = $media['edge_media_preview_like']['count']
+                ?? $media['like_count']
+                ?? 0;
+
+            $commentCount = $media['edge_media_to_comment']['count']
+                ?? $media['edge_media_to_parent_comment']['count']
+                ?? $media['comment_count']
+                ?? 0;
+
+            $viewCount = $media['video_view_count']
+                ?? $media['video_play_count']
+                ?? $media['play_count']
+                ?? 0;
+
+            // Instagram doesn't always provide saves/shares publicly, estimate as 0
+            $saveCount = $media['save_count'] ?? 0;
+            $shareCount = $media['share_count'] ?? 0;
+
+            $result = [
+                'username' => $username,
+                'views' => $viewCount,
+                'likes' => $likeCount,
+                'comments' => $commentCount,
+                'saves' => $saveCount,
+                'shares' => $shareCount,
+            ];
+
+            // Calculate total engagement
+            $result['total_engagement'] = $result['likes'] + $result['comments'] + $result['saves'] + $result['shares'];
+
+            Log::info('✅ Instagram Post Stats Retrieved', $result);
+
+            return $result;
+
+        } catch (Exception $e) {
+            Log::error('💥 Instagram Post Stats Error', [
+                'url' => $postUrl,
+                'message' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
     }
 }

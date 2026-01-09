@@ -6,19 +6,30 @@ use App\Enums\SalesStatus;
 use App\Filament\Forms\BvSalesForm;
 use App\Models\BvSales;
 use BackedEnum;
+use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\EditAction;
 use Filament\Infolists\Components\TextEntry;
+use Filament\Pages\Page;
 use Filament\Schemas\Schema;
 use Filament\Support\Colors\Color;
 use Filament\Support\Enums\FontWeight;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Concerns\InteractsWithTable;
+use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Table;
+use Livewire\Attributes\Url;
 use Relaticle\Flowforge\Board;
 use Relaticle\Flowforge\BoardPage;
 use Relaticle\Flowforge\Column;
 use UnitEnum;
 
-class SalesKanban extends BoardPage
+class SalesKanban extends BoardPage implements HasTable
 {
+    use InteractsWithTable;
+
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-view-columns';
 
     protected static ?string $title = 'Sales Activity Tracker';
@@ -30,6 +41,56 @@ class SalesKanban extends BoardPage
     protected static ?int $navigationSort = 1;
 
     protected static ?string $slug = 'sales-activity';
+
+    #[Url]
+    public string $viewMode = 'kanban';
+
+    protected function getHeaderWidgets(): array
+    {
+        return [
+            \App\Filament\Widgets\Sales\SalesStatsWidget::class,
+            \App\Filament\Widgets\Sales\TopKolWidget::class,
+        ];
+    }
+
+    public function getViewData(): array
+    {
+        return [
+            'viewMode' => $this->viewMode,
+        ];
+    }
+
+
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('kanban_view')
+                ->label('Kanban')
+                ->icon('heroicon-o-view-columns')
+                ->color($this->viewMode === 'kanban' ? 'primary' : 'gray')
+                ->action(fn() => $this->viewMode = 'kanban'),
+
+            Action::make('list_view')
+                ->label('List')
+                ->icon('heroicon-o-list-bullet')
+                ->color($this->viewMode === 'list' ? 'primary' : 'gray')
+                ->action(fn() => $this->viewMode = 'list'),
+
+            CreateAction::make()
+                ->label('Add Sales')
+                ->model(BvSales::class)
+                ->form(BvSalesForm::getFormComponents())
+                ->createAnother(false)
+                ->modalWidth('2xl')
+                ->modalHeading('Create Sales Activity')
+                ->slideOver()
+                ->mutateFormDataUsing(function (array $data): array {
+                    $data['status'] = $data['status'] ?? SalesStatus::PITCHING->value;
+                    $data['position'] = BvSales::where('status', $data['status'])->max('position') + 1;
+                    return $data;
+                }),
+        ];
+    }
 
     public function board(Board $board): Board
     {
@@ -123,6 +184,111 @@ class SalesKanban extends BoardPage
             ->cardAction('edit');
     }
 
+    public function table(Table $table): Table
+    {
+        return $table
+            ->query(BvSales::query()->with('salesList'))
+            ->columns([
+                TextColumn::make('event_name')
+                    ->label('Event/Campaign')
+                    ->searchable()
+                    ->sortable()
+                    ->weight(FontWeight::SemiBold),
+
+                TextColumn::make('salesList.nama_sales')
+                    ->label('Sales')
+                    ->searchable()
+                    ->sortable(),
+
+                TextColumn::make('company_name')
+                    ->label('Company')
+                    ->searchable()
+                    ->sortable(),
+
+                TextColumn::make('campaign_items')
+                    ->label('Campaign')
+                    ->badge()
+                    ->separator(','),
+
+                TextColumn::make('campaign_periode')
+                    ->label('Period')
+                    ->formatStateUsing(fn($state, $record) => $state ? strtoupper($state) . ' ' . $record->campaign_year : '-')
+                    ->sortable(),
+
+                TextColumn::make('deal_value')
+                    ->label('Deal Value')
+                    ->money('IDR')
+                    ->sortable()
+                    ->color('success'),
+
+                TextColumn::make('margin')
+                    ->label('Margin')
+                    ->suffix('%')
+                    ->sortable()
+                    ->badge()
+                    ->color('warning'),
+
+                TextColumn::make('status')
+                    ->label('Status')
+                    ->badge()
+                    ->formatStateUsing(function ($state) {
+                        if ($state instanceof SalesStatus) {
+                            return $state->getLabel();
+                        }
+                        return SalesStatus::tryFrom($state)?->getLabel() ?? $state;
+                    })
+                    ->color(function ($state) {
+                        $statusValue = $state instanceof SalesStatus ? $state->value : $state;
+                        return match ($statusValue) {
+                            SalesStatus::PITCHING->value => 'gray',
+                            SalesStatus::BRIEFING->value => 'info',
+                            SalesStatus::PROPOSAL_BUILDING->value => 'warning',
+                            SalesStatus::NEGOTIATION->value => 'purple',
+                            SalesStatus::CAMPAIGN_LIVE->value => 'indigo',
+                            SalesStatus::REPORTING->value => 'orange',
+                            SalesStatus::CLOSE_LOSE->value => 'danger',
+                            SalesStatus::INVOICING->value => 'cyan',
+                            SalesStatus::PAID->value => 'success',
+                            default => 'gray',
+                        };
+                    })
+                    ->sortable(),
+
+                TextColumn::make('close_date')
+                    ->label('Close Date')
+                    ->date('d M Y')
+                    ->sortable(),
+            ])
+            ->filters([
+                SelectFilter::make('status')
+                    ->label('Status')
+                    ->options(SalesStatus::toArray()),
+
+                SelectFilter::make('campaign_year')
+                    ->label('Campaign Year')
+                    ->options(
+                        fn() => BvSales::query()
+                            ->whereNotNull('campaign_year')
+                            ->distinct()
+                            ->pluck('campaign_year', 'campaign_year')
+                            ->toArray()
+                    ),
+
+                SelectFilter::make('bv_sales_list_id')
+                    ->label('Sales')
+                    ->relationship('salesList', 'nama_sales'),
+            ])
+            ->actions([
+                EditAction::make()
+                    ->form(BvSalesForm::getFormComponents())
+                    ->modalWidth('2xl')
+                    ->slideOver(),
+                DeleteAction::make(),
+            ])
+            ->defaultSort('created_at', 'desc')
+            ->striped();
+    }
+
     protected function getKanbanColumns(): array
     {
         return [
@@ -171,5 +337,15 @@ class SalesKanban extends BoardPage
                 ->color(Color::Green)
                 ->icon(SalesStatus::PAID->getIcon()),
         ];
+    }
+
+    public function getView(): string
+    {
+        if ($this->viewMode === 'list') {
+            return 'filament.pages.sales-kanban';
+        }
+
+        // Return parent BoardPage view for kanban mode
+        return parent::getView();
     }
 }

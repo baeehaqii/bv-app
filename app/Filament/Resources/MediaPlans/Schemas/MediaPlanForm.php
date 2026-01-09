@@ -663,14 +663,51 @@ class MediaPlanForm
                                     // Row 5: Scope of Work
                                     section::make('Scope of Work')
                                         ->schema([
-                                            TagsInput::make('scope_items')
+                                            Select::make('scope_items')
                                                 ->label('Item Descriptions')
-                                                ->placeholder('Ketik lalu tekan Enter untuk tambah item')
-                                                ->helperText('Contoh: IG Reels, IG Story, IG Post')
+                                                ->multiple()
+                                                ->options([
+                                                    'IG Post' => 'IG Post',
+                                                    'IG Reels' => 'IG Reels',
+                                                    'IG Story' => 'IG Story',
+                                                    'TikTok Post' => 'TikTok Post',
+                                                    'TikTok Video' => 'TikTok Video',
+                                                    'TikTok Story' => 'TikTok Story',
+                                                    'YouTube Video' => 'YouTube Video',
+                                                    'YouTube Shorts' => 'YouTube Shorts',
+                                                ])
+                                                ->searchable()
                                                 ->required()
                                                 ->live()
                                                 ->default([])
-                                                ->columnSpan(3),
+                                                ->columnSpan(2)
+                                                ->hintAction(
+                                                    Action::make('add_custom_scope')
+                                                        ->icon('heroicon-m-plus')
+                                                        ->tooltip('Tambah opsi custom')
+                                                        ->modalWidth('xs')
+                                                        ->modalHeading('Tambah Scope of Work lainnya')
+                                                        ->form([
+                                                            TextInput::make('custom_scope')
+                                                                ->label('Custom Scope Item')
+                                                                ->placeholder('e.g., TT Live, IG Live, etc.')
+                                                                ->required(),
+                                                        ])
+                                                        ->action(function (array $data, callable $get, callable $set) {
+                                                            $customScope = $data['custom_scope'];
+                                                            $currentItems = $get('scope_items') ?? [];
+
+                                                            // Add the custom scope to selected items
+                                                            $currentItems[] = $customScope;
+                                                            $set('scope_items', $currentItems);
+
+                                                            Notification::make()
+                                                                ->success()
+                                                                ->title('Custom scope ditambahkan!')
+                                                                ->body("'{$customScope}' berhasil ditambahkan.")
+                                                                ->send();
+                                                        })
+                                                ),
 
                                             TextInput::make('rate')
                                                 ->label('Rate (from Internal Budget)')
@@ -682,7 +719,7 @@ class MediaPlanForm
                                                 ->default(0)
                                                 ->helperText('Auto-filled from Internal Budget (Rounded)')
                                                 ->columnSpan(1),
-                                        ])->columns(4),
+                                        ])->columns(3),
 
                                     // Row 1: Selection & Status
                                     Fieldset::make('Selection')

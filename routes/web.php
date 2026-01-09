@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\MediaPlanPdfController;
 use App\Http\Controllers\InternalBudgetPdfController;
+use App\Http\Controllers\QuotationController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -22,4 +23,13 @@ Route::middleware(['auth'])->group(function () {
         ->name('internal-budget.pdf');
     Route::get('/internal-budget/{internalBudget}/pdf/preview', [InternalBudgetPdfController::class, 'preview'])
         ->name('internal-budget.pdf.preview');
+
+    // Quotation PDF Routes
+    Route::get('/quotation/{mediaPlan}/download', [QuotationController::class, 'generatePdf'])
+        ->name('quotation.download');
+    Route::get('/quotation/{mediaPlan}/preview', [QuotationController::class, 'preview'])
+        ->name('quotation.preview');
+    Route::get('/quotation/{mediaPlan}/html', [QuotationController::class, 'html'])
+        ->name('quotation.html');
 });
+

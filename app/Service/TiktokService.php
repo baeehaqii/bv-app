@@ -561,4 +561,69 @@ class TiktokService
             'external_url' => $fullProfile['external_url'],
         ];
     }
+
+    /**
+     * Get post/video stats from TikTok URL
+     * 
+     * @param string $postUrl TikTok video URL
+     * @return array
+     * @throws Exception
+     */
+    public function getPostStats(string $postUrl): array
+    {
+        try {
+            Log::info('🔍 TikTok Post Stats Request', [
+                'url' => $postUrl,
+            ]);
+
+            // Call API to get video details
+            $response = Http::timeout(30)
+                ->withHeaders([
+                    'x-api-key' => $this->apiKey,
+                ])->get("https://api.scrapecreators.com/v1/tiktok/video", [
+                        'url' => $postUrl,
+                    ]);
+
+            if (!$response->successful()) {
+                Log::error('❌ TikTok Video API Error', [
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                ]);
+                throw new Exception('Failed to fetch TikTok video: ' . $response->body());
+            }
+
+            $data = $response->json();
+
+            if (!isset($data['success']) || !$data['success']) {
+                throw new Exception('API returned unsuccessful response');
+            }
+
+            // Extract stats from response
+            $stats = $data['statistics'] ?? [];
+            $author = $data['author'] ?? [];
+
+            $result = [
+                'username' => $author['unique_id'] ?? $author['uniqueId'] ?? null,
+                'views' => $stats['play_count'] ?? $stats['playCount'] ?? 0,
+                'likes' => $stats['digg_count'] ?? $stats['diggCount'] ?? 0,
+                'comments' => $stats['comment_count'] ?? $stats['commentCount'] ?? 0,
+                'saves' => $stats['collect_count'] ?? $stats['collectCount'] ?? 0,
+                'shares' => $stats['share_count'] ?? $stats['shareCount'] ?? 0,
+            ];
+
+            // Calculate total engagement
+            $result['total_engagement'] = $result['likes'] + $result['comments'] + $result['saves'] + $result['shares'];
+
+            Log::info('✅ TikTok Post Stats Retrieved', $result);
+
+            return $result;
+
+        } catch (Exception $e) {
+            Log::error('💥 TikTok Post Stats Error', [
+                'url' => $postUrl,
+                'message' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
+    }
 }
