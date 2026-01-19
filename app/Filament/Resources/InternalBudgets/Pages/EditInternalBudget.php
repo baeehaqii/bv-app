@@ -20,7 +20,7 @@ class EditInternalBudget extends EditRecord
                 ->color('info')
                 ->url(
                     fn($record) => $record->mediaPlan
-                    ? route('filament.office.resources.media-plan.edit', ['record' => $record->mediaPlan->id])
+                    ? route('filament.office.resources.media-plan-external.edit', ['record' => $record->mediaPlan->id])
                     : null
                 )
                 ->visible(fn($record) => $record->mediaPlan !== null),

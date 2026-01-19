@@ -13,6 +13,8 @@ class MediaPlan extends Model
     protected $casts = [
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
+        'margin_percent' => 'decimal:2',
+        'use_global_margin' => 'boolean',
     ];
 
     /**

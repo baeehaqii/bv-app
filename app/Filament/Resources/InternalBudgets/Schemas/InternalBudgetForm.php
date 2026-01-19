@@ -172,17 +172,40 @@ class InternalBudgetForm
             $taxRate = self::getTaxRate($muPph);
         }
 
-        // Step 5: Calculate target margin - use flexible margin if enabled
-        $useFlexibleMargin = $get('use_flexible_margin') ?? false;
-        if ($useFlexibleMargin) {
-            $marginOverride = $get('margin_percent_override');
-            if ($marginOverride !== null && $marginOverride !== '') {
-                $targetMargin = self::parseNumber($marginOverride);
-            } else {
-                $targetMargin = 30.0; // Fallback to 30% if toggle enabled but no value
+        // Step 5: Calculate target margin
+        // Priority: 1. Media Plan Global Margin, 2. Item Flexible Margin, 3. Auto from MasterMargin
+        $targetMargin = null;
+
+        // First, try to get margin from Media Plan (global setting)
+        $mediaPlanId = $get('../../media_plan_id'); // Navigate up from item to parent form
+        if ($mediaPlanId) {
+            $mediaPlan = \App\Models\MediaPlan::find($mediaPlanId);
+            if ($mediaPlan && $mediaPlan->use_global_margin && $mediaPlan->margin_type === 'custom') {
+                // Use custom margin from Media Plan
+                $targetMargin = (float) $mediaPlan->margin_percent;
+                \Illuminate\Support\Facades\Log::info('📊 Using Media Plan Global Margin', [
+                    'media_plan_id' => $mediaPlanId,
+                    'margin_type' => $mediaPlan->margin_type,
+                    'margin_percent' => $targetMargin,
+                ]);
             }
-        } else {
-            // Get margin from database using MasterMargin model
+        }
+
+        // If no global margin, check item-level flexible margin
+        if ($targetMargin === null) {
+            $useFlexibleMargin = $get('use_flexible_margin') ?? false;
+            if ($useFlexibleMargin) {
+                $marginOverride = $get('margin_percent_override');
+                if ($marginOverride !== null && $marginOverride !== '') {
+                    $targetMargin = self::parseNumber($marginOverride);
+                } else {
+                    $targetMargin = 30.0; // Fallback to 30% if toggle enabled but no value
+                }
+            }
+        }
+
+        // If still no margin, use auto calculation from MasterMargin
+        if ($targetMargin === null) {
             $targetMargin = \App\Models\MasterMargin::getMarginForAmount($subtotal);
         }
 
@@ -274,6 +297,37 @@ class InternalBudgetForm
                                 $margin = number_format($record->average_margin_percent ?? 0, 2, ',', '.');
 
                                 return "Cost: Rp {$cost} | Budget: Rp {$budget} | Profit: Rp {$profit} | Margin: {$margin}%";
+                            })
+                            ->columnSpanFull(),
+
+                        Placeholder::make('margin_setting_info')
+                            ->label('🎯 Margin Setting')
+                            ->content(function ($record) {
+                                if (!$record || !$record->mediaPlan) {
+                                    return 'Pilih Media Plan terlebih dahulu';
+                                }
+
+                                $mediaPlan = $record->mediaPlan;
+                                $marginType = $mediaPlan->margin_type ?? 'auto';
+                                $marginPercent = $mediaPlan->margin_percent ?? null;
+                                $useGlobal = $mediaPlan->use_global_margin ?? true;
+
+                                if ($marginType === 'custom' && $useGlobal) {
+                                    return new \Illuminate\Support\HtmlString(
+                                        "<span class='text-warning-600 dark:text-warning-400 font-semibold'>Custom Global: {$marginPercent}%</span> " .
+                                        "<span class='text-gray-500 text-sm'>(dari Media Plan)</span>"
+                                    );
+                                } elseif ($marginType === 'auto') {
+                                    return new \Illuminate\Support\HtmlString(
+                                        "<span class='text-info-600 dark:text-info-400 font-semibold'>Auto</span> " .
+                                        "<span class='text-gray-500 text-sm'>(berdasarkan Master Margin)</span>"
+                                    );
+                                } else {
+                                    return new \Illuminate\Support\HtmlString(
+                                        "<span class='text-gray-600 dark:text-gray-400'>Per-item margin</span> " .
+                                        "<span class='text-gray-500 text-sm'>(atur di masing-masing item)</span>"
+                                    );
+                                }
                             })
                             ->columnSpanFull(),
                     ])
@@ -469,11 +523,22 @@ class InternalBudgetForm
                                     }),
 
                                 // Flexible Margin Override - Toggle
+                                // Hidden if Media Plan uses global margin
                                 Toggle::make('use_flexible_margin')
                                     ->label('Use Custom Margin')
-                                    ->helperText('Enable untuk override margin otomatis')
+                                    ->helperText('Enable untuk override margin otomatis (tidak berlaku jika Media Plan menggunakan Global Margin)')
                                     ->inline()
                                     ->live()
+                                    ->visible(function ($livewire) {
+                                        $mediaPlanId = $livewire->record?->media_plan_id;
+                                        if (!$mediaPlanId)
+                                            return true;
+                                        $mediaPlan = \App\Models\MediaPlan::find($mediaPlanId);
+                                        if (!$mediaPlan)
+                                            return true;
+                                        // Hide if global margin is enabled with custom type
+                                        return !($mediaPlan->use_global_margin && $mediaPlan->margin_type === 'custom');
+                                    })
                                     ->afterStateUpdated(fn($get, $set) => self::calculateItemValues($get, $set)),
 
                                 // Flexible Margin Override - Input
@@ -484,7 +549,20 @@ class InternalBudgetForm
                                     ->numeric()
                                     ->step('0.01')
                                     ->nullable()
-                                    ->visible(fn(callable $get) => $get('use_flexible_margin') === true)
+                                    ->visible(function (callable $get, $livewire) {
+                                        // First check if flexible margin is enabled
+                                        if (!($get('use_flexible_margin') === true)) {
+                                            return false;
+                                        }
+                                        // Then check if Media Plan uses global margin
+                                        $mediaPlanId = $livewire->record?->media_plan_id;
+                                        if (!$mediaPlanId)
+                                            return true;
+                                        $mediaPlan = \App\Models\MediaPlan::find($mediaPlanId);
+                                        if (!$mediaPlan)
+                                            return true;
+                                        return !($mediaPlan->use_global_margin && $mediaPlan->margin_type === 'custom');
+                                    })
                                     ->live(debounce: 300)
                                     ->afterStateUpdated(function ($state, callable $get, callable $set) {
                                         self::calculateItemValues($get, $set);

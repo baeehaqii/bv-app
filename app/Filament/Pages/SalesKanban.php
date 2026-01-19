@@ -85,7 +85,7 @@ class SalesKanban extends BoardPage implements HasTable
                 ->modalHeading('Create Sales Activity')
                 ->slideOver()
                 ->mutateFormDataUsing(function (array $data): array {
-                    $data['status'] = $data['status'] ?? SalesStatus::PITCHING->value;
+                    $data['status'] = $data['status'] ?? SalesStatus::BRIEFING->value;
                     $data['position'] = BvSales::where('status', $data['status'])->max('position') + 1;
                     return $data;
                 }),
@@ -240,7 +240,7 @@ class SalesKanban extends BoardPage implements HasTable
                     ->color(function ($state) {
                         $statusValue = $state instanceof SalesStatus ? $state->value : $state;
                         return match ($statusValue) {
-                            SalesStatus::PITCHING->value => 'gray',
+
                             SalesStatus::BRIEFING->value => 'info',
                             SalesStatus::PROPOSAL_BUILDING->value => 'warning',
                             SalesStatus::NEGOTIATION->value => 'purple',
@@ -292,10 +292,6 @@ class SalesKanban extends BoardPage implements HasTable
     protected function getKanbanColumns(): array
     {
         return [
-            Column::make(SalesStatus::PITCHING->value)
-                ->label(SalesStatus::PITCHING->getLabel())
-                ->color(Color::Gray)
-                ->icon(SalesStatus::PITCHING->getIcon()),
 
             Column::make(SalesStatus::BRIEFING->value)
                 ->label(SalesStatus::BRIEFING->getLabel())

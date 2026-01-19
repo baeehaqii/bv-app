@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\MediaPlanPdfController;
+use App\Http\Controllers\MediaPlanExcelController;
 use App\Http\Controllers\InternalBudgetPdfController;
 use App\Http\Controllers\QuotationController;
 use Illuminate\Support\Facades\Route;
@@ -17,6 +18,16 @@ Route::middleware(['auth'])->group(function () {
         ->name('media-plan.pdf.preview');
     Route::get('/media-plan/{mediaPlan}/pdf/html', [MediaPlanPdfController::class, 'previewHtml'])
         ->name('media-plan.pdf.html');
+
+    // Media Plan Excel Export Routes
+    Route::get('/media-plan/{mediaPlan}/excel', [MediaPlanExcelController::class, 'export'])
+        ->name('media-plan.excel');
+    Route::get('/media-plan/{mediaPlan}/csv', [MediaPlanExcelController::class, 'exportCsv'])
+        ->name('media-plan.csv');
+    Route::get('/media-plan/{mediaPlan}/google-sheets', [MediaPlanExcelController::class, 'exportToGoogleSheets'])
+        ->name('media-plan.google-sheets');
+    Route::get('/google/callback', [MediaPlanExcelController::class, 'handleGoogleCallback'])
+        ->name('google.callback');
 
     // Internal Budget PDF Routes
     Route::get('/internal-budget/{internalBudget}/pdf', [InternalBudgetPdfController::class, 'generate'])

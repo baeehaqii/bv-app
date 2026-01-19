@@ -201,14 +201,14 @@ class EditMediaPlan extends EditRecord
                     return redirect()->route('quotation.download', ['mediaPlan' => $record->id]);
                 }),
 
-            Actions\Action::make('preview_quotation')
-                ->label('Preview Quotation')
-                ->icon('heroicon-m-eye')
-                ->color('gray')
-                ->url(fn($record) => route('quotation.preview', ['mediaPlan' => $record->id]))
-                ->openUrlInNewTab()
-                ->visible(fn($record) => $record->selectedKols()->count() > 0)
-                ->tooltip('Preview Quotation in browser'),
+            // Actions\Action::make('preview_quotation')
+            //     ->label('Preview Quotation')
+            //     ->icon('heroicon-m-eye')
+            //     ->color('gray')
+            //     ->url(fn($record) => route('quotation.preview', ['mediaPlan' => $record->id]))
+            //     ->openUrlInNewTab()
+            //     ->visible(fn($record) => $record->selectedKols()->count() > 0)
+            //     ->tooltip('Preview Quotation in browser'),
 
             Actions\Action::make('preview_pdf')
                 ->label('Preview Media Plan')
@@ -218,6 +218,15 @@ class EditMediaPlan extends EditRecord
                 ->openUrlInNewTab()
                 ->visible(fn($record) => $record->internalBudget?->status === 'approved')
                 ->tooltip('Preview Media Plan PDF in browser'),
+
+            Actions\Action::make('export_google_sheets')
+                ->label('Export Google Sheets')
+                ->icon('heroicon-m-table-cells')
+                ->color('success')
+                ->url(fn($record) => route('media-plan.google-sheets', ['mediaPlan' => $record->id]))
+                ->openUrlInNewTab()
+                ->visible(fn($record) => $record->internalBudget?->status === 'approved')
+                ->tooltip('Create new Google Spreadsheet from Media Plan'),
         ];
     }
 }

@@ -39,4 +39,9 @@ return [
         'api_key' => env('SCRAPECREATORS_API_KEY'),
     ],
 
+    'google' => [
+        'folder_id' => env('GOOGLE_DRIVE_FOLDER_ID'), // Optional: Folder ID to store spreadsheets
+        'share_with_email' => env('GOOGLE_SHARE_WITH_EMAIL'), // Optional: Auto-share with this email
+    ],
+
 ];

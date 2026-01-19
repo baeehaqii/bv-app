@@ -779,6 +779,90 @@ class MediaPlanForm
                                 ->columnSpanFull()
                                 ->live(),
                         ]),
+
+                    Step::make('Margin Setting')
+                        ->icon('heroicon-m-calculator')
+                        ->description('Configure margin settings for this campaign')
+                        ->schema([
+                            Section::make('🎯 Margin Configuration')
+                                ->description('Setting margin akan diaplikasikan ke semua KOL dalam campaign ini saat kalkulasi Internal Budget')
+                                ->schema([
+                                    ToggleButtons::make('margin_type')
+                                        ->label('Margin Type')
+                                        ->options([
+                                            'auto' => 'Auto (Based on Budget Range)',
+                                            'custom' => 'Custom Margin',
+                                        ])
+                                        ->icons([
+                                            'auto' => 'heroicon-m-cpu-chip',
+                                            'custom' => 'heroicon-m-pencil-square',
+                                        ])
+                                        ->colors([
+                                            'auto' => 'info',
+                                            'custom' => 'warning',
+                                        ])
+                                        ->inline()
+                                        ->default('auto')
+                                        ->live()
+                                        ->columnSpanFull()
+                                        ->helperText('Auto: Margin dihitung otomatis berdasarkan Master Margin. Custom: Anda tentukan sendiri.'),
+
+                                    TextInput::make('margin_percent')
+                                        ->label('Custom Margin %')
+                                        ->suffix('%')
+                                        ->numeric()
+                                        ->step('0.01')
+                                        ->minValue(0)
+                                        ->maxValue(100)
+                                        ->default(30)
+                                        ->visible(fn(callable $get) => $get('margin_type') === 'custom')
+                                        ->required(fn(callable $get) => $get('margin_type') === 'custom')
+                                        ->helperText('Contoh: 30 untuk 30%, 40 untuk 40%, dll'),
+
+                                    Toggle::make('use_global_margin')
+                                        ->label('Apply to All KOLs')
+                                        ->helperText('Jika aktif, margin ini akan diterapkan ke semua KOL. Jika tidak, setiap KOL bisa memiliki margin berbeda di Internal Budget.')
+                                        ->inline()
+                                        ->default(true)
+                                        ->columnSpanFull(),
+
+                                    Section::make('📊 Master Margin Reference')
+                                        ->description('Referensi margin otomatis berdasarkan range budget (digunakan jika margin_type = auto)')
+                                        ->schema([
+                                            Placeholder::make('margin_reference')
+                                                ->label('')
+                                                ->content(function () {
+                                                    $margins = \App\Models\MasterMargin::active()
+                                                        ->ordered()
+                                                        ->get();
+
+                                                    if ($margins->isEmpty()) {
+                                                        return 'Belum ada data Master Margin. Silakan tambah di Settings > Master Margins.';
+                                                    }
+
+                                                    $html = '<div class="space-y-2">';
+                                                    foreach ($margins as $margin) {
+                                                        $min = number_format((float) $margin->min_amount, 0, ',', '.');
+                                                        $max = $margin->max_amount
+                                                            ? number_format((float) $margin->max_amount, 0, ',', '.')
+                                                            : '∞';
+                                                        $html .= "<div class='flex justify-between text-sm'>";
+                                                        $html .= "<span class='text-gray-600 dark:text-gray-400'>{$margin->name}</span>";
+                                                        $html .= "<span class='font-mono'>Rp {$min} - {$max}: <strong class='text-primary-600 dark:text-primary-400'>{$margin->margin_percent}%</strong></span>";
+                                                        $html .= "</div>";
+                                                    }
+                                                    $html .= '</div>';
+
+                                                    return new \Illuminate\Support\HtmlString($html);
+                                                })
+                                                ->columnSpanFull(),
+                                        ])
+                                        ->collapsible()
+                                        ->collapsed()
+                                        ->visible(fn(callable $get) => $get('margin_type') === 'auto'),
+                                ])
+                                ->columns(2),
+                        ]),
                 ])
                     ->columnSpanFull()
                     ->skippable()

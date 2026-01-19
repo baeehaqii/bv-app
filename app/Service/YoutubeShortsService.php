@@ -337,9 +337,21 @@ class YoutubeShortsService
      * Calculate engagement metrics from recent shorts
      * This method provides ACCURATE engagement from shorts data
      * 
+     * Engagement Formula: likes + comments + saves + shares + reposts
+     * 
+     * Note: YouTube API currently only provides:
+     * - likeCountInt: Likes count
+     * - commentCountInt: Comments count  
+     * - viewCountInt: View count
+     * 
+     * YouTube does NOT provide:
+     * - saveCount: Save/Bookmark count (not exposed by YouTube)
+     * - shareCount: Share count (not exposed by YouTube)
+     * - repostCount: YouTube doesn't have repost feature
+     * 
      * Requirements:
      * - Avg views: Average of 9 shorts = AVERAGE(total views 9 shorts)
-     * - Total Engagement: Total engagement dari 9 shorts (likes + comments)
+     * - Total Engagement: Total engagement dari 9 shorts (likes + comments + saves + shares + reposts)
      * - ER%: (Average Engagement per Short / Subscribers) × 100
      * 
      * Note: YouTube Shorts API from /simple endpoint doesn't provide publish date,
@@ -371,6 +383,9 @@ class YoutubeShortsService
 
         $totalLikes = 0;
         $totalComments = 0;
+        $totalSaves = 0;    // Not available in YouTube API
+        $totalShares = 0;   // Not available in YouTube API
+        $totalReposts = 0;  // YouTube doesn't have repost feature
         $totalViews = 0;
         $shortsCount = count($validShorts);
 
@@ -379,16 +394,28 @@ class YoutubeShortsService
             $comments = $short['commentCountInt'] ?? 0;
             $views = $short['viewCountInt'] ?? 0;
 
+            // These fields are not currently provided by YouTube API
+            // but we include them for future-proofing and consistency with other platforms
+            $saves = $short['saveCountInt'] ?? $short['bookmarkCountInt'] ?? 0;
+            $shares = $short['shareCountInt'] ?? 0;
+            $reposts = $short['repostCountInt'] ?? 0;
+
             Log::info("📊 Short #{$index} Stats", [
                 'short_id' => $short['id'] ?? 'unknown',
                 'title' => substr($short['title'] ?? 'N/A', 0, 50),
                 'likes' => $likes,
                 'comments' => $comments,
+                'saves' => $saves,
+                'shares' => $shares,
+                'reposts' => $reposts,
                 'views' => $views,
             ]);
 
             $totalLikes += $likes;
             $totalComments += $comments;
+            $totalSaves += $saves;
+            $totalShares += $shares;
+            $totalReposts += $reposts;
             $totalViews += $views;
         }
 
@@ -396,8 +423,9 @@ class YoutubeShortsService
         $averageLikes = $shortsCount > 0 ? round($totalLikes / $shortsCount) : 0;
         $averageComments = $shortsCount > 0 ? round($totalComments / $shortsCount) : 0;
 
-        // Total Engagement = Sum of (likes + comments) dari 9 shorts
-        $totalEngagements = $totalLikes + $totalComments;
+        // Total Engagement = Sum of (likes + comments + saves + shares + reposts) dari 9 shorts
+        // Note: Currently saves, shares, reposts will be 0 as YouTube API doesn't provide them
+        $totalEngagements = $totalLikes + $totalComments + $totalSaves + $totalShares + $totalReposts;
 
         // Average Engagement per Short (untuk ER% calculation)
         $averageEngagementPerShort = $shortsCount > 0 ? $totalEngagements / $shortsCount : 0;
@@ -416,9 +444,13 @@ class YoutubeShortsService
             'averageEngagementPerShort' => round($averageEngagementPerShort),
             'totalLikes' => $totalLikes,
             'totalComments' => $totalComments,
+            'totalSaves' => $totalSaves,
+            'totalShares' => $totalShares,
+            'totalReposts' => $totalReposts,
             'totalViews' => $totalViews,
             'engagementRate' => $engagementRate,
             'averageImpressions' => $averageImpressions,
+            'note' => 'saves, shares, reposts are 0 - YouTube API limitation',
         ]);
 
         return [

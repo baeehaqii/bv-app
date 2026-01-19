@@ -4,7 +4,6 @@ namespace App\Enums;
 
 enum SalesStatus: string
 {
-    case PITCHING = 'pitching';
     case BRIEFING = 'briefing';
     case PROPOSAL_BUILDING = 'proposal_building';
     case NEGOTIATION = 'negotiation';
@@ -17,7 +16,6 @@ enum SalesStatus: string
     public function getLabel(): string
     {
         return match ($this) {
-            self::PITCHING => 'Pitching',
             self::BRIEFING => 'Briefing',
             self::PROPOSAL_BUILDING => 'Proposal Building',
             self::NEGOTIATION => 'Negotiation',
@@ -32,7 +30,6 @@ enum SalesStatus: string
     public function getColor(): string
     {
         return match ($this) {
-            self::PITCHING => 'gray',
             self::BRIEFING => 'info',
             self::PROPOSAL_BUILDING => 'warning',
             self::NEGOTIATION => 'purple',
@@ -47,7 +44,6 @@ enum SalesStatus: string
     public function getIcon(): string
     {
         return match ($this) {
-            self::PITCHING => 'heroicon-o-megaphone',
             self::BRIEFING => 'heroicon-o-document-text',
             self::PROPOSAL_BUILDING => 'heroicon-o-document-plus',
             self::NEGOTIATION => 'heroicon-o-chat-bubble-left-right',
@@ -67,3 +63,4 @@ enum SalesStatus: string
         );
     }
 }
+

@@ -328,9 +328,21 @@ class YoutubeChannelsService
      * Calculate engagement metrics from recent videos
      * This method provides ACCURATE engagement from video data
      * 
+     * Engagement Formula: likes + comments + saves + shares + reposts
+     * 
+     * Note: YouTube API currently only provides:
+     * - likeCountInt: Likes count
+     * - commentCountInt: Comments count  
+     * - viewCountInt: View count
+     * 
+     * YouTube does NOT provide:
+     * - saveCount: Save/Bookmark count (not exposed by YouTube)
+     * - shareCount: Share count (not exposed by YouTube)
+     * - repostCount: YouTube doesn't have repost feature
+     * 
      * Requirements from user:
      * - Avg views: Average of 9 videos (>24 hours old) = AVERAGE(total views 9 videos)
-     * - Total Engagement: Total engagement dari 9 videos (likes + comments)
+     * - Total Engagement: Total engagement dari 9 videos (likes + comments + saves + shares + reposts)
      * - ER%: (Average Engagement per Video / Followers) × 100
      * 
      * @param array $videos Array of video data
@@ -384,6 +396,9 @@ class YoutubeChannelsService
 
         $totalLikes = 0;
         $totalComments = 0;
+        $totalSaves = 0;    // Not available in YouTube API
+        $totalShares = 0;   // Not available in YouTube API
+        $totalReposts = 0;  // YouTube doesn't have repost feature
         $totalViews = 0;
         $videoCount = count($validVideos);
 
@@ -392,17 +407,29 @@ class YoutubeChannelsService
             $comments = $video['commentCountInt'] ?? 0;
             $views = $video['viewCountInt'] ?? 0;
 
+            // These fields are not currently provided by YouTube API
+            // but we include them for future-proofing and consistency with other platforms
+            $saves = $video['saveCountInt'] ?? $video['bookmarkCountInt'] ?? 0;
+            $shares = $video['shareCountInt'] ?? 0;
+            $reposts = $video['repostCountInt'] ?? 0;
+
             Log::info("📊 Video #{$index} Stats", [
                 'video_id' => $video['id'] ?? 'unknown',
                 'title' => substr($video['title'] ?? 'N/A', 0, 50),
                 'publishedTime' => $video['publishedTimeText'] ?? 'N/A',
                 'likes' => $likes,
                 'comments' => $comments,
+                'saves' => $saves,
+                'shares' => $shares,
+                'reposts' => $reposts,
                 'views' => $views,
             ]);
 
             $totalLikes += $likes;
             $totalComments += $comments;
+            $totalSaves += $saves;
+            $totalShares += $shares;
+            $totalReposts += $reposts;
             $totalViews += $views;
         }
 
@@ -410,8 +437,9 @@ class YoutubeChannelsService
         $averageLikes = $videoCount > 0 ? round($totalLikes / $videoCount) : 0;
         $averageComments = $videoCount > 0 ? round($totalComments / $videoCount) : 0;
 
-        // Total Engagement = Sum of (likes + comments) dari 9 videos
-        $totalEngagements = $totalLikes + $totalComments;
+        // Total Engagement = Sum of (likes + comments + saves + shares + reposts) dari 9 videos
+        // Note: Currently saves, shares, reposts will be 0 as YouTube API doesn't provide them
+        $totalEngagements = $totalLikes + $totalComments + $totalSaves + $totalShares + $totalReposts;
 
         // Average Engagement per Video (untuk ER% calculation)
         $averageEngagementPerVideo = $videoCount > 0 ? $totalEngagements / $videoCount : 0;
@@ -430,9 +458,13 @@ class YoutubeChannelsService
             'averageEngagementPerVideo' => round($averageEngagementPerVideo),
             'totalLikes' => $totalLikes,
             'totalComments' => $totalComments,
+            'totalSaves' => $totalSaves,
+            'totalShares' => $totalShares,
+            'totalReposts' => $totalReposts,
             'totalViews' => $totalViews,
             'engagementRate' => $engagementRate,
             'averageImpressions' => $averageImpressions,
+            'note' => 'saves, shares, reposts are 0 - YouTube API limitation',
         ]);
 
         return [
