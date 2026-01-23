@@ -10,29 +10,8 @@ return new class extends Migration {
      */
     public function up(): void
     {
-        Schema::table('bv_campaigns', function (Blueprint $table) {
-            // Add client_id foreign key (for brand)
-            $table->foreignId('client_id')->nullable()->after('id')->constrained('data_clients')->nullOnDelete();
-
-            // Add campaign description
-            $table->text('campaign_description')->nullable()->after('campaign_name');
-
-            // Add campaign banner/image
-            $table->string('campaign_image')->nullable()->after('campaign_description');
-
-            // Add media platforms (JSON array for multiple platforms)
-            $table->json('media_platforms')->nullable()->after('campaign_image');
-
-            // Add campaign type
-            $table->string('campaign_type')->default('regular')->after('media_platforms');
-
-            // Add total cost
-            $table->decimal('total_cost', 15, 2)->default(0)->after('campaign_type');
-
-            // Add retrieve option and template
-            $table->string('retrieve_option')->nullable()->after('total_cost');
-            $table->string('retrieve_template')->nullable()->after('retrieve_option');
-        });
+        // All fields are now added in create_bv_campigns_table migration
+        // This migration is kept for historical reference but does nothing
     }
 
     /**

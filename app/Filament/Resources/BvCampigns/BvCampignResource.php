@@ -40,9 +40,7 @@ class BvCampignResource extends Resource
 
     public static function getRelations(): array
     {
-        return [
-            RelationManagers\KolsRelationManager::class,
-        ];
+        return [];
     }
 
     public static function getPages(): array
@@ -50,8 +48,8 @@ class BvCampignResource extends Resource
         return [
             'index' => ListBvCampigns::route('/'),
             'create' => CreateBvCampign::route('/create'),
-            'view' => Pages\ViewBvCampign::route('/{record}'),
             'edit' => EditBvCampign::route('/{record}/edit'),
+            'kol-performance' => Pages\KolPerformance::route('/{record}/kol-performance'),
         ];
     }
 }

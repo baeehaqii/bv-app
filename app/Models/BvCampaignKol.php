@@ -89,13 +89,42 @@ class BvCampaignKol extends Model
 
     /**
      * Calculate engagement rate from current metrics
+     * 
+     * ER by Views (Reels/Video): (Like + Comment) / Views × 100
+     * ER by Followers (Photo): (Like + Comment) / Followers × 100
+     * 
+     * @param string|null $type Force calculation type ('views' or 'followers')
+     * @return float
      */
-    public function calculateEngagementRate(): float
+    public function calculateEngagementRate(?string $type = null): float
     {
-        if ($this->views <= 0) {
-            return 0;
+        $totalEngagement = $this->likes + $this->comments;
+
+        // Determine which type to use
+        $erType = $type ?? $this->er_type ?? 'views';
+
+        if ($erType === 'views' && $this->views > 0) {
+            return round(($totalEngagement / $this->views) * 100, 4);
         }
 
-        return round(($this->total_engagement / $this->views) * 100, 4);
+        if ($erType === 'followers' && $this->followers_count > 0) {
+            return round(($totalEngagement / $this->followers_count) * 100, 4);
+        }
+
+        return 0;
+    }
+
+    /**
+     * Get formatted engagement rate with type indicator
+     */
+    public function getFormattedEngagementRateAttribute(): string
+    {
+        if ($this->engagement_rate <= 0) {
+            return 'N/A';
+        }
+
+        $suffix = $this->er_type === 'followers' ? ' (F)' : '';
+        return number_format((float) $this->engagement_rate, 2) . '%' . $suffix;
     }
 }
+

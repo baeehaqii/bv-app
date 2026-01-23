@@ -1,6 +1,32 @@
 /* Flowforge Kanban Board Styles */
 @source "../../../../vendor/relaticle/flowforge/resources/views/**/*.blade.php";
 
+/* Flaticon uicons - for brand icons (Instagram, TikTok, YouTube) */
+@import "@flaticon/flaticon-uicons/css/all/all";
+
+/* Custom icon styles for platform badges */
+.platform-icon {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+}
+
+.platform-icon i {
+    font-size: 1rem;
+}
+
+.platform-icon.instagram i {
+    color: #E1306C;
+}
+
+.platform-icon.tiktok i {
+    color: #000000;
+}
+
+.platform-icon.youtube i {
+    color: #FF0000;
+}
+
 /* Stats Widget Counter Animation */
 .fi-wi-stats-overview-stat-value {
     animation: countUp 1.5s ease-out forwards;

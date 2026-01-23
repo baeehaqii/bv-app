@@ -6,3 +6,6 @@
 @import "./widget/index.css";
 @import "./table/index.css";
 @import "./form/index.css";
+
+/* Flaticon uicons - brand icons for social media platforms */
+@import "@flaticon/flaticon-uicons/css/all/all";

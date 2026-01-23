@@ -35,7 +35,13 @@ class BvCampignForm
                                 ->schema([
                                     Select::make('client_id')
                                         ->label('Brand Name')
-                                        ->relationship('client', 'nama_brand')
+                                        ->relationship(
+                                            name: 'client',
+                                            titleAttribute: 'nama_brand',
+                                            modifyQueryUsing: fn($query) => $query
+                                                ->selectRaw('MIN(id) as id, nama_brand')
+                                                ->groupBy('nama_brand')
+                                        )
                                         ->searchable()
                                         ->preload()
                                         ->required()
@@ -307,14 +313,13 @@ class BvCampignForm
 
                     TextInput::make('price')
                         ->label('Price')
-                        ->prefix('Rp.')
-                        ->numeric()
+                        ->prefix('Rp')
                         ->default(0)
                         ->mask(\Filament\Support\RawJs::make(<<<'JS'
                             $money($input, ',', '.', 0)
                         JS))
                         ->stripCharacters(['.'])
-                        ->dehydrateStateUsing(fn($state) => (int) str_replace('.', '', $state ?? '0')),
+                        ->numeric(), // Keep numeric validation rule, but after mask definition
                 ]),
         ];
     }

@@ -908,6 +908,11 @@ class InstagramService
 
     /**
      * Get post/reel stats from Instagram URL
+     * Returns engagement metrics and content type for proper ER calculation
+     * 
+     * ER Formula (from user requirements):
+     * - Reels/Video (has views): ER = (Like + Comment) / Views × 100
+     * - Photo/Carousel (no views): ER = (Like + Comment) / Followers × 100
      * 
      * @param string $postUrl Instagram post or reel URL
      * @return array
@@ -945,9 +950,24 @@ class InstagramService
             $data = $responseData['data'] ?? [];
             $media = $data['xdt_shortcode_media'] ?? $data;
 
-            // Extract username
+            // Extract owner info
             $owner = $media['owner'] ?? [];
             $username = $owner['username'] ?? null;
+
+            // Get followers count from owner (needed for ER_followers calculation)
+            $followersCount = $owner['edge_followed_by']['count']
+                ?? $owner['follower_count']
+                ?? 0;
+
+            // Determine content type
+            // product_type: 'clips' = Reels, 'feed' = Feed post, 'igtv' = IGTV
+            // is_video: true for video content
+            $productType = $media['product_type'] ?? '';
+            $isVideo = $media['is_video'] ?? false;
+
+            // Determine if this is Reels/Video (has views) or Photo/Carousel (no views)
+            $isReelsOrVideo = $productType === 'clips' || $productType === 'igtv' || $isVideo;
+            $contentType = $isReelsOrVideo ? 'reels' : 'feed';
 
             // Extract metrics
             $likeCount = $media['edge_media_preview_like']['count']
@@ -959,14 +979,44 @@ class InstagramService
                 ?? $media['comment_count']
                 ?? 0;
 
-            $viewCount = $media['video_view_count']
-                ?? $media['video_play_count']
-                ?? $media['play_count']
-                ?? 0;
+            // Views - only available for Reels/Video
+            // Use play_count or video_view_count
+            $viewCount = 0;
+            if ($isReelsOrVideo) {
+                $viewCount = $media['video_play_count']
+                    ?? $media['video_view_count']
+                    ?? $media['play_count']
+                    ?? $media['ig_play_count']
+                    ?? 0;
+            }
 
-            // Instagram doesn't always provide saves/shares publicly, estimate as 0
+            // Instagram doesn't always provide saves/shares publicly
             $saveCount = $media['save_count'] ?? 0;
             $shareCount = $media['share_count'] ?? 0;
+
+            // Handle -1 values (API returns -1 when data is not publicly available)
+            $likeCount = max(0, $likeCount);
+            $commentCount = max(0, $commentCount);
+            $viewCount = max(0, $viewCount);
+            $saveCount = max(0, $saveCount);
+            $shareCount = max(0, $shareCount);
+
+            // Calculate total engagement (likes + comments only for ER)
+            $totalEngagement = $likeCount + $commentCount;
+
+            // Determine ER type and calculate
+            // - Reels/Video: Use views as denominator
+            // - Photo/Carousel: Use followers as denominator
+            $erType = ($isReelsOrVideo && $viewCount > 0) ? 'views' : 'followers';
+
+            $engagementRate = 0;
+            if ($erType === 'views' && $viewCount > 0) {
+                // ER by Views = (Like + Comment) / Views × 100
+                $engagementRate = round(($totalEngagement / $viewCount) * 100, 4);
+            } elseif ($erType === 'followers' && $followersCount > 0) {
+                // ER by Followers = (Like + Comment) / Followers × 100
+                $engagementRate = round(($totalEngagement / $followersCount) * 100, 4);
+            }
 
             $result = [
                 'username' => $username,
@@ -975,12 +1025,24 @@ class InstagramService
                 'comments' => $commentCount,
                 'saves' => $saveCount,
                 'shares' => $shareCount,
+                'total_engagement' => $totalEngagement,
+                'followers_count' => $followersCount,
+                'content_type' => $contentType,
+                'is_video' => $isReelsOrVideo,
+                'er_type' => $erType,
+                'engagement_rate' => $engagementRate,
             ];
 
-            // Calculate total engagement
-            $result['total_engagement'] = $result['likes'] + $result['comments'] + $result['saves'] + $result['shares'];
-
-            Log::info('✅ Instagram Post Stats Retrieved', $result);
+            Log::info('✅ Instagram Post Stats Retrieved', [
+                'username' => $username,
+                'content_type' => $contentType,
+                'er_type' => $erType,
+                'views' => $viewCount,
+                'likes' => $likeCount,
+                'comments' => $commentCount,
+                'followers_count' => $followersCount,
+                'engagement_rate' => $engagementRate,
+            ]);
 
             return $result;
 

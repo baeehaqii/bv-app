@@ -51,6 +51,23 @@ class CreateBvCampign extends CreateRecord
             $data['total_cost'] = $totalCost;
         }
 
+        // Remove fields that should not be saved to bv_campaigns table
+        // These are temporary form fields used to collect creator data
+        unset(
+            $data['instagram_reels_enabled'],
+            $data['instagram_feed_enabled'],
+            $data['tiktok_video_enabled'],
+            $data['tiktok_photos_enabled'],
+            $data['youtube_short_enabled'],
+            $data['youtube_video_enabled'],
+            $data['instagram_reels_creators'],
+            $data['instagram_feed_creators'],
+            $data['tiktok_video_creators'],
+            $data['tiktok_photos_creators'],
+            $data['youtube_short_creators'],
+            $data['youtube_video_creators']
+        );
+
         return $data;
     }
 
@@ -85,6 +102,8 @@ class CreateBvCampign extends CreateRecord
             }
         }
     }
+
+    protected static bool $canCreateAnother = false;
 
     protected function getRedirectUrl(): string
     {

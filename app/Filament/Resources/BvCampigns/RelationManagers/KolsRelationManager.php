@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\BvCampigns\RelationManagers;
 
 use App\Models\BvCampaignKol;
+use App\Service\PostPerformanceService;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\CreateAction;
@@ -19,6 +20,7 @@ use Filament\Support\Enums\FontWeight;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Exception;
 
 class KolsRelationManager extends RelationManager
 {
@@ -163,10 +165,28 @@ class KolsRelationManager extends RelationManager
                     ->numeric()
                     ->sortable(),
 
+                TextColumn::make('shares')
+                    ->label('Shares')
+                    ->numeric()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                TextColumn::make('saves')
+                    ->label('Saves')
+                    ->numeric()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                TextColumn::make('total_engagement')
+                    ->label('Engagement')
+                    ->numeric()
+                    ->color('primary')
+                    ->sortable(),
+
                 TextColumn::make('engagement_rate')
                     ->label('ER')
-                    ->suffix('%')
-                    ->color('success')
+                    ->formatStateUsing(fn($state, $record) => $record->views > 0 ? number_format($state, 2) . '%' : 'N/A')
+                    ->color(fn($state, $record) => $record->views > 0 ? 'success' : 'gray')
                     ->sortable(),
 
                 TextColumn::make('price')
@@ -207,13 +227,50 @@ class KolsRelationManager extends RelationManager
                     ->icon('heroicon-o-arrow-path')
                     ->color('info')
                     ->requiresConfirmation()
+                    ->modalHeading('Fetch All KOL Performance')
+                    ->modalDescription('This will fetch performance data from all KOL post URLs. This may take a while depending on the number of KOLs.')
                     ->action(function () {
-                        // TODO: Implement bulk fetch
-                        Notification::make()
-                            ->title('Performance Fetched')
-                            ->body('KOL performance data has been updated.')
-                            ->success()
-                            ->send();
+                        try {
+                            $kols = $this->getOwnerRecord()->kols()
+                                ->whereNotNull('post_url')
+                                ->where('post_url', '!=', '')
+                                ->get();
+
+                            if ($kols->isEmpty()) {
+                                Notification::make()
+                                    ->title('No KOLs with Post URLs')
+                                    ->body('Please add post URLs to KOLs first.')
+                                    ->warning()
+                                    ->send();
+                                return;
+                            }
+
+                            $service = new PostPerformanceService();
+                            $results = $service->bulkFetchAndUpdate($kols);
+
+                            if ($results['success'] > 0) {
+                                Notification::make()
+                                    ->title('Performance Fetched')
+                                    ->body("Successfully updated {$results['success']} of {$results['total']} KOLs.")
+                                    ->success()
+                                    ->send();
+                            }
+
+                            if ($results['failed'] > 0) {
+                                Notification::make()
+                                    ->title('Some Fetches Failed')
+                                    ->body(implode("\n", array_slice($results['errors'], 0, 5)))
+                                    ->warning()
+                                    ->send();
+                            }
+
+                        } catch (Exception $e) {
+                            Notification::make()
+                                ->title('Fetch Failed')
+                                ->body($e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
                     }),
             ])
             ->actions([
@@ -221,15 +278,46 @@ class KolsRelationManager extends RelationManager
                     ->label('Fetch')
                     ->icon('heroicon-o-arrow-path')
                     ->color('info')
+                    ->tooltip('Fetch performance from post URL')
+                    ->visible(fn($record) => !empty($record->post_url))
                     ->action(function ($record) {
-                        // TODO: Fetch individual KOL performance
-                        $record->update(['last_fetched_at' => now()]);
+                        try {
+                            if (empty($record->post_url)) {
+                                Notification::make()
+                                    ->title('No Post URL')
+                                    ->body('Please add a post URL first.')
+                                    ->warning()
+                                    ->send();
+                                return;
+                            }
 
-                        Notification::make()
-                            ->title('Performance Fetched')
-                            ->success()
-                            ->send();
+                            $service = new PostPerformanceService();
+                            $service->fetchAndUpdateKol($record);
+
+                            Notification::make()
+                                ->title('Performance Fetched')
+                                ->body("Views: " . number_format($record->views) .
+                                    " | Likes: " . number_format($record->likes) .
+                                    " | Comments: " . number_format($record->comments))
+                                ->success()
+                                ->send();
+
+                        } catch (Exception $e) {
+                            Notification::make()
+                                ->title('Fetch Failed')
+                                ->body($e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
                     }),
+                Action::make('open_url')
+                    ->label('Open')
+                    ->icon('heroicon-o-arrow-top-right-on-square')
+                    ->color('gray')
+                    ->url(fn($record) => $record->post_url)
+                    ->openUrlInNewTab()
+                    ->visible(fn($record) => !empty($record->post_url))
+                    ->tooltip('Open post in new tab'),
                 EditAction::make(),
                 DeleteAction::make(),
             ])

@@ -1,6 +1,114 @@
 {
+  "node_modules/@flaticon/flaticon-uicons/css/uicons-bold-rounded-CPL6VNRV.eot": {
+    "file": "assets/uicons-bold-rounded-CPL6VNRV-C7vERUOv.eot",
+    "src": "node_modules/@flaticon/flaticon-uicons/css/uicons-bold-rounded-CPL6VNRV.eot"
+  },
+  "node_modules/@flaticon/flaticon-uicons/css/uicons-bold-rounded-MQNABNC6.woff2": {
+    "file": "assets/uicons-bold-rounded-MQNABNC6-BFPrIFeu.woff2",
+    "src": "node_modules/@flaticon/flaticon-uicons/css/uicons-bold-rounded-MQNABNC6.woff2"
+  },
+  "node_modules/@flaticon/flaticon-uicons/css/uicons-bold-rounded-UTQQXXF3.woff": {
+    "file": "assets/uicons-bold-rounded-UTQQXXF3-DiPEwy3H.woff",
+    "src": "node_modules/@flaticon/flaticon-uicons/css/uicons-bold-rounded-UTQQXXF3.woff"
+  },
+  "node_modules/@flaticon/flaticon-uicons/css/uicons-bold-straight-3JAZKD6K.woff2": {
+    "file": "assets/uicons-bold-straight-3JAZKD6K-DF5T9rkJ.woff2",
+    "src": "node_modules/@flaticon/flaticon-uicons/css/uicons-bold-straight-3JAZKD6K.woff2"
+  },
+  "node_modules/@flaticon/flaticon-uicons/css/uicons-bold-straight-3S6L5GRX.woff": {
+    "file": "assets/uicons-bold-straight-3S6L5GRX-DAPajFpj.woff",
+    "src": "node_modules/@flaticon/flaticon-uicons/css/uicons-bold-straight-3S6L5GRX.woff"
+  },
+  "node_modules/@flaticon/flaticon-uicons/css/uicons-bold-straight-UHOZTY66.eot": {
+    "file": "assets/uicons-bold-straight-UHOZTY66-DoXE16tO.eot",
+    "src": "node_modules/@flaticon/flaticon-uicons/css/uicons-bold-straight-UHOZTY66.eot"
+  },
+  "node_modules/@flaticon/flaticon-uicons/css/uicons-brands-PQBQF6T3.woff": {
+    "file": "assets/uicons-brands-PQBQF6T3-ZvaM12gK.woff",
+    "src": "node_modules/@flaticon/flaticon-uicons/css/uicons-brands-PQBQF6T3.woff"
+  },
+  "node_modules/@flaticon/flaticon-uicons/css/uicons-brands-XJPKRNBN.woff2": {
+    "file": "assets/uicons-brands-XJPKRNBN-CVjjhO5D.woff2",
+    "src": "node_modules/@flaticon/flaticon-uicons/css/uicons-brands-XJPKRNBN.woff2"
+  },
+  "node_modules/@flaticon/flaticon-uicons/css/uicons-brands-ZJWE2ELA.eot": {
+    "file": "assets/uicons-brands-ZJWE2ELA-D_FYefc8.eot",
+    "src": "node_modules/@flaticon/flaticon-uicons/css/uicons-brands-ZJWE2ELA.eot"
+  },
+  "node_modules/@flaticon/flaticon-uicons/css/uicons-regular-rounded-ESQGLQQ4.eot": {
+    "file": "assets/uicons-regular-rounded-ESQGLQQ4-oBMUkbc4.eot",
+    "src": "node_modules/@flaticon/flaticon-uicons/css/uicons-regular-rounded-ESQGLQQ4.eot"
+  },
+  "node_modules/@flaticon/flaticon-uicons/css/uicons-regular-rounded-J3WOUERV.woff2": {
+    "file": "assets/uicons-regular-rounded-J3WOUERV-0sU45oCT.woff2",
+    "src": "node_modules/@flaticon/flaticon-uicons/css/uicons-regular-rounded-J3WOUERV.woff2"
+  },
+  "node_modules/@flaticon/flaticon-uicons/css/uicons-regular-rounded-KDJ23353.woff": {
+    "file": "assets/uicons-regular-rounded-KDJ23353-YBToKgOV.woff",
+    "src": "node_modules/@flaticon/flaticon-uicons/css/uicons-regular-rounded-KDJ23353.woff"
+  },
+  "node_modules/@flaticon/flaticon-uicons/css/uicons-regular-straight-2I3O25UC.woff2": {
+    "file": "assets/uicons-regular-straight-2I3O25UC-BTo29w1U.woff2",
+    "src": "node_modules/@flaticon/flaticon-uicons/css/uicons-regular-straight-2I3O25UC.woff2"
+  },
+  "node_modules/@flaticon/flaticon-uicons/css/uicons-regular-straight-AFQI6GFM.woff": {
+    "file": "assets/uicons-regular-straight-AFQI6GFM-DphnoBbK.woff",
+    "src": "node_modules/@flaticon/flaticon-uicons/css/uicons-regular-straight-AFQI6GFM.woff"
+  },
+  "node_modules/@flaticon/flaticon-uicons/css/uicons-regular-straight-E4NUVXFC.eot": {
+    "file": "assets/uicons-regular-straight-E4NUVXFC-BEgV9gQl.eot",
+    "src": "node_modules/@flaticon/flaticon-uicons/css/uicons-regular-straight-E4NUVXFC.eot"
+  },
+  "node_modules/@flaticon/flaticon-uicons/css/uicons-solid-rounded-IYSBBSWN.woff2": {
+    "file": "assets/uicons-solid-rounded-IYSBBSWN-CdPka4yL.woff2",
+    "src": "node_modules/@flaticon/flaticon-uicons/css/uicons-solid-rounded-IYSBBSWN.woff2"
+  },
+  "node_modules/@flaticon/flaticon-uicons/css/uicons-solid-rounded-N5CQNTC6.eot": {
+    "file": "assets/uicons-solid-rounded-N5CQNTC6-D6eJ0FUi.eot",
+    "src": "node_modules/@flaticon/flaticon-uicons/css/uicons-solid-rounded-N5CQNTC6.eot"
+  },
+  "node_modules/@flaticon/flaticon-uicons/css/uicons-solid-rounded-UWVI4CEC.woff": {
+    "file": "assets/uicons-solid-rounded-UWVI4CEC-BquqBmA0.woff",
+    "src": "node_modules/@flaticon/flaticon-uicons/css/uicons-solid-rounded-UWVI4CEC.woff"
+  },
+  "node_modules/@flaticon/flaticon-uicons/css/uicons-solid-straight-4DZ3VA4V.woff2": {
+    "file": "assets/uicons-solid-straight-4DZ3VA4V-h_sLUC1L.woff2",
+    "src": "node_modules/@flaticon/flaticon-uicons/css/uicons-solid-straight-4DZ3VA4V.woff2"
+  },
+  "node_modules/@flaticon/flaticon-uicons/css/uicons-solid-straight-ITFA7HIK.woff": {
+    "file": "assets/uicons-solid-straight-ITFA7HIK-D8xIydPE.woff",
+    "src": "node_modules/@flaticon/flaticon-uicons/css/uicons-solid-straight-ITFA7HIK.woff"
+  },
+  "node_modules/@flaticon/flaticon-uicons/css/uicons-solid-straight-W4CCEH4W.eot": {
+    "file": "assets/uicons-solid-straight-W4CCEH4W-tgviSdRN.eot",
+    "src": "node_modules/@flaticon/flaticon-uicons/css/uicons-solid-straight-W4CCEH4W.eot"
+  },
+  "node_modules/@flaticon/flaticon-uicons/css/uicons-thin-rounded-HOOVQNVT.woff2": {
+    "file": "assets/uicons-thin-rounded-HOOVQNVT-B_5QepV7.woff2",
+    "src": "node_modules/@flaticon/flaticon-uicons/css/uicons-thin-rounded-HOOVQNVT.woff2"
+  },
+  "node_modules/@flaticon/flaticon-uicons/css/uicons-thin-rounded-IJXIJK3M.woff": {
+    "file": "assets/uicons-thin-rounded-IJXIJK3M-CItu6v1o.woff",
+    "src": "node_modules/@flaticon/flaticon-uicons/css/uicons-thin-rounded-IJXIJK3M.woff"
+  },
+  "node_modules/@flaticon/flaticon-uicons/css/uicons-thin-rounded-LFWVTX5C.eot": {
+    "file": "assets/uicons-thin-rounded-LFWVTX5C-DyD7TVbU.eot",
+    "src": "node_modules/@flaticon/flaticon-uicons/css/uicons-thin-rounded-LFWVTX5C.eot"
+  },
+  "node_modules/@flaticon/flaticon-uicons/css/uicons-thin-straight-2YUSDJEW.woff2": {
+    "file": "assets/uicons-thin-straight-2YUSDJEW-CsoAIjOq.woff2",
+    "src": "node_modules/@flaticon/flaticon-uicons/css/uicons-thin-straight-2YUSDJEW.woff2"
+  },
+  "node_modules/@flaticon/flaticon-uicons/css/uicons-thin-straight-JPCGBQEF.woff": {
+    "file": "assets/uicons-thin-straight-JPCGBQEF-BJdfCOa8.woff",
+    "src": "node_modules/@flaticon/flaticon-uicons/css/uicons-thin-straight-JPCGBQEF.woff"
+  },
+  "node_modules/@flaticon/flaticon-uicons/css/uicons-thin-straight-X52T7FDE.eot": {
+    "file": "assets/uicons-thin-straight-X52T7FDE-Bg9ou2wq.eot",
+    "src": "node_modules/@flaticon/flaticon-uicons/css/uicons-thin-straight-X52T7FDE.eot"
+  },
   "resources/css/app.css": {
-    "file": "assets/app-BkloT4HH.css",
+    "file": "assets/app-Dk9dznbZ.css",
     "src": "resources/css/app.css",
     "isEntry": true,
     "name": "app",
@@ -9,7 +117,7 @@
     ]
   },
   "resources/css/filament/theme/theme.css": {
-    "file": "assets/theme-BScNJCth.css",
+    "file": "assets/theme-C0IGmYO5.css",
     "src": "resources/css/filament/theme/theme.css",
     "isEntry": true,
     "name": "theme",

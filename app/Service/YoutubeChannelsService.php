@@ -566,4 +566,68 @@ class YoutubeChannelsService
             'external_url' => $fullProfile['external_url'],
         ];
     }
+
+    /**
+     * Get video stats from YouTube video URL (regular video or short)
+     * 
+     * @param string $postUrl YouTube video URL
+     * @return array
+     * @throws Exception
+     */
+    public function getVideoStats(string $postUrl): array
+    {
+        try {
+            Log::info('🔍 YouTube Video Stats Request', [
+                'url' => $postUrl,
+            ]);
+
+            // Call API to get video details
+            $response = Http::timeout(30)
+                ->withHeaders([
+                    'x-api-key' => $this->apiKey,
+                ])->get("{$this->baseUrl}/video", [
+                        'url' => $postUrl,
+                    ]);
+
+            if (!$response->successful()) {
+                Log::error('❌ YouTube Video API Error', [
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                ]);
+                throw new Exception('Failed to fetch YouTube video: ' . $response->body());
+            }
+
+            $data = $response->json();
+
+            if (!isset($data['success']) || !$data['success']) {
+                throw new Exception('API returned unsuccessful response');
+            }
+
+            // Extract stats from response
+            $videoData = $data['data'] ?? $data;
+
+            $result = [
+                'username' => $videoData['channelTitle'] ?? $videoData['channel_title'] ?? null,
+                'views' => $videoData['viewCountInt'] ?? $videoData['view_count'] ?? 0,
+                'likes' => $videoData['likeCountInt'] ?? $videoData['like_count'] ?? 0,
+                'comments' => $videoData['commentCountInt'] ?? $videoData['comment_count'] ?? 0,
+                'saves' => 0, // YouTube doesn't expose saves publicly
+                'shares' => 0, // YouTube doesn't expose shares publicly
+            ];
+
+            // Calculate total engagement
+            $result['total_engagement'] = $result['likes'] + $result['comments'] + $result['saves'] + $result['shares'];
+
+            Log::info('✅ YouTube Video Stats Retrieved', $result);
+
+            return $result;
+
+        } catch (Exception $e) {
+            Log::error('💥 YouTube Video Stats Error', [
+                'url' => $postUrl,
+                'message' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
+    }
 }

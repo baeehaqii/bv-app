@@ -7,7 +7,6 @@ use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
-use Filament\Actions\ViewAction;
 use Filament\Support\Enums\FontWeight;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
@@ -123,19 +122,12 @@ class BvCampignsTable
                     ]),
             ])
             ->recordActions([
-                ViewAction::make(),
-                EditAction::make(),
-                Action::make('fetch_performance')
-                    ->label('Fetch Performance')
-                    ->icon('heroicon-o-arrow-path')
+                Action::make('kol_performance')
+                    ->label('KOL Performance')
+                    ->icon('heroicon-o-chart-bar')
                     ->color('info')
-                    ->requiresConfirmation()
-                    ->modalHeading('Fetch KOL Performance')
-                    ->modalDescription('This will fetch the latest performance data for all KOLs in this campaign.')
-                    ->action(function ($record) {
-                        // TODO: Implement performance fetching
-                        // This will call Instagram/TikTok/YouTube APIs
-                    }),
+                    ->url(fn($record) => \App\Filament\Resources\BvCampigns\BvCampignResource::getUrl('kol-performance', ['record' => $record])),
+                EditAction::make(),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([

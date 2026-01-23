@@ -598,17 +598,26 @@ class TiktokService
                 throw new Exception('API returned unsuccessful response');
             }
 
+
             // Extract stats from response
             $stats = $data['statistics'] ?? [];
             $author = $data['author'] ?? [];
 
+            // Extract values (may be -1 if not available)
+            $views = $stats['play_count'] ?? $stats['playCount'] ?? 0;
+            $likes = $stats['digg_count'] ?? $stats['diggCount'] ?? 0;
+            $comments = $stats['comment_count'] ?? $stats['commentCount'] ?? 0;
+            $saves = $stats['collect_count'] ?? $stats['collectCount'] ?? 0;
+            $shares = $stats['share_count'] ?? $stats['shareCount'] ?? 0;
+
+            // Handle -1 values (API returns -1 when data is not publicly available)
             $result = [
                 'username' => $author['unique_id'] ?? $author['uniqueId'] ?? null,
-                'views' => $stats['play_count'] ?? $stats['playCount'] ?? 0,
-                'likes' => $stats['digg_count'] ?? $stats['diggCount'] ?? 0,
-                'comments' => $stats['comment_count'] ?? $stats['commentCount'] ?? 0,
-                'saves' => $stats['collect_count'] ?? $stats['collectCount'] ?? 0,
-                'shares' => $stats['share_count'] ?? $stats['shareCount'] ?? 0,
+                'views' => max(0, $views),
+                'likes' => max(0, $likes),
+                'comments' => max(0, $comments),
+                'saves' => max(0, $saves),
+                'shares' => max(0, $shares),
             ];
 
             // Calculate total engagement
