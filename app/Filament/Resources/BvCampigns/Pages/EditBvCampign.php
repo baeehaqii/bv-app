@@ -27,7 +27,7 @@ class EditBvCampign extends EditRecord
                 return [
                     'creator_name' => $kol->creator_name,
                     'url' => $kol->post_url,
-                    'price' => (int) $kol->price,
+                    'price' => (double) $kol->price,
                 ];
             })->toArray();
         }
@@ -39,7 +39,7 @@ class EditBvCampign extends EditRecord
                 return [
                     'creator_name' => $kol->creator_name,
                     'url' => $kol->post_url,
-                    'price' => (int) $kol->price,
+                    'price' => (double) $kol->price,
                 ];
             })->toArray();
         }
@@ -51,7 +51,7 @@ class EditBvCampign extends EditRecord
                 return [
                     'creator_name' => $kol->creator_name,
                     'url' => $kol->post_url,
-                    'price' => (int) $kol->price,
+                    'price' => (double) $kol->price,
                 ];
             })->toArray();
         }
@@ -63,7 +63,7 @@ class EditBvCampign extends EditRecord
                 return [
                     'creator_name' => $kol->creator_name,
                     'url' => $kol->post_url,
-                    'price' => (int) $kol->price,
+                    'price' => (double) $kol->price,
                 ];
             })->toArray();
         }
@@ -75,7 +75,7 @@ class EditBvCampign extends EditRecord
                 return [
                     'creator_name' => $kol->creator_name,
                     'url' => $kol->post_url,
-                    'price' => (int) $kol->price,
+                    'price' => (double) $kol->price,
                 ];
             })->toArray();
         }
@@ -87,7 +87,7 @@ class EditBvCampign extends EditRecord
                 return [
                     'creator_name' => $kol->creator_name,
                     'url' => $kol->post_url,
-                    'price' => (int) $kol->price,
+                    'price' => (double) $kol->price,
                 ];
             })->toArray();
         }
@@ -127,7 +127,8 @@ class EditBvCampign extends EditRecord
         foreach ($creatorFields as $field) {
             if (!empty($data[$field])) {
                 foreach ($data[$field] as $creator) {
-                    $totalCost += (int) ($creator['price'] ?? 0);
+                    $price = str_replace(['.', ','], '', $creator['price'] ?? '0');
+                    $totalCost += (double) $price;
                 }
             }
         }
@@ -179,7 +180,7 @@ class EditBvCampign extends EditRecord
                         'campaign_id' => $this->record->id,
                         'creator_name' => $creator['creator_name'] ?? '',
                         'post_url' => $creator['url'] ?? null,
-                        'price' => (int) ($creator['price'] ?? 0),
+                        'price' => (double) str_replace(['.', ','], '', $creator['price'] ?? '0'),
                         'platform' => $mapping['platform'],
                         'content_type' => $mapping['content_type'],
                         'status' => 'pending',

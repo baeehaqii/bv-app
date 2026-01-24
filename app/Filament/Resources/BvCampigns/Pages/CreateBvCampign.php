@@ -42,7 +42,8 @@ class CreateBvCampign extends CreateRecord
         foreach ($creatorFields as $field) {
             if (!empty($data[$field])) {
                 foreach ($data[$field] as $creator) {
-                    $totalCost += (int) ($creator['price'] ?? 0);
+                    $price = str_replace(['.', ','], '', $creator['price'] ?? '0');
+                    $totalCost += (double) $price;
                 }
             }
         }
@@ -93,7 +94,7 @@ class CreateBvCampign extends CreateRecord
                         'campaign_id' => $record->id,
                         'creator_name' => $creator['creator_name'] ?? '',
                         'post_url' => $creator['url'] ?? null,
-                        'price' => (int) ($creator['price'] ?? 0),
+                        'price' => (double) str_replace(['.', ','], '', $creator['price'] ?? '0'),
                         'platform' => $mapping['platform'],
                         'content_type' => $mapping['content_type'],
                         'status' => 'pending',

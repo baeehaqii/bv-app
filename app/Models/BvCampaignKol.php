@@ -12,7 +12,7 @@ class BvCampaignKol extends Model
     protected $guarded = [];
 
     protected $casts = [
-        'price' => 'decimal:2',
+        'price' => 'double',
         'engagement_rate' => 'decimal:4',
         'posted_at' => 'datetime',
         'last_fetched_at' => 'datetime',

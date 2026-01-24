@@ -274,8 +274,7 @@ class BvCampignForm
                                         ->mask(\Filament\Support\RawJs::make(<<<'JS'
                                             $money($input, ',', '.', 0)
                                         JS))
-                                        ->stripCharacters(['.'])
-                                        ->dehydrateStateUsing(fn($state) => (int) str_replace('.', '', $state ?? '0')),
+                                        ->dehydrateStateUsing(fn($state) => (double) str_replace(['.', ','], '', $state ?? '0')),
 
                                     TextInput::make('pic_internal')
                                         ->label('PIC Internal')
@@ -318,8 +317,7 @@ class BvCampignForm
                         ->mask(\Filament\Support\RawJs::make(<<<'JS'
                             $money($input, ',', '.', 0)
                         JS))
-                        ->stripCharacters(['.'])
-                        ->numeric(), // Keep numeric validation rule, but after mask definition
+                        ->dehydrateStateUsing(fn($state) => str_replace(['.', ','], '', $state ?? '0')),
                 ]),
         ];
     }

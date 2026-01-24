@@ -181,7 +181,7 @@ class KolPerformance extends Page implements HasTable
 
                 TextColumn::make('price')
                     ->label('Price')
-                    ->money('IDR')
+                    ->formatStateUsing(fn($state) => 'IDR ' . number_format((float) $state, 0, ',', '.'))
                     ->sortable(),
 
                 TextColumn::make('status')
@@ -246,7 +246,12 @@ class KolPerformance extends Page implements HasTable
                         ]),
                         TextInput::make('post_url')->label('Post URL')->url()->columnSpanFull(),
                         Grid::make(2)->schema([
-                            TextInput::make('price')->numeric()->prefix('Rp'),
+                            TextInput::make('price')
+                                ->prefix('Rp')
+                                ->mask(\Filament\Support\RawJs::make(<<<'JS'
+                                    $money($input, ',', '.', 0)
+                                JS))
+                                ->dehydrateStateUsing(fn($state) => (double) str_replace(['.', ','], '', $state ?? '0')),
                             Select::make('status')->options([
                                 'pending' => 'Pending',
                                 'posted' => 'Posted',

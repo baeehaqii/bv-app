@@ -18,7 +18,7 @@ return new class extends Migration {
             $table->string('creator_name');
             $table->string('username')->nullable();
             $table->string('post_url')->nullable();
-            $table->decimal('price', 15, 2)->default(0);
+            $table->double('price')->default(0);
 
             // Platform & content type
             $table->string('platform'); // instagram, tiktok, youtube
@@ -33,6 +33,8 @@ return new class extends Migration {
             $table->decimal('engagement_rate', 8, 4)->default(0);
             $table->bigInteger('reach')->default(0);
             $table->bigInteger('impressions')->default(0);
+            $table->bigInteger('followers_count')->default(0);
+            $table->string('er_type')->nullable();
 
             // Status
             $table->string('status')->default('pending'); // pending, posted, completed
