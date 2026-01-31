@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\User;
 // use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
+use Database\Seeders\MasterPphSeeder;
 
 class DatabaseSeeder extends Seeder
 {
@@ -13,15 +14,12 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // Jalankan ShieldSeeder untuk membuat permissions
         $this->call(ShieldSeeder::class);
-
-        // Generate Shield permissions dan policies untuk semua resources
         $this->command->info('Generating Shield permissions and policies...');
         \Illuminate\Support\Facades\Artisan::call('shield:generate', [
             '--all' => true,
             '--panel' => 'office',
-            '--option' => '2', // Option 2 = Generate Policies & Permissions
+            '--option' => '2',
         ]);
         $this->command->info('Shield generation completed!');
 
@@ -35,6 +33,9 @@ class DatabaseSeeder extends Seeder
         // Jalankan DataVendorSeeder
         $this->call(DataVendorSeeder::class);
         $this->command->info('DataVendor seeding completed!');
+
+        $this->call(MasterPphSeeder::class);
+        $this->command->info('MasterPph seeding completed!');
 
         $this->command->info('Database seeding completed successfully!');
     }

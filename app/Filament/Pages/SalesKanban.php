@@ -49,7 +49,6 @@ class SalesKanban extends BoardPage implements HasTable
     {
         return [
             \App\Filament\Widgets\Sales\SalesStatsWidget::class,
-            \App\Filament\Widgets\Sales\TopKolWidget::class,
         ];
     }
 
@@ -67,20 +66,22 @@ class SalesKanban extends BoardPage implements HasTable
             Action::make('kanban_view')
                 ->label('Kanban')
                 ->icon('heroicon-o-view-columns')
-                ->color($this->viewMode === 'kanban' ? 'primary' : 'gray')
+                ->color('white')
                 ->action(fn() => $this->viewMode = 'kanban'),
 
             Action::make('list_view')
                 ->label('List')
                 ->icon('heroicon-o-list-bullet')
-                ->color($this->viewMode === 'list' ? 'primary' : 'gray')
+                ->color('white')
                 ->action(fn() => $this->viewMode = 'list'),
 
             CreateAction::make()
-                ->label('Add Sales')
+                ->label('Add Campaign')
                 ->model(BvSales::class)
                 ->form(BvSalesForm::getFormComponents())
                 ->createAnother(false)
+                ->color('white')
+                ->icon('heroicon-o-plus')
                 ->modalWidth('2xl')
                 ->modalHeading('Create Sales Activity')
                 ->slideOver()
@@ -142,6 +143,7 @@ class SalesKanban extends BoardPage implements HasTable
                     ->date('d M Y')
                     ->hidden(fn($record) => empty($record->close_date)),
             ]))
+            /*
             ->searchable(['event_name', 'company_name', 'detail'])
             ->filters([
                 SelectFilter::make('campaign_year')
@@ -154,6 +156,8 @@ class SalesKanban extends BoardPage implements HasTable
                             ->toArray()
                     ),
             ])
+            */
+            /*
             ->columnActions([
                 CreateAction::make()
                     ->label('Add')
@@ -171,6 +175,7 @@ class SalesKanban extends BoardPage implements HasTable
                         return $data;
                     }),
             ])
+            */
             ->cardActions([
                 \Filament\Actions\EditAction::make()
                     ->model(BvSales::class)
@@ -341,7 +346,7 @@ class SalesKanban extends BoardPage implements HasTable
             return 'filament.pages.sales-kanban';
         }
 
-        // Return parent BoardPage view for kanban mode
-        return parent::getView();
+        // Return custom view with white background
+        return 'filament.pages.sales-kanban-board';
     }
 }

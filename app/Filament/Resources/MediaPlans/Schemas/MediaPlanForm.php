@@ -113,9 +113,12 @@ class MediaPlanForm
                                             'Digital Marketing' => 'Digital Marketing',
                                         ])
                                         ->placeholder('Pilih Campaign Type'),
-                                    TextInput::make('campaign_name')
+                                    Select::make('campaign_name')
                                         ->label('Campaign Name')
-                                        ->placeholder('e.g., Ichitan Monthly Creator')
+                                        ->options(fn() => \App\Models\BvSales::pluck('event_name', 'event_name'))
+                                        ->searchable()
+                                        ->preload()
+                                        ->placeholder('Pilih Sales Activity')
                                         ->required(),
                                     Datepicker::make('campaign_period_start')
                                         ->label('Campaign Period Start')->native(false)->displayFormat('d/m/Y')
@@ -131,10 +134,22 @@ class MediaPlanForm
 
                             Section::make('Detail Brand')
                                 ->schema([
-                                    TextInput::make('brand')
+                                    Select::make('brand')
                                         ->label('Brand/Client')
-                                        ->placeholder('e.g., ICHITAN CHIZ TEA')
-                                        ->required(),
+                                        ->options(\App\Models\DataClient::pluck('nama_brand', 'nama_brand'))
+                                        ->searchable()
+                                        ->preload()
+                                        ->placeholder('Pilih Brand/Client')
+                                        ->required()
+                                        ->live()
+                                        ->afterStateUpdated(function ($state, callable $set) {
+                                            if ($state) {
+                                                $client = \App\Models\DataClient::where('nama_brand', $state)->first();
+                                                if ($client) {
+                                                    $set('pic_client', $client->nama_pic);
+                                                }
+                                            }
+                                        }),
                                     TextInput::make('pic_client')
                                         ->label('PIC Client')
                                         ->placeholder('e.g., Rohmah')
@@ -778,7 +793,30 @@ class MediaPlanForm
                                 ->reorderable()
                                 ->columnSpanFull()
                                 ->live(),
-                        ]),
+                        ])
+                        ->afterStateUpdated(function (callable $get, callable $set) {
+                            $kols = $get('kols') ?? [];
+                            $margins = $get('kol_margins') ?? [];
+                            $useGlobal = $get('use_global_margin') ?? true;
+
+                            // Always sync name, but only re-init structure if counts mismatch or forced
+                            // Simple approach: Rebuild margin array preserving values for existing indices
+                
+                            $newMargins = [];
+                            $defaultMargin = $get('margin_percent') ?? 30;
+
+                            foreach ($kols as $index => $kol) {
+                                // Try to preserve existing margin for this index
+                                $currentMargin = $margins[$index]['margin'] ?? $defaultMargin;
+
+                                $newMargins[] = [
+                                    'name' => $kol['name'] ?? 'New KOL',
+                                    'margin' => $currentMargin,
+                                ];
+                            }
+
+                            $set('kol_margins', $newMargins);
+                        }),
 
                     Step::make('Margin Setting')
                         ->icon('heroicon-m-calculator')
@@ -824,42 +862,49 @@ class MediaPlanForm
                                         ->helperText('Jika aktif, margin ini akan diterapkan ke semua KOL. Jika tidak, setiap KOL bisa memiliki margin berbeda di Internal Budget.')
                                         ->inline()
                                         ->default(true)
+                                        ->live()
+                                        ->afterStateUpdated(function ($state, callable $get, callable $set) {
+                                            if (!$state) {
+                                                // Sync kols to margins when toggled OFF
+                                                $kols = $get('kols') ?? [];
+                                                $margins = [];
+                                                $default = $get('margin_percent') ?? 30;
+
+                                                foreach ($kols as $kol) {
+                                                    $margins[] = [
+                                                        'name' => $kol['name'] ?? 'New KOL',
+                                                        'margin' => $default,
+                                                    ];
+                                                }
+                                                $set('kol_margins', $margins);
+                                            }
+                                        })
                                         ->columnSpanFull(),
 
-                                    Section::make('📊 Master Margin Reference')
-                                        ->description('Referensi margin otomatis berdasarkan range budget (digunakan jika margin_type = auto)')
+                                    Repeater::make('kol_margins')
+                                        ->label('Custom Margin per KOL')
+                                        ->hidden(fn(callable $get) => $get('use_global_margin') === true)
                                         ->schema([
-                                            Placeholder::make('margin_reference')
-                                                ->label('')
-                                                ->content(function () {
-                                                    $margins = \App\Models\MasterMargin::active()
-                                                        ->ordered()
-                                                        ->get();
-
-                                                    if ($margins->isEmpty()) {
-                                                        return 'Belum ada data Master Margin. Silakan tambah di Settings > Master Margins.';
-                                                    }
-
-                                                    $html = '<div class="space-y-2">';
-                                                    foreach ($margins as $margin) {
-                                                        $min = number_format((float) $margin->min_amount, 0, ',', '.');
-                                                        $max = $margin->max_amount
-                                                            ? number_format((float) $margin->max_amount, 0, ',', '.')
-                                                            : '∞';
-                                                        $html .= "<div class='flex justify-between text-sm'>";
-                                                        $html .= "<span class='text-gray-600 dark:text-gray-400'>{$margin->name}</span>";
-                                                        $html .= "<span class='font-mono'>Rp {$min} - {$max}: <strong class='text-primary-600 dark:text-primary-400'>{$margin->margin_percent}%</strong></span>";
-                                                        $html .= "</div>";
-                                                    }
-                                                    $html .= '</div>';
-
-                                                    return new \Illuminate\Support\HtmlString($html);
-                                                })
-                                                ->columnSpanFull(),
+                                            TextInput::make('name')
+                                                ->disabled()
+                                                ->dehydrated(false)
+                                                ->columnSpan(2),
+                                            TextInput::make('margin')
+                                                ->label('Margin %')
+                                                ->numeric()
+                                                ->suffix('%')
+                                                ->required()
+                                                ->maxValue(100)
+                                                ->minValue(0)
+                                                ->columnSpan(1),
                                         ])
-                                        ->collapsible()
-                                        ->collapsed()
-                                        ->visible(fn(callable $get) => $get('margin_type') === 'auto'),
+                                        ->addable(false)
+                                        ->deletable(false)
+                                        ->reorderable(false)
+                                        ->columns(3)
+                                        ->columnSpanFull(),
+
+                                    // Master Margin Reference removed
                                 ])
                                 ->columns(2),
                         ]),

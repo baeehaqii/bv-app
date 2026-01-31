@@ -11,12 +11,14 @@
         {{-- Row 1: 4 cards --}}
         <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1rem;">
             @foreach(array_slice($this->getStats(), 0, 4) as $stat)
-                <div style="background: white; border-radius: 12px; border: 1px solid #e5e7eb; padding: 1rem;">
+                <div @if($stat['label'] === 'KOL') wire:click="toggleTopKols"
+                    style="background: white; border-radius: 12px; border: 1px solid #e5e7eb; padding: 1rem; cursor: pointer; transition: all 0.2s;"
+                    onmouseover="this.style.borderColor='#6366f1'; this.style.boxShadow='0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)';"
+                onmouseout="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';" @else
+                    style="background: white; border-radius: 12px; border: 1px solid #e5e7eb; padding: 1rem;" @endif>
                     <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
-                        <x-dynamic-component 
-                            :component="$stat['icon']" 
-                            style="width: 20px; height: 20px; color: #6366f1;"
-                        />
+                        <x-dynamic-component :component="$stat['icon']"
+                            style="width: 20px; height: 20px; color: #6366f1;" />
                         <span style="font-size: 12px; font-weight: 500; color: #6b7280; text-transform: uppercase;">
                             {{ $stat['label'] }}
                         </span>
@@ -28,15 +30,19 @@
             @endforeach
         </div>
 
+        @if($showTopKols)
+            <div style="margin-bottom: 1rem;">
+                @livewire(\App\Filament\Widgets\Sales\TopKolWidget::class)
+            </div>
+        @endif
+
         {{-- Row 2: 4 cards --}}
         <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem;">
             @foreach(array_slice($this->getStats(), 4, 4) as $stat)
                 <div style="background: white; border-radius: 12px; border: 1px solid #e5e7eb; padding: 1rem;">
                     <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
-                        <x-dynamic-component 
-                            :component="$stat['icon']" 
-                            style="width: 20px; height: 20px; color: #6366f1;"
-                        />
+                        <x-dynamic-component :component="$stat['icon']"
+                            style="width: 20px; height: 20px; color: #6366f1;" />
                         <span style="font-size: 12px; font-weight: 500; color: #6b7280; text-transform: uppercase;">
                             {{ $stat['label'] }}
                         </span>

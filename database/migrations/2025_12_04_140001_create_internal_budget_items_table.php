@@ -16,6 +16,7 @@ return new class extends Migration {
             // Relations
             $table->foreignId('internal_budget_id')->constrained('internal_budgets')->cascadeOnDelete();
             $table->foreignId('media_plan_kol_id')->nullable()->constrained('media_plan_kols')->nullOnDelete();
+            $table->foreignId('master_pph_id')->nullable()->constrained('master_pphs')->nullOnDelete(); // Added
 
             // Scope of Work (Synced from Media Plan)
             $table->integer('qty')->default(1);
@@ -24,10 +25,21 @@ return new class extends Migration {
             // Rate & Cost Calculation
             $table->decimal('rate_base', 15, 2)->default(0); // USER INPUT - Modal/HPP ke Vendor
             $table->decimal('subtotal', 15, 2)->default(0); // Qty × Rate (Base)
+            $table->decimal('gross_up_coeff', 10, 5)->nullable(); // Added
+            $table->string('tax_value')->nullable(); // Added e.g., "PPh 2.5%"
 
             // PPh Calculation (Progressive based on subtotal amount)
             // Coefficient auto-calculated: 0.97 (0-60M) to 0.775 (>5B)
             $table->decimal('mu_pph', 15, 2)->default(0); // Real Cost = Subtotal / PPh Coefficient
+            $table->decimal('target_margin_percent', 8, 2)->default(0); // Added
+
+            // Flexible Tax
+            $table->decimal('tax_rate_percent', 5, 2)->nullable()->comment('Override tax rate percentage - if null, use auto calculation'); // Added
+            $table->boolean('use_flexible_tax')->default(false)->comment('If true, use tax_rate_percent override instead of auto calculation'); // Added
+
+            // Flexible Margin
+            $table->boolean('use_flexible_margin')->default(false)->comment('If true, use margin_percent_override instead of auto calculation'); // Added
+            $table->decimal('margin_percent_override', 5, 2)->nullable()->comment('Custom margin percentage when use_flexible_margin is true'); // Added
 
             // Pricing Strategy
             // MU Target = MU PPh / 0.7 (fixed ~30% margin target)

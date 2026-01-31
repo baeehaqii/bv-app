@@ -34,7 +34,7 @@ return new class extends Migration {
             $table->bigInteger('reach')->default(0);
             $table->bigInteger('impressions')->default(0);
             $table->bigInteger('followers_count')->default(0);
-            $table->string('er_type')->nullable();
+            $table->string('er_type')->default('followers');
 
             // Status
             $table->string('status')->default('pending'); // pending, posted, completed

@@ -14,6 +14,13 @@ class CampaignSummaryWidget extends Widget
 
     protected static ?int $sort = 1;
 
+    public bool $showTopKols = false;
+
+    public function toggleTopKols()
+    {
+        $this->showTopKols = !$this->showTopKols;
+    }
+
     public function getStats(): array
     {
         // Get campaign statistics

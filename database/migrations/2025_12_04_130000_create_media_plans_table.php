@@ -26,6 +26,12 @@ return new class extends Migration {
 
             // Metadata
             $table->text('notes')->nullable();
+
+            // Margin Setting Fields (moved from Internal Budget Item level)
+            $table->enum('margin_type', ['auto', 'custom'])->default('auto');
+            $table->decimal('margin_percent', 8, 2)->nullable();
+            $table->boolean('use_global_margin')->default(true);
+
             $table->timestamps();
         });
     }

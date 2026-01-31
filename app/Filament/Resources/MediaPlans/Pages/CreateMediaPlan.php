@@ -10,13 +10,18 @@ class CreateMediaPlan extends CreateRecord
 {
     protected static string $resource = MediaPlanResource::class;
 
+    protected static bool $canCreateAnother = false;
+
     protected array $kolsData = [];
+    protected array $kolMargins = [];
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         // Store kols data temporarily and remove from main data
         $this->kolsData = $data['kols'] ?? [];
+        $this->kolMargins = $data['kol_margins'] ?? [];
         unset($data['kols']);
+        unset($data['kol_margins']);
 
         // Auto-generate quotation number if not provided
         if (empty($data['quotation_number'])) {
@@ -55,6 +60,26 @@ class CreateMediaPlan extends CreateRecord
 
             // Create internal budget items for each scope item
             $scopeItems = $kolData['scope_items'] ?? ['Deliverable'];
+
+            // Determine margin for this KOL
+            $useGlobalMargin = $data['use_global_margin'] ?? true;
+            $globalMargin = $data['margin_percent'] ?? 30;
+
+            // Default to global
+            $useFlexible = false;
+            $overridenMargin = null;
+
+            if (!$useGlobalMargin) {
+                // Find custom margin from kol_margins based on index
+                // Note: kol_margins is indexed array matching kolsData order hopefully
+                // $kolData['row_number'] is 1-based index we just set
+                $marginIndex = $kolData['row_number'] - 1; // 0-based index
+                $customMargin = $this->kolMargins[$marginIndex]['margin'] ?? $globalMargin;
+
+                $useFlexible = true;
+                $overridenMargin = $customMargin;
+            }
+
             foreach ($scopeItems as $scopeItem) {
                 $internalBudget->items()->create([
                     'media_plan_kol_id' => $mediaPlanKol->id,
@@ -63,6 +88,8 @@ class CreateMediaPlan extends CreateRecord
                     'rate_base' => 0,
                     'master_pph_id' => $mediaPlanKol->tipe_pajak_kol ?? \App\Models\MasterPph::where('name', 'Pribadi')->value('id'),
                     'sort_order' => ++$sortOrder,
+                    'use_flexible_margin' => $useFlexible,
+                    'margin_percent_override' => $overridenMargin,
                 ]);
             }
         }

@@ -23,10 +23,12 @@ return new class extends Migration {
             $table->string('pic')->nullable();
             $table->string('status')->default('New List'); // New List, Approaching, Locked, Canceled
             $table->string('name'); // KOL Name (username)
+            $table->string('domisili')->nullable(); // Added via refactor
 
             // Multiple Links Support (JSON array)
             $table->json('links')->nullable(); // Array of URLs - supports multiple links per KOL
             $table->string('channel'); // Instagram, Tiktok, Youtube Channels, Youtube Shorts
+            $table->string('categories')->nullable(); // Added via refactor
 
             // Metrics
             $table->bigInteger('followers')->default(0);
@@ -38,6 +40,8 @@ return new class extends Migration {
             // Pricing (calculated from Internal Budget)
             $table->decimal('cpi_cpv', 15, 2)->nullable(); // Rate Rounded / Impression
             $table->decimal('cpe', 15, 2)->nullable(); // Rate Rounded / Engagement
+
+            $table->foreignId('tipe_pajak_kol')->nullable()->constrained('master_pphs'); // Added via refactor
 
             // Scope of Work (JSON array of items)
             $table->json('scope_items')->nullable(); // Array of scope items (e.g., ["IG Reels", "IG Story"])
