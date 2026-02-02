@@ -87,7 +87,7 @@ class SalesKanban extends BoardPage implements HasTable
                 ->slideOver()
                 ->mutateFormDataUsing(function (array $data): array {
                     $data['status'] = $data['status'] ?? SalesStatus::BRIEFING->value;
-                    $data['position'] = BvSales::where('status', $data['status'])->max('position') + 1;
+                    $data['position'] = (int) BvSales::where('status', $data['status'])->max('position') + 1;
                     return $data;
                 }),
         ];

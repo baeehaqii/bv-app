@@ -33,6 +33,8 @@ class BvCampignForm
                         ->schema([
                             Section::make('Campaign Information')
                                 ->schema([
+
+
                                     Select::make('client_id')
                                         ->label('Brand Name')
                                         ->relationship(
@@ -139,11 +141,25 @@ class BvCampignForm
                                         ->defaultItems(0)
                                         ->collapsible()
                                         ->itemLabel(fn(array $state): ?string => $state['creator_name'] ?? 'New Creator'),
+
+                                    Toggle::make('instagram_story_enabled')
+                                        ->label('Story')
+                                        ->live()
+                                        ->afterStateUpdated(fn($state, $set) => !$state && $set('instagram_story_creators', [])),
+
+                                    Repeater::make('instagram_story_creators')
+                                        ->label('')
+                                        ->schema(self::getCreatorFields())
+                                        ->visible(fn($get) => $get('instagram_story_enabled'))
+                                        ->addActionLabel('Add more creator')
+                                        ->defaultItems(0)
+                                        ->collapsible()
+                                        ->itemLabel(fn(array $state): ?string => $state['creator_name'] ?? 'New Creator'),
                                 ]),
 
                             // TikTok Section
                             Section::make('TikTok')
-                                ->description('Video & Photos')
+                                ->description('Video, Photos & Story')
                                 ->collapsible()
                                 ->schema([
                                     Toggle::make('tiktok_video_enabled')
@@ -155,6 +171,20 @@ class BvCampignForm
                                         ->label('')
                                         ->schema(self::getCreatorFields())
                                         ->visible(fn($get) => $get('tiktok_video_enabled'))
+                                        ->addActionLabel('Add more creator')
+                                        ->defaultItems(0)
+                                        ->collapsible()
+                                        ->itemLabel(fn(array $state): ?string => $state['creator_name'] ?? 'New Creator'),
+
+                                    Toggle::make('tiktok_story_enabled')
+                                        ->label('Story')
+                                        ->live()
+                                        ->afterStateUpdated(fn($state, $set) => !$state && $set('tiktok_story_creators', [])),
+
+                                    Repeater::make('tiktok_story_creators')
+                                        ->label('')
+                                        ->schema(self::getCreatorFields())
+                                        ->visible(fn($get) => $get('tiktok_story_enabled'))
                                         ->addActionLabel('Add more creator')
                                         ->defaultItems(0)
                                         ->collapsible()
