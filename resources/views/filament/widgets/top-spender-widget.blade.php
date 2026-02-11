@@ -15,20 +15,37 @@
         </x-slot>
 
         <x-slot name="headerEnd">
-            <x-filament::button
-                wire:click="toggleFullList"
-                size="sm"
-                color="primary"
-                :outlined="true"
-            >
-                @if($this->showFullList)
-                    <x-heroicon-m-chevron-up class="w-4 h-4 mr-1" />
-                    Show Less
-                @else
-                    <x-heroicon-m-list-bullet class="w-4 h-4 mr-1" />
-                    View All Clients
-                @endif
-            </x-filament::button>
+            <div class="flex items-center gap-3">
+                <div class="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1 text-sm">
+                    <button 
+                        wire:click="setFilter('client')"
+                        class="px-3 py-1 rounded-md transition-all {{ $this->filter === 'client' ? 'bg-white dark:bg-gray-700 shadow text-gray-900 dark:text-gray-100 font-medium' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300' }}"
+                    >
+                        Direct Client
+                    </button>
+                    <button 
+                        wire:click="setFilter('agency')"
+                        class="px-3 py-1 rounded-md transition-all {{ $this->filter === 'agency' ? 'bg-white dark:bg-gray-700 shadow text-gray-900 dark:text-gray-100 font-medium' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300' }}"
+                    >
+                        Agency
+                    </button>
+                </div>
+
+                <x-filament::button
+                    wire:click="toggleFullList"
+                    size="sm"
+                    color="primary"
+                    :outlined="true"
+                >
+                    @if($this->showFullList)
+                        <x-heroicon-m-chevron-up class="w-4 h-4 mr-1" />
+                        Show Less
+                    @else
+                        <x-heroicon-m-list-bullet class="w-4 h-4 mr-1" />
+                        View All Clients
+                    @endif
+                </x-filament::button>
+            </div>
         </x-slot>
 
         <div class="space-y-4">
@@ -62,7 +79,12 @@
                                     <div class="mt-3 space-y-1">
                                         <div class="flex justify-between text-xs">
                                             <span class="text-gray-500">Campaigns</span>
-                                            <span class="font-medium text-primary-600">{{ $client['total_campaigns'] }}</span>
+                                            <button 
+                                                wire:click="openCampaignsModal('{{ addslashes($client['client_name']) }}')"
+                                                class="font-medium text-primary-600 hover:text-primary-700 hover:underline cursor-pointer focus:outline-none"
+                                            >
+                                                {{ $client['total_campaigns'] }}
+                                            </button>
                                         </div>
                                         <div class="flex justify-between text-xs">
                                             <span class="text-gray-500">Total Spent</span>
@@ -109,9 +131,12 @@
                                         </span>
                                     </td>
                                     <td class="px-4 py-3 text-center">
-                                        <span class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300">
+                                        <button 
+                                            wire:click="openCampaignsModal('{{ addslashes($client['client_name']) }}')"
+                                            class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300 hover:bg-primary-200 transition-colors cursor-pointer focus:outline-none"
+                                        >
                                             {{ $client['total_campaigns'] }} campaigns
-                                        </span>
+                                        </button>
                                     </td>
                                     <td class="px-4 py-3 text-right font-bold text-green-600">
                                         Rp {{ number_format($client['total_spent'], 0, ',', '.') }}
@@ -144,4 +169,72 @@
             @endif
         </div>
     </x-filament::section>
+
+    {{-- Modal --}}
+    @if($campaignsModalOpen)
+        <div 
+            x-data
+            class="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto" 
+            style="z-index: 9999;"
+        >
+            <div 
+                class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm transition-opacity" 
+                wire:click="closeCampaignsModal"
+            ></div>
+            
+            <div class="relative w-full max-w-4xl bg-white dark:bg-gray-900 rounded-xl shadow-2xl overflow-hidden ring-1 ring-gray-200 dark:ring-gray-800 animate-in fade-in zoom-in-95 duration-200">
+                {{-- Modal Header --}}
+                <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between bg-gray-50 dark:bg-gray-800/50">
+                    <h3 class="text-base font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                        <x-heroicon-o-megaphone class="w-5 h-5 text-primary-600" />
+                        Campaign List - <span class="text-primary-600">{{ $selectedClientName }}</span>
+                    </h3>
+                    <button wire:click="closeCampaignsModal" class="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 transition-colors">
+                        <x-heroicon-m-x-mark class="w-5 h-5" />
+                    </button>
+                </div>
+                
+                {{-- Modal Content --}}
+                <div class="p-6">
+                     <div class="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+                        <table class="w-full text-sm text-left">
+                            <thead class="bg-gray-50 dark:bg-gray-800 text-gray-500 font-medium border-b border-gray-200 dark:border-gray-700">
+                                <tr>
+                                    <th class="px-4 py-3">Campaign Name</th>
+                                    <th class="px-4 py-3">Period</th>
+                                    <th class="px-4 py-3 text-center">KOLs</th>
+                                    <th class="px-4 py-3 text-right">Budget</th>
+                                    <th class="px-4 py-3 text-center">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100 dark:divide-gray-700 bg-white dark:bg-gray-900">
+                                @foreach($selectedClientCampaigns as $campaign)
+                                <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                                    <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">{{ $campaign['name'] }}</td>
+                                    <td class="px-4 py-3 text-gray-500 dark:text-gray-400">{{ $campaign['period'] }}</td>
+                                    <td class="px-4 py-3 text-center text-gray-600 dark:text-gray-300">{{ $campaign['kol_count'] }}</td>
+                                    <td class="px-4 py-3 text-right font-medium text-gray-900 dark:text-white">Rp {{ number_format($campaign['budget'], 0, ',', '.') }}</td>
+                                    <td class="px-4 py-3 text-center">
+                                        @php
+                                            $statusColors = [
+                                                'Ongoing' => 'bg-green-100 text-green-700 border-green-200',
+                                                'Planning' => 'bg-blue-100 text-blue-700 border-blue-200',
+                                                'Completed' => 'bg-gray-100 text-gray-700 border-gray-200',
+                                                'Draft' => 'bg-gray-100 text-gray-500 border-gray-200',
+                                            ];
+                                            $colorClass = $statusColors[$campaign['status']] ?? 'bg-gray-100 text-gray-700';
+                                        @endphp
+                                        <span class="px-2.5 py-0.5 text-xs rounded-full border {{ $colorClass }}">
+                                            {{ $campaign['status'] }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                     </div>
+                </div>
+            </div>
+        </div>
+    @endif
 </x-filament-widgets::widget>

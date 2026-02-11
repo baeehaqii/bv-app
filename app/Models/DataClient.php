@@ -9,6 +9,10 @@ class DataClient extends Model
 {
     protected $guarded = [];
 
+    protected $casts = [
+        'pics' => 'array',
+    ];
+
     /**
      * Get the title attribute for this model (used in Filament UI)
      */

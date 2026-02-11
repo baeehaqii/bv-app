@@ -20,12 +20,12 @@ class Dashboard extends BaseDashboard
         return $form
             ->components([
                 Select::make('period')
-                    ->label('Periode')
+                    ->label('Period')
                     ->options([
-                        'daily' => 'Harian',
-                        'weekly' => 'Mingguan',
-                        'monthly' => 'Bulanan',
-                        'quarterly' => 'Per Kuartal',
+                        'daily' => 'Daily',
+                        'weekly' => 'Weekly',
+                        'monthly' => 'Monthly',
+                        'quarterly' => 'Quarterly',
                     ])
                     ->default('monthly')
                     ->selectablePlaceholder(false)

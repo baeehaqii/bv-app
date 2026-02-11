@@ -47,20 +47,7 @@ class BvCampignForm
                                         ->searchable()
                                         ->preload()
                                         ->required()
-                                        ->createOptionForm([
-                                            TextInput::make('nama_brand')
-                                                ->label('Brand Name')
-                                                ->required()
-                                                ->maxLength(255),
-                                            TextInput::make('email')
-                                                ->label('Email')
-                                                ->email()
-                                                ->maxLength(255),
-                                            TextInput::make('phone')
-                                                ->label('Phone')
-                                                ->tel()
-                                                ->maxLength(20),
-                                        ])
+                                        ->createOptionForm(\App\Filament\Resources\DataClients\Schemas\DataClientForm::getFormSchema())
                                         ->columnSpanFull(),
 
                                     TextInput::make('campaign_name')

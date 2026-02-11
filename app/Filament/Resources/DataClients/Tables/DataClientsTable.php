@@ -14,6 +14,18 @@ class DataClientsTable
     {
         return $table
             ->columns([
+                TextColumn::make('type')
+                    ->badge()
+                    ->color(fn(string $state): string => match ($state) {
+                        'agency' => 'warning',
+                        'direct' => 'success',
+                        default => 'gray',
+                    })
+                    ->formatStateUsing(fn(string $state): string => match ($state) {
+                        'agency' => 'Agency',
+                        'direct' => 'Direct Brand',
+                        default => $state,
+                    }),
                 TextColumn::make('nama_brand')
                     ->searchable(),
                 TextColumn::make('produk')
@@ -23,14 +35,29 @@ class DataClientsTable
                 TextColumn::make('priority')
                     ->searchable(),
                 TextColumn::make('website')
-                    ->searchable(),
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('nama_pic')
+                    ->label('PIC Name')
                     ->searchable(),
                 TextColumn::make('role_pic')
-                    ->searchable(),
+                    ->label('PIC Role')
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('email_pic')
-                    ->searchable(),
+                    ->label('PIC Email')
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('status')
+                    ->badge()
+                    ->color(fn(string $state): string => match ($state) {
+                        'Newest' => 'info',
+                        'Number of Meeting' => 'primary',
+                        'Brief' => 'warning',
+                        'Waiting Feedback' => 'danger',
+                        'Not Available' => 'gray',
+                        default => 'gray',
+                    })
                     ->searchable(),
                 TextColumn::make('date_outreach')
                     ->date()

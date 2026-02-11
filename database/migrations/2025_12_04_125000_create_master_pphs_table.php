@@ -10,6 +10,10 @@ return new class extends Migration {
      */
     public function up(): void
     {
+        if (Schema::hasTable('master_pphs')) {
+            return;
+        }
+
         Schema::create('master_pphs', function (Blueprint $table) {
             $table->id();
             $table->string('name')->unique(); // e.g., 'Pribadi', 'PT Non PKP', 'PT PKP', 'CV'

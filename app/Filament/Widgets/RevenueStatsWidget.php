@@ -30,23 +30,38 @@ class RevenueStatsWidget extends BaseWidget
         $currentMonthExpense = $currentData['expense'];
         $previousMonthExpense = $previousData['expense'];
 
-        $currentMonthProfit = $currentMonthRevenue - $currentMonthExpense;
-        $previousMonthProfit = $previousMonthRevenue - $previousMonthExpense;
+        // Calculate Gross Profit (Revenue - Expense)
+        $currentGrossProfit = $currentMonthRevenue - $currentMonthExpense;
+        $previousGrossProfit = $previousMonthRevenue - $previousMonthExpense;
+
+        // Calculate Profit Margin ((Gross Profit / Revenue) * 100)
+        $currentProfitMargin = $currentMonthRevenue > 0 ? ($currentGrossProfit / $currentMonthRevenue) * 100 : 0;
+        $previousProfitMargin = $previousMonthRevenue > 0 ? ($previousGrossProfit / $previousMonthRevenue) * 100 : 0;
 
         // Calculate percentage changes
         $revenueChange = $previousMonthRevenue > 0
             ? (($currentMonthRevenue - $previousMonthRevenue) / $previousMonthRevenue) * 100
             : 0;
-        $expenseChange = $previousMonthExpense > 0
-            ? (($currentMonthExpense - $previousMonthExpense) / $previousMonthExpense) * 100
+
+        $grossProfitChange = abs($previousGrossProfit) > 0
+            ? (($currentGrossProfit - $previousGrossProfit) / abs($previousGrossProfit)) * 100
             : 0;
-        $profitChange = abs($previousMonthProfit) > 0
-            ? (($currentMonthProfit - $previousMonthProfit) / abs($previousMonthProfit)) * 100
+
+        $profitMarginChange = abs($previousProfitMargin) > 0
+            ? (($currentProfitMargin - $previousProfitMargin) / abs($previousProfitMargin)) * 100
             : 0;
 
         // Chart data based on period
         $revenueChart = $this->getChartData($period, 'revenue');
         $expenseChart = $this->getChartData($period, 'expense');
+
+        // Calculate Profit Chart
+        $profitChart = [];
+        foreach ($revenueChart as $key => $revenue) {
+            if (isset($expenseChart[$key])) {
+                $profitChart[] = $revenue - $expenseChart[$key];
+            }
+        }
 
         return [
             Stat::make("Revenue {$dateRange['label']}", 'Rp ' . number_format($currentMonthRevenue, 0, ',', '.'))
@@ -55,16 +70,16 @@ class RevenueStatsWidget extends BaseWidget
                 ->color($revenueChange >= 0 ? 'success' : 'danger')
                 ->chart($revenueChart),
 
-            Stat::make("Expense {$dateRange['label']}", 'Rp ' . number_format($currentMonthExpense, 0, ',', '.'))
-                ->description($this->getChangeDescription($expenseChange, $dateRange['comparisonText']))
-                ->descriptionIcon($expenseChange <= 0 ? 'heroicon-m-arrow-trending-down' : 'heroicon-m-arrow-trending-up')
-                ->color($expenseChange <= 0 ? 'success' : 'danger')
-                ->chart($expenseChart),
+            Stat::make("Gross Profit {$dateRange['label']}", 'Rp ' . number_format($currentGrossProfit, 0, ',', '.'))
+                ->description($this->getChangeDescription($grossProfitChange, $dateRange['comparisonText']))
+                ->descriptionIcon($grossProfitChange >= 0 ? 'heroicon-m-arrow-trending-up' : 'heroicon-m-arrow-trending-down')
+                ->color($grossProfitChange >= 0 ? 'success' : 'danger')
+                ->chart($profitChart),
 
-            Stat::make("Net Profit {$dateRange['label']}", 'Rp ' . number_format($currentMonthProfit, 0, ',', '.'))
-                ->description($this->getChangeDescription($profitChange, $dateRange['comparisonText']))
-                ->descriptionIcon($profitChange >= 0 ? 'heroicon-m-arrow-trending-up' : 'heroicon-m-arrow-trending-down')
-                ->color($profitChange >= 0 ? 'success' : 'danger'),
+            Stat::make("Profit Margin {$dateRange['label']}", number_format($currentProfitMargin, 2) . '%')
+                ->description($this->getChangeDescription($profitMarginChange, $dateRange['comparisonText']))
+                ->descriptionIcon($profitMarginChange >= 0 ? 'heroicon-m-arrow-trending-up' : 'heroicon-m-arrow-trending-down')
+                ->color($profitMarginChange >= 0 ? 'success' : 'danger'),
         ];
     }
 
@@ -76,32 +91,32 @@ class RevenueStatsWidget extends BaseWidget
             'daily' => [
                 'start' => $now->copy()->startOfDay(),
                 'end' => $now->copy()->endOfDay(),
-                'label' => $now->translatedFormat('d F Y'),
-                'comparisonText' => 'dari kemarin',
+                'label' => $now->format('d F Y'),
+                'comparisonText' => 'from yesterday',
             ],
             'weekly' => [
                 'start' => $now->copy()->startOfWeek(),
                 'end' => $now->copy()->endOfWeek(),
-                'label' => 'Minggu ke-' . $now->weekOfYear . ' ' . $now->year,
-                'comparisonText' => 'dari minggu lalu',
+                'label' => 'Week ' . $now->weekOfYear . ' ' . $now->year,
+                'comparisonText' => 'from last week',
             ],
             'monthly' => [
                 'start' => $now->copy()->startOfMonth(),
                 'end' => $now->copy()->endOfMonth(),
-                'label' => $now->translatedFormat('F Y'),
-                'comparisonText' => 'dari bulan lalu',
+                'label' => $now->format('F Y'),
+                'comparisonText' => 'from last month',
             ],
             'quarterly' => [
                 'start' => $now->copy()->startOfQuarter(),
                 'end' => $now->copy()->endOfQuarter(),
                 'label' => 'Q' . $now->quarter . ' ' . $now->year,
-                'comparisonText' => 'dari kuartal lalu',
+                'comparisonText' => 'from last quarter',
             ],
             default => [
                 'start' => $now->copy()->startOfMonth(),
                 'end' => $now->copy()->endOfMonth(),
-                'label' => $now->translatedFormat('F Y'),
-                'comparisonText' => 'dari bulan lalu',
+                'label' => $now->format('F Y'),
+                'comparisonText' => 'from last month',
             ],
         };
     }

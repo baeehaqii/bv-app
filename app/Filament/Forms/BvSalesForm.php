@@ -30,10 +30,17 @@ class BvSalesForm
                         ->preload()
                         ->required(),
 
-                    TextInput::make('company_name')
+                    Select::make('company_name')
                         ->label('Company Name')
-                        ->placeholder('e.g. PT. Contoh Perusahaan')
-                        ->maxLength(255),
+                        ->searchable()
+                        ->getSearchResultsUsing(fn(string $search): array => \App\Models\DataClient::where('nama_brand', 'like', "%{$search}%")->limit(50)->pluck('nama_brand', 'nama_brand')->toArray())
+                        ->options(\App\Models\DataClient::limit(50)->pluck('nama_brand', 'nama_brand'))
+                        ->createOptionForm(\App\Filament\Resources\DataClients\Schemas\DataClientForm::getFormSchema())
+                        ->createOptionUsing(function (array $data): string {
+                            $client = \App\Models\DataClient::create($data);
+                            return $client->nama_brand;
+                        })
+                        ->placeholder('Select or Create Company'),
 
                     Select::make('campaign_items')
                         ->label('Campaign Items')

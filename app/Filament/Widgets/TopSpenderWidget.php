@@ -14,8 +14,118 @@ class TopSpenderWidget extends Widget
 
     public bool $showFullList = false;
 
-    // Dummy data for top spender clients
+    public string $filter = 'client';
+    public bool $campaignsModalOpen = false;
+    public string $selectedClientName = '';
+    public array $selectedClientCampaigns = [];
+
+    public function setFilter(string $filter): void
+    {
+        $this->filter = $filter;
+    }
+
+    public function openCampaignsModal(string $clientName): void
+    {
+        $this->selectedClientName = $clientName;
+        $this->campaignsModalOpen = true;
+
+        // Dummy campaigns data
+        $this->selectedClientCampaigns = [
+            [
+                'name' => 'Q1 Brand Awereness ' . date('Y'),
+                'status' => 'Ongoing',
+                'period' => 'Jan - Mar ' . date('Y'),
+                'budget' => 450000000,
+                'kol_count' => 12
+            ],
+            [
+                'name' => 'Ramadan Special Campaign',
+                'status' => 'Planning',
+                'period' => 'Mar - Apr ' . date('Y'),
+                'budget' => 850000000,
+                'kol_count' => 25
+            ],
+            [
+                'name' => 'New Product Launch',
+                'status' => 'Completed',
+                'period' => 'Dec ' . (date('Y') - 1),
+                'budget' => 350000000,
+                'kol_count' => 8
+            ],
+            [
+                'name' => 'Year End Sale Support',
+                'status' => 'Completed',
+                'period' => 'Nov - Dec ' . (date('Y') - 1),
+                'budget' => 600000000,
+                'kol_count' => 15
+            ],
+        ];
+    }
+
+    public function closeCampaignsModal(): void
+    {
+        $this->campaignsModalOpen = false;
+        $this->selectedClientName = '';
+        $this->selectedClientCampaigns = [];
+    }
+
     public function getTopSpenderData(): array
+    {
+        return $this->filter === 'agency' ? $this->getAgencyData() : $this->getClientData();
+    }
+
+    protected function getAgencyData(): array
+    {
+        return [
+            [
+                'rank' => 1,
+                'client_name' => 'Dentsu Indonesia',
+                'industry' => 'Agency',
+                'total_campaigns' => 24,
+                'total_spent' => 4500000000,
+                'last_campaign' => 'Multi-brand Activation',
+                'status' => 'Active',
+            ],
+            [
+                'rank' => 2,
+                'client_name' => 'Ogilvy',
+                'industry' => 'Agency',
+                'total_campaigns' => 18,
+                'total_spent' => 3200000000,
+                'last_campaign' => 'Tech Giant Launch',
+                'status' => 'Active',
+            ],
+            [
+                'rank' => 3,
+                'client_name' => 'GroupM',
+                'industry' => 'Agency media',
+                'total_campaigns' => 15,
+                'total_spent' => 2800000000,
+                'last_campaign' => 'FMCG Q1 Push',
+                'status' => 'Active',
+            ],
+            [
+                'rank' => 4,
+                'client_name' => 'Havas Operations',
+                'industry' => 'Agency',
+                'total_campaigns' => 12,
+                'total_spent' => 2100000000,
+                'last_campaign' => 'Banking Digital',
+                'status' => 'Active',
+            ],
+            [
+                'rank' => 5,
+                'client_name' => 'Publicis Groupe',
+                'industry' => 'Agency',
+                'total_campaigns' => 10,
+                'total_spent' => 1800000000,
+                'last_campaign' => 'Beauty Care Promo',
+                'status' => 'Active',
+            ],
+        ];
+    }
+
+    protected function getClientData(): array
     {
         return [
             [
