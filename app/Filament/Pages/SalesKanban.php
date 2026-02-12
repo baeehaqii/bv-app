@@ -96,7 +96,7 @@ class SalesKanban extends BoardPage implements HasTable
     public function board(Board $board): Board
     {
         return $board
-            ->query(BvSales::query()->with('salesList'))
+            ->query(BvSales::query()->with(['salesList', 'salesComments']))
             ->columnIdentifier('status')
             ->positionIdentifier('position')
             ->recordTitleAttribute('event_name')
@@ -130,6 +130,12 @@ class SalesKanban extends BoardPage implements HasTable
                     ->icon('heroicon-o-calendar-days')
                     ->formatStateUsing(fn($state, $record) => $state ? strtoupper($state) . ' ' . $record->campaign_year : null)
                     ->hidden(fn($record) => empty($record->campaign_periode)),
+                TextEntry::make('budget_propose')
+                    ->label('Budget Propose')
+                    ->icon('heroicon-o-document-currency-dollar')
+                    ->money('IDR')
+                    ->color('info')
+                    ->hidden(fn($record) => empty($record->budget_propose) || $record->budget_propose == 0),
                 TextEntry::make('deal_value')
                     ->label('Deal Value')
                     ->icon('heroicon-o-banknotes')
@@ -182,7 +188,8 @@ class SalesKanban extends BoardPage implements HasTable
                     ->form(BvSalesForm::getFormComponents())
                     ->modalWidth('2xl')
                     ->modalHeading('Edit Sales Activity')
-                    ->slideOver(),
+                    ->slideOver()
+                    ->modalFooter(fn($record) => view('filament.pages.partials.sales-comments-footer', ['record' => $record])),
                 \Filament\Actions\DeleteAction::make()
                     ->model(BvSales::class),
             ])
@@ -219,6 +226,13 @@ class SalesKanban extends BoardPage implements HasTable
                     ->label('Period')
                     ->formatStateUsing(fn($state, $record) => $state ? strtoupper($state) . ' ' . $record->campaign_year : '-')
                     ->sortable(),
+
+                TextColumn::make('budget_propose')
+                    ->label('Budget Propose')
+                    ->money('IDR')
+                    ->sortable()
+                    ->color('info')
+                    ->toggleable(isToggledHiddenByDefault: false),
 
                 TextColumn::make('deal_value')
                     ->label('Deal Value')
@@ -287,7 +301,8 @@ class SalesKanban extends BoardPage implements HasTable
                 EditAction::make()
                     ->form(BvSalesForm::getFormComponents())
                     ->modalWidth('2xl')
-                    ->slideOver(),
+                    ->slideOver()
+                    ->modalFooter(fn($record) => view('filament.pages.partials.sales-comments-footer', ['record' => $record])),
                 DeleteAction::make(),
             ])
             ->defaultSort('created_at', 'desc')
