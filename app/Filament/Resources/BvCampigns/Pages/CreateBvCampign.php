@@ -4,6 +4,7 @@ namespace App\Filament\Resources\BvCampigns\Pages;
 
 use App\Filament\Resources\BvCampigns\BvCampignResource;
 use App\Models\BvCampaignKol;
+use App\Service\CampaignNotificationService;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Database\Eloquent\Model;
 
@@ -101,6 +102,13 @@ class CreateBvCampign extends CreateRecord
                     ]);
                 }
             }
+        }
+
+        // CP-07: Kirim notifikasi Email & WhatsApp setelah campaign dibuat
+        try {
+            CampaignNotificationService::notify($record);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('[CreateBvCampign] Notifikasi gagal: ' . $e->getMessage());
         }
     }
 

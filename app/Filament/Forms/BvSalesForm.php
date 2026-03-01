@@ -47,6 +47,7 @@ class BvSalesForm
                             return $client->nama_brand;
                         })
                         ->placeholder('Select or Create Company')
+                        ->required()
                         ->hidden(fn(string $operation): bool => $operation === 'edit'),
 
                     Placeholder::make('company_display')

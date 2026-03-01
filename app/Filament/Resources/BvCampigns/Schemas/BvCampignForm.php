@@ -3,7 +3,10 @@
 namespace App\Filament\Resources\BvCampigns\Schemas;
 
 use App\Models\BvCampaignKol;
+use App\Models\BvSales;
 use App\Models\DataClient;
+use App\Models\FormBrief;
+use Carbon\Carbon;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Repeater;
@@ -12,12 +15,12 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
-use Filament\Schemas\Components\Fieldset;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Wizard;
 use Filament\Schemas\Components\Wizard\Step;
 use Filament\Schemas\Schema;
+use Filament\Support\RawJs;
 
 class BvCampignForm
 {
@@ -31,23 +34,67 @@ class BvCampignForm
                         ->icon('heroicon-o-information-circle')
                         ->description('Basic campaign information')
                         ->schema([
-                            Section::make('Campaign Information')
+                            Section::make('Campaign Detail')
                                 ->schema([
-
-
-                                    Select::make('client_id')
-                                        ->label('Brand Name')
-                                        ->relationship(
-                                            name: 'client',
-                                            titleAttribute: 'nama_brand',
-                                            modifyQueryUsing: fn($query) => $query
-                                                ->selectRaw('MIN(id) as id, nama_brand')
-                                                ->groupBy('nama_brand')
-                                        )
+                                    // Link ke Sales Activity → auto-fill fields
+                                    Select::make('bv_sales_id')
+                                        ->label('Pilih Campaign')
+                                        ->placeholder('Pilih dari Sales Activity yang berjalan (opsional)...')
+                                        ->options(function () {
+                                            return BvSales::whereNotIn('status', ['close_lose', 'paid'])
+                                                ->orderBy('created_at', 'desc')
+                                                ->get()
+                                                ->mapWithKeys(fn($s) => [
+                                                    $s->id => $s->event_name . ($s->company_name ? ' — ' . $s->company_name : ''),
+                                                ]);
+                                        })
                                         ->searchable()
-                                        ->preload()
-                                        ->required()
-                                        ->createOptionForm(\App\Filament\Resources\DataClients\Schemas\DataClientForm::getFormSchema())
+                                        ->live()
+                                        ->afterStateUpdated(function ($state, $set) {
+                                            if ($state) {
+                                                $sales = BvSales::find($state);
+                                                if ($sales) {
+                                                    $set('campaign_name', $sales->event_name);
+                                                    $set('deal_value', $sales->deal_value);
+                                                    $set('close_date', $sales->close_date?->format('Y-m-d'));
+                                                    $set('brief_received_date', $sales->brief_submit_date?->format('Y-m-d'));
+
+                                                    // Auto-fill bulan dari campaign_periode
+                                                    if ($sales->campaign_periode) {
+                                                        $monthMap = array_combine(
+                                                            [
+                                                                'january',
+                                                                'february',
+                                                                'march',
+                                                                'april',
+                                                                'may',
+                                                                'june',
+                                                                'july',
+                                                                'august',
+                                                                'september',
+                                                                'october',
+                                                                'november',
+                                                                'december'
+                                                            ],
+                                                            range(1, 12)
+                                                        );
+                                                        $monthNum = $monthMap[strtolower($sales->campaign_periode)] ?? null;
+                                                        $set('campaign_month', $monthNum);
+                                                    }
+
+                                                    // Auto-fill client dari company_name
+                                                    if ($sales->company_name) {
+                                                        $client = DataClient::where('nama_brand', $sales->company_name)->first();
+                                                        if ($client) {
+                                                            $set('client_id', $client->id);
+                                                            $set('client_type', $client->type ?? 'direct');
+                                                            $set('agency_name', $client->agency_name);
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        })
+                                        ->helperText('Field di bawah akan otomatis terisi dari data Sales Activity yang dipilih')
                                         ->columnSpanFull(),
 
                                     TextInput::make('campaign_name')
@@ -57,21 +104,62 @@ class BvCampignForm
                                         ->maxLength(255)
                                         ->columnSpanFull(),
 
-                                    Grid::make(2)
-                                        ->schema([
-                                            DatePicker::make('start_date')
-                                                ->label('Start Date')
-                                                ->native(false)
-                                                ->displayFormat('d M Y')
-                                                ->required(),
+                                    // CP-03: Bulan & Tanggal Campaign
+                                    Grid::make(2)->schema([
+                                        Select::make('campaign_month')
+                                            ->label('Bulan Campaign')
+                                            ->options(function () {
+                                                $months = [];
+                                                for ($i = 1; $i <= 12; $i++) {
+                                                    $months[$i] = Carbon::createFromDate(null, $i, 1)->translatedFormat('F');
+                                                }
+                                                return $months;
+                                            })
+                                            ->native(false),
 
-                                            DatePicker::make('end_date')
-                                                ->label('End Date')
-                                                ->native(false)
-                                                ->displayFormat('d M Y')
-                                                ->required()
-                                                ->afterOrEqual('start_date'),
-                                        ]),
+                                        DatePicker::make('campaign_date')
+                                            ->label('Tanggal Campaign')
+                                            ->native(false)
+                                            ->displayFormat('d M Y'),
+                                    ]),
+
+                                    Grid::make(2)->schema([
+                                        DatePicker::make('start_date')
+                                            ->label('Start Date')
+                                            ->native(false)
+                                            ->displayFormat('d M Y')
+                                            ->required(),
+
+                                        DatePicker::make('end_date')
+                                            ->label('End Date')
+                                            ->native(false)
+                                            ->displayFormat('d M Y')
+                                            ->required()
+                                            ->afterOrEqual('start_date'),
+                                    ]),
+
+                                    // CP-04: Deal Value & Close Date berdekatan
+                                    Grid::make(2)->schema([
+                                        TextInput::make('deal_value')
+                                            ->label('Deal Value')
+                                            ->prefix('Rp')
+                                            ->numeric()
+                                            ->default(0)
+                                            ->mask(RawJs::make('$money($input)'))
+                                            ->stripCharacters(','),
+
+                                        DatePicker::make('close_date')
+                                            ->label('Close Date')
+                                            ->native(false)
+                                            ->displayFormat('d M Y'),
+                                    ]),
+
+                                    // CP-05: Tanggal Dapat Brief
+                                    DatePicker::make('brief_received_date')
+                                        ->label('Tanggal Dapat Brief')
+                                        ->native(false)
+                                        ->displayFormat('d M Y')
+                                        ->helperText('Tanggal menerima brief dari client'),
 
                                     FileUpload::make('campaign_image')
                                         ->label('Insert Image/Banner Campaign')
@@ -87,6 +175,47 @@ class BvCampignForm
                                         ->placeholder('Describe your campaign...')
                                         ->required()
                                         ->rows(4)
+                                        ->columnSpanFull(),
+                                ]),
+
+                            // FB-04: Pilih Form Brief yang sudah disubmit client
+                            Section::make('Form Brief')
+                                ->description('Pilih brief yang sudah disubmit oleh client (opsional)')
+                                ->schema([
+                                    Select::make('form_brief_id')
+                                        ->label('Form Brief')
+                                        ->placeholder('Pilih brief dari client...')
+                                        ->options(function () {
+                                            return FormBrief::where('status', 'submitted')
+                                                ->orWhere('status', 'reviewed')
+                                                ->orderBy('created_at', 'desc')
+                                                ->get()
+                                                ->mapWithKeys(fn(FormBrief $brief) => [
+                                                    $brief->id => $brief->title . ' — ' . ($brief->submitted_by_name ?? 'Unknown'),
+                                                ]);
+                                        })
+                                        ->searchable()
+                                        ->preload()
+                                        ->live()
+                                        ->afterStateUpdated(function ($state, $set) {
+                                            if ($state) {
+                                                $brief = FormBrief::find($state);
+                                                if ($brief) {
+                                                    $set('campaign_name', $brief->title);
+                                                    $set('campaign_description', $brief->campaign_objective);
+                                                    if ($brief->posting_date) {
+                                                        $set('campaign_date', $brief->posting_date->format('Y-m-d'));
+                                                        $set('campaign_month', $brief->posting_date->month);
+                                                    }
+                                                    if ($brief->budget) {
+                                                        $set('deal_value', $brief->budget);
+                                                    }
+                                                    if ($brief->content_deadline) {
+                                                        $set('brief_received_date', $brief->content_deadline->format('Y-m-d'));
+                                                    }
+                                                }
+                                            }
+                                        })
                                         ->columnSpanFull(),
                                 ]),
                         ]),
@@ -288,7 +417,7 @@ class BvCampignForm
                                         ->prefix('Rp')
                                         ->numeric()
                                         ->default(0)
-                                        ->mask(\Filament\Support\RawJs::make(<<<'JS'
+                                        ->mask(RawJs::make(<<<'JS'
                                             $money($input, ',', '.', 0)
                                         JS))
                                         ->dehydrateStateUsing(fn($state) => (double) str_replace(['.', ','], '', $state ?? '0')),
@@ -296,6 +425,11 @@ class BvCampignForm
                                     TextInput::make('pic_internal')
                                         ->label('PIC Internal')
                                         ->placeholder('Person in charge'),
+
+                                    // CP-06: PIC Media Plan Internal
+                                    TextInput::make('pic_media_plan')
+                                        ->label('PIC Media Plan Internal')
+                                        ->placeholder('Person in charge untuk media plan internal'),
 
                                     TextInput::make('report_link')
                                         ->label('Report Link')

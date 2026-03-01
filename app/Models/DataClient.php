@@ -2,8 +2,9 @@
 
 namespace App\Models;
 
-use Filament\Models\Contracts\FilamentUser;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class DataClient extends Model
 {
@@ -13,9 +14,26 @@ class DataClient extends Model
         'pics' => 'array',
     ];
 
-    /**
-     * Get the title attribute for this model (used in Filament UI)
-     */
+    // -------------------------------------------------------
+    // Relationships
+    // -------------------------------------------------------
+
+    /** Semua campaign yang dimiliki client ini */
+    public function campaigns(): HasMany
+    {
+        return $this->hasMany(BvCampign::class, 'client_id');
+    }
+
+    /** PIC Internal (Sales) dari tim BV */
+    public function picInternalSales(): BelongsTo
+    {
+        return $this->belongsTo(BvSalesList::class, 'pic_internal_sales_id');
+    }
+
+    // -------------------------------------------------------
+    // Accessor
+    // -------------------------------------------------------
+
     public function getFilamentRecordTitle(): ?string
     {
         return $this->nama_brand;

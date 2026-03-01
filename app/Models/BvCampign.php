@@ -16,8 +16,29 @@ class BvCampign extends Model
         'media_platforms' => 'array',
         'start_date' => 'date',
         'end_date' => 'date',
+        'close_date' => 'date',
+        'campaign_date' => 'date',
+        'brief_received_date' => 'date',
         'total_cost' => 'decimal:2',
+        'deal_value' => 'decimal:2',
+        'campaign_month' => 'integer',
     ];
+
+    /**
+     * Get the linked Sales Activity
+     */
+    public function salesActivity(): BelongsTo
+    {
+        return $this->belongsTo(BvSales::class, 'bv_sales_id');
+    }
+
+    /**
+     * Get the form brief for this campaign
+     */
+    public function formBrief(): BelongsTo
+    {
+        return $this->belongsTo(FormBrief::class, 'form_brief_id');
+    }
 
     /**
      * Get the client (brand) for this campaign

@@ -2,8 +2,10 @@
 
 namespace App\Filament\Pages;
 
+use App\Filament\Widgets\BdManagerReportWidget;
 use App\Filament\Widgets\ClientDemographyChart;
 use App\Filament\Widgets\ClientStatusChart;
+use App\Filament\Widgets\GrossProfitTargetWidget;
 use App\Filament\Widgets\RevenueStatsWidget;
 use App\Filament\Widgets\TopSpenderWidget;
 use Filament\Forms\Components\Select;
@@ -36,7 +38,9 @@ class Dashboard extends BaseDashboard
     public function getWidgets(): array
     {
         return [
+            GrossProfitTargetWidget::class,
             RevenueStatsWidget::class,
+            BdManagerReportWidget::class,
             ClientStatusChart::class,
             ClientDemographyChart::class,
             TopSpenderWidget::class,

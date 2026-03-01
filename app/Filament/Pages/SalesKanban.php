@@ -10,8 +10,6 @@ use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
-use Filament\Infolists\Components\TextEntry;
-use Filament\Pages\Page;
 use Filament\Schemas\Schema;
 use Filament\Support\Colors\Color;
 use Filament\Support\Enums\FontWeight;
@@ -101,54 +99,8 @@ class SalesKanban extends BoardPage implements HasTable
             ->positionIdentifier('position')
             ->recordTitleAttribute('event_name')
             ->columns($this->getKanbanColumns())
-            ->cardSchema(fn(Schema $schema) => $schema->components([
-                \Filament\Schemas\Components\Grid::make(2)
-                    ->schema([
-                        TextEntry::make('salesList.nama_sales')
-                            ->label('Sales')
-                            ->icon('heroicon-o-user')
-                            ->hidden(fn($record) => empty($record->salesList)),
-                        TextEntry::make('margin')
-                            ->label('Margin')
-                            ->suffix('%')
-                            ->badge()
-                            ->color('warning')
-                            ->hidden(fn($record) => empty($record->margin) || $record->margin == 0),
-                    ]),
-                TextEntry::make('company_name')
-                    ->label('Company')
-                    ->icon('heroicon-o-building-office')
-                    ->hidden(fn($record) => empty($record->company_name)),
-                TextEntry::make('campaign_items')
-                    ->label('Campaign')
-                    ->badge()
-                    ->color('primary')
-                    ->getStateUsing(fn($record) => $record->campaign_items ?? [])
-                    ->hidden(fn($record) => empty($record->campaign_items)),
-                TextEntry::make('campaign_periode')
-                    ->label('Campaign Period')
-                    ->icon('heroicon-o-calendar-days')
-                    ->formatStateUsing(fn($state, $record) => $state ? strtoupper($state) . ' ' . $record->campaign_year : null)
-                    ->hidden(fn($record) => empty($record->campaign_periode)),
-                TextEntry::make('budget_propose')
-                    ->label('Budget Propose')
-                    ->icon('heroicon-o-document-currency-dollar')
-                    ->money('IDR')
-                    ->color('info')
-                    ->hidden(fn($record) => empty($record->budget_propose) || $record->budget_propose == 0),
-                TextEntry::make('deal_value')
-                    ->label('Deal Value')
-                    ->icon('heroicon-o-banknotes')
-                    ->money('IDR')
-                    ->weight(FontWeight::SemiBold)
-                    ->color('success')
-                    ->hidden(fn($record) => empty($record->deal_value) || $record->deal_value == 0),
-                TextEntry::make('close_date')
-                    ->label('Close Date')
-                    ->icon('heroicon-o-calendar')
-                    ->date('d M Y')
-                    ->hidden(fn($record) => empty($record->close_date)),
-            ]))
+            // Notion-style: card hanya tampil judul, metadata di-render langsung di card template
+            ->cardSchema(fn(Schema $schema) => $schema->components([]))
             /*
             ->searchable(['event_name', 'company_name', 'detail'])
             ->filters([
@@ -189,9 +141,15 @@ class SalesKanban extends BoardPage implements HasTable
                     ->modalWidth('2xl')
                     ->modalHeading('Edit Sales Activity')
                     ->slideOver()
+                    ->extraModalFooterActions(fn(\Filament\Actions\EditAction $action): array => [
+                        \Filament\Actions\DeleteAction::make('delete_from_modal')
+                            ->model(BvSales::class)
+                            ->record(fn() => $action->getRecord())
+                            ->color('danger')
+                            ->icon('heroicon-o-trash')
+                            ->after(fn() => $action->cancel()),
+                    ])
                     ->modalFooter(fn($record) => view('filament.pages.partials.sales-comments-footer', ['record' => $record])),
-                \Filament\Actions\DeleteAction::make()
-                    ->model(BvSales::class),
             ])
             ->cardAction('edit');
     }

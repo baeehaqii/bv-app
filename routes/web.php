@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\FormBriefPublicController;
 use App\Http\Controllers\MediaPlanPdfController;
 use App\Http\Controllers\MediaPlanExcelController;
 use App\Http\Controllers\InternalBudgetPdfController;
@@ -9,6 +10,10 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', function () {
     return view('welcome');
 })->name('home');
+
+// Form Brief Public (Client Portal) — no auth required
+Route::get('/brief/{token}', [FormBriefPublicController::class, 'show'])->name('form-brief.public');
+Route::post('/brief/{token}', [FormBriefPublicController::class, 'submit'])->name('form-brief.submit');
 
 // Media Plan PDF Routes (require auth)
 Route::middleware(['auth'])->group(function () {

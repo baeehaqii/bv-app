@@ -4,8 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration
-{
+return new class extends Migration {
     /**
      * Run the migrations.
      */
@@ -18,6 +17,7 @@ return new class extends Migration
             $table->string('category')->nullable();
             $table->string('priority')->nullable();
             $table->string('website')->nullable();
+            $table->foreignId('pic_internal_sales_id')->nullable()->constrained('bv_sales_lists')->nullOnDelete()->comment('PIC Internal (Sales) dari tim BV');
             $table->string('nama_pic')->nullable();
             $table->string('role_pic')->nullable();
             $table->string('email_pic')->nullable();
