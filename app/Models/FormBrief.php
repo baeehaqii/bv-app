@@ -12,9 +12,6 @@ class FormBrief extends Model
 
     protected $casts = [
         'attachments' => 'array',
-        'content_deadline' => 'date',
-        'posting_date' => 'date',
-        'budget' => 'decimal:2',
         'submitted_at' => 'datetime',
         'reviewed_at' => 'datetime',
     ];
@@ -35,6 +32,11 @@ class FormBrief extends Model
     // -------------------------------------------------------
     // Relationships
     // -------------------------------------------------------
+
+    public function bvSales(): BelongsTo
+    {
+        return $this->belongsTo(BvSales::class, 'bv_sales_id');
+    }
 
     public function campaign(): BelongsTo
     {

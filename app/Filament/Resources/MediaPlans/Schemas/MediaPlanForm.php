@@ -157,7 +157,14 @@ class MediaPlanForm
                                     TextInput::make('domisili')
                                         ->label('Domisili')->required()
                                         ->placeholder('e.g., Jakarta'),
-                                ])->columns(3),
+                                    Select::make('pic_campaign_id')
+                                        ->label('Assign Tugas Brief Ke (PIC Campaign/Sales)')
+                                        ->options(\App\Models\BvSalesList::pluck('nama_sales', 'id'))
+                                        ->searchable()
+                                        ->preload()
+                                        ->nullable()
+                                        ->helperText('Assign tugas brief media plan ke PIC tim internal'),
+                                ])->columns(4),
                         ]),
 
                     Step::make('Select KOL')

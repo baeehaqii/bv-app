@@ -17,4 +17,15 @@ class ListMediaPlans extends ListRecords
                 ->label('Create Media Plan'),
         ];
     }
+
+    public function getTabs(): array
+    {
+        return [
+            'Semua' => \Filament\Schemas\Components\Tabs\Tab::make(),
+            'Planning' => \Filament\Schemas\Components\Tabs\Tab::make()
+                ->modifyQueryUsing(fn(\Illuminate\Database\Eloquent\Builder $query) => $query->where('status', 'Planning')),
+            'Ongoing' => \Filament\Schemas\Components\Tabs\Tab::make()
+                ->modifyQueryUsing(fn(\Illuminate\Database\Eloquent\Builder $query) => $query->where('status', 'Ongoing')),
+        ];
+    }
 }

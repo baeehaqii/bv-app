@@ -110,6 +110,36 @@ class CreateBvCampign extends CreateRecord
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::warning('[CreateBvCampign] Notifikasi gagal: ' . $e->getMessage());
         }
+
+        // MP-18: Auto Create Media Plan Internal
+        try {
+            if (!\App\Models\MediaPlan::where('campaign_name', $record->campaign_name)->exists()) {
+                $client = $record->client;
+                $salesActivity = $record->salesActivity;
+
+                $mediaPlan = \App\Models\MediaPlan::create([
+                    'brand' => $client?->nama_brand ?? '-',
+                    'pic_client' => $client?->nama_pic ?? '-',
+                    'quotation_number' => \App\Helpers\QuotationNumberGenerator::generate(),
+                    'campaign_type' => 'Content Creation', // Default
+                    'campaign_name' => $record->campaign_name,
+                    'campaign_period_start' => $record->start_date ? $record->start_date->format('d/m/Y') : now()->format('d/m/Y'),
+                    'campaign_period_end' => $record->end_date ? $record->end_date->format('d/m/Y') : now()->addMonths(1)->format('d/m/Y'),
+                    'platform' => implode(', ', $record->media_platforms ?? ['Digital']),
+                    'domisili' => '-',
+                    'pic_campaign_id' => $salesActivity?->bv_sales_list_id ?? null,
+                    'margin_type' => 'auto',
+                    'use_global_margin' => true,
+                ]);
+
+                // Auto create Internal Budget (Draft)
+                $mediaPlan->internalBudget()->create([
+                    'status' => 'draft',
+                ]);
+            }
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('[CreateBvCampign] Gagal auto create Media Plan: ' . $e->getMessage());
+        }
     }
 
     protected static bool $canCreateAnother = false;

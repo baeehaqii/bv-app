@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\FormBrief;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 
 class FormBriefPublicController extends Controller
 {
@@ -13,7 +12,7 @@ class FormBriefPublicController extends Controller
      */
     public function show(string $token)
     {
-        $brief = FormBrief::where('token', $token)->firstOrFail();
+        $brief = FormBrief::where('token', $token)->with('client')->firstOrFail();
 
         // Jika sudah disubmit, tampilkan halaman thank you
         if ($brief->isSubmitted()) {
@@ -40,17 +39,11 @@ class FormBriefPublicController extends Controller
             'submitted_by_name' => 'required|string|max:255',
             'submitted_by_email' => 'required|email|max:255',
             'campaign_objective' => 'nullable|string',
-            'target_audience' => 'nullable|string',
-            'key_message' => 'nullable|string',
-            'mandatory_content' => 'nullable|string',
-            'do_and_dont' => 'nullable|string',
-            'reference_links' => 'nullable|string',
-            'hashtags' => 'nullable|string|max:500',
-            'mentions' => 'nullable|string|max:500',
-            'content_deadline' => 'nullable|date',
-            'posting_date' => 'nullable|date',
-            'budget' => 'nullable|numeric|min:0',
-            'budget_notes' => 'nullable|string',
+            'criteria_of_kol' => 'nullable|string',
+            'sow' => 'nullable|string',
+            'budget_main_kol' => 'nullable|string|max:255',
+            'budget_macro_kol' => 'nullable|string|max:255',
+            'deadline' => 'nullable|string|max:255',
             'additional_notes' => 'nullable|string',
             'attachments' => 'nullable|array',
             'attachments.*' => 'file|max:10240',
@@ -68,7 +61,6 @@ class FormBriefPublicController extends Controller
         $brief->update([
             ...$validated,
             'attachments' => !empty($attachments) ? $attachments : $brief->attachments,
-            'budget' => $validated['budget'] ?? 0,
             'status' => 'submitted',
             'submitted_at' => now(),
         ]);

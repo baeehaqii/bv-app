@@ -4,13 +4,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Form Brief — {{ $brief->title }}</title>
+    <title>KOL Needs Form — {{ $brief->title }}</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body {
-            font-family: 'Inter', sans-serif;
+        body { font-family: 'Inter', sans-serif; }
+        .input-field {
+            width: 100%;
+            border-radius: 0.5rem;
+            border: 1px solid #d1d5db;
+            padding: 0.5rem 0.75rem;
+            font-size: 0.875rem;
+            outline: none;
+            transition: box-shadow 0.15s, border-color 0.15s;
+        }
+        .input-field:focus {
+            border-color: transparent;
+            box-shadow: 0 0 0 2px #7c3aed;
         }
     </style>
 </head>
@@ -21,15 +32,14 @@
     <div class="bg-white border-b border-gray-200">
         <div class="max-w-3xl mx-auto px-4 py-6 sm:px-6">
             <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-lg bg-purple-600 flex items-center justify-center">
-                    <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
-                        stroke="currentColor">
+                <div class="w-10 h-10 rounded-lg bg-purple-600 flex items-center justify-center flex-shrink-0">
+                    <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round"
                             d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
                     </svg>
                 </div>
                 <div>
-                    <h1 class="text-xl font-bold text-gray-900">Campaign Brief</h1>
+                    <h1 class="text-xl font-bold text-gray-900">KOL Needs Form</h1>
                     <p class="text-sm text-gray-500">Beyond Viral</p>
                 </div>
             </div>
@@ -38,17 +48,38 @@
 
     <div class="max-w-3xl mx-auto px-4 py-8 sm:px-6">
 
-        {{-- Brief Info --}}
+        {{-- Flash Success --}}
+        @if(session('success'))
+            <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-6 flex items-center gap-3">
+                <svg class="w-5 h-5 text-green-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                </svg>
+                <p class="text-sm text-green-700">{{ session('success') }}</p>
+            </div>
+        @endif
+
+        {{-- Brief Info Card --}}
         <div class="bg-white rounded-xl border border-gray-200 p-6 mb-6">
-            <h2 class="text-lg font-semibold text-gray-900 mb-1">{{ $brief->title }}</h2>
-            @if($brief->brand_name || $brief->product_name)
-                <p class="text-sm text-gray-500">
-                    {{ $brief->brand_name }}{{ $brief->product_name ? ' — ' . $brief->product_name : '' }}
-                </p>
-            @endif
-            @if($brief->client)
-                <p class="text-sm text-gray-500 mt-1">Client: {{ $brief->client->nama_brand }}</p>
-            @endif
+            <div class="flex items-start justify-between gap-4">
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-900">{{ $brief->title }}</h2>
+                    @if($brief->brand)
+                        <p class="text-sm text-purple-600 font-medium mt-0.5">{{ $brief->brand }}</p>
+                    @endif
+                    @if($brief->campaign_name)
+                        <p class="text-sm text-gray-500 mt-0.5">Campaign: {{ $brief->campaign_name }}</p>
+                    @endif
+                    @if($brief->timeline)
+                        <p class="text-sm text-gray-500">Timeline: {{ $brief->timeline }}</p>
+                    @endif
+                </div>
+                @if($brief->deadline)
+                    <div class="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex-shrink-0 text-center">
+                        <p class="text-xs text-amber-600 font-medium uppercase tracking-wide">Deadline</p>
+                        <p class="text-sm font-semibold text-amber-800">{{ $brief->deadline }}</p>
+                    </div>
+                @endif
+            </div>
         </div>
 
         {{-- Form --}}
@@ -72,121 +103,86 @@
                 <h3 class="text-sm font-semibold text-gray-900 mb-4 uppercase tracking-wide">Identitas Anda</h3>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Nama Lengkap <span
-                                class="text-red-500">*</span></label>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Nama Lengkap <span class="text-red-500">*</span>
+                        </label>
                         <input type="text" name="submitted_by_name" value="{{ old('submitted_by_name') }}" required
-                            class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                            class="input-field" placeholder="Nama Anda">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Email <span
-                                class="text-red-500">*</span></label>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Email <span class="text-red-500">*</span>
+                        </label>
                         <input type="email" name="submitted_by_email" value="{{ old('submitted_by_email') }}" required
-                            class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                            class="input-field" placeholder="email@domain.com">
                     </div>
                 </div>
             </div>
 
-            {{-- Campaign Brief --}}
+            {{-- Campaign Objective --}}
             <div class="bg-white rounded-xl border border-gray-200 p-6">
-                <h3 class="text-sm font-semibold text-gray-900 mb-4 uppercase tracking-wide">Detail Campaign</h3>
-                <div class="space-y-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Campaign Objective</label>
-                        <textarea name="campaign_objective" rows="3" placeholder="Apa tujuan utama campaign ini?"
-                            class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent">{{ old('campaign_objective') }}</textarea>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Target Audience</label>
-                        <textarea name="target_audience" rows="3" placeholder="Siapa target audience yang dituju?"
-                            class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent">{{ old('target_audience') }}</textarea>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Key Message</label>
-                        <textarea name="key_message" rows="3" placeholder="Pesan utama yang ingin disampaikan"
-                            class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent">{{ old('key_message') }}</textarea>
-                    </div>
-                </div>
+                <h3 class="text-sm font-semibold text-gray-900 mb-4 uppercase tracking-wide">Campaign Objective</h3>
+                <textarea name="campaign_objective" rows="4"
+                    placeholder="Apa tujuan utama campaign ini? (awareness, engagement, conversion, dll)"
+                    class="input-field">{{ old('campaign_objective', $brief->campaign_objective) }}</textarea>
             </div>
 
-            {{-- Content Guidelines --}}
+            {{-- Criteria of KOL --}}
             <div class="bg-white rounded-xl border border-gray-200 p-6">
-                <h3 class="text-sm font-semibold text-gray-900 mb-4 uppercase tracking-wide">Content Guidelines</h3>
-                <div class="space-y-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Mandatory Content</label>
-                        <textarea name="mandatory_content" rows="3" placeholder="Konten yang wajib ada..."
-                            class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent">{{ old('mandatory_content') }}</textarea>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Do's and Don'ts</label>
-                        <textarea name="do_and_dont" rows="3" placeholder="Yang boleh dan tidak boleh dilakukan..."
-                            class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent">{{ old('do_and_dont') }}</textarea>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Reference Links</label>
-                        <textarea name="reference_links" rows="2" placeholder="Link referensi (satu per baris)"
-                            class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent">{{ old('reference_links') }}</textarea>
-                    </div>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Hashtags</label>
-                            <input type="text" name="hashtags" value="{{ old('hashtags') }}"
-                                placeholder="#brand #campaign"
-                                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Mentions</label>
-                            <input type="text" name="mentions" value="{{ old('mentions') }}"
-                                placeholder="@brand @account"
-                                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent">
-                        </div>
-                    </div>
-                </div>
+                <h3 class="text-sm font-semibold text-gray-900 mb-1 uppercase tracking-wide">Criteria of KOL</h3>
+                <p class="text-xs text-gray-400 mb-4">Tuliskan kriteria KOL yang dibutuhkan. Bisa mencakup Main KOL, Opsi Macro, Nano, dll.</p>
+                <textarea name="criteria_of_kol" rows="6"
+                    placeholder="Contoh:&#10;MAIN KOL&#10;- Mega&#10;- Artis yang emang ngerokok&#10;1. Jefry Nichole&#10;2. Ariel Tatum&#10;&#10;Opsi Macro&#10;1. Mohan Hazian"
+                    class="input-field">{{ old('criteria_of_kol', $brief->criteria_of_kol) }}</textarea>
             </div>
 
-            {{-- Timeline & Budget --}}
+            {{-- SOW --}}
             <div class="bg-white rounded-xl border border-gray-200 p-6">
-                <h3 class="text-sm font-semibold text-gray-900 mb-4 uppercase tracking-wide">Timeline & Budget</h3>
+                <h3 class="text-sm font-semibold text-gray-900 mb-1 uppercase tracking-wide">SOW (Scope of Work)</h3>
+                <p class="text-xs text-gray-400 mb-4">Ruang lingkup pekerjaan yang diharapkan dari KOL.</p>
+                <textarea name="sow" rows="5"
+                    placeholder="Contoh:&#10;• As a Talent (4-5 Jam) for Digital Video&#10;• Content Production by Flux Creative&#10;• Post IG Reels collab with Flux Creative&#10;• 2x IG Story Tap Link"
+                    class="input-field">{{ old('sow', $brief->sow) }}</textarea>
+            </div>
+
+            {{-- Budget --}}
+            <div class="bg-white rounded-xl border border-gray-200 p-6">
+                <h3 class="text-sm font-semibold text-gray-900 mb-4 uppercase tracking-wide">Budget</h3>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Content Deadline</label>
-                        <input type="date" name="content_deadline" value="{{ old('content_deadline') }}"
-                            class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Budget Main KOL</label>
+                        <input type="text" name="budget_main_kol" value="{{ old('budget_main_kol', $brief->budget_main_kol) }}"
+                            placeholder="e.g. 1M - 1,5M" class="input-field">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Posting Date</label>
-                        <input type="date" name="posting_date" value="{{ old('posting_date') }}"
-                            class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Budget (Rp)</label>
-                        <input type="number" name="budget" value="{{ old('budget') }}" placeholder="0" min="0"
-                            class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Catatan Budget</label>
-                        <input type="text" name="budget_notes" value="{{ old('budget_notes') }}"
-                            placeholder="Detail alokasi..."
-                            class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Budget Macro KOL</label>
+                        <input type="text" name="budget_macro_kol" value="{{ old('budget_macro_kol', $brief->budget_macro_kol) }}"
+                            placeholder="e.g. 250JT - 300JT" class="input-field">
                     </div>
                 </div>
             </div>
 
-            {{-- Lampiran & Catatan --}}
+            {{-- Deadline --}}
             <div class="bg-white rounded-xl border border-gray-200 p-6">
-                <h3 class="text-sm font-semibold text-gray-900 mb-4 uppercase tracking-wide">Lampiran & Catatan</h3>
+                <h3 class="text-sm font-semibold text-gray-900 mb-4 uppercase tracking-wide">Deadline</h3>
+                <input type="text" name="deadline" value="{{ old('deadline', $brief->deadline) }}"
+                    placeholder="e.g. January 2026" class="input-field">
+            </div>
+
+            {{-- Catatan & Lampiran --}}
+            <div class="bg-white rounded-xl border border-gray-200 p-6">
+                <h3 class="text-sm font-semibold text-gray-900 mb-4 uppercase tracking-wide">Catatan & Lampiran</h3>
                 <div class="space-y-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Upload File Pendukung</label>
                         <input type="file" name="attachments[]" multiple
                             class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100">
-                        <p class="text-xs text-gray-400 mt-1">PDF, Word, Excel, PowerPoint, Gambar (maks. 10MB per file)
-                        </p>
+                        <p class="text-xs text-gray-400 mt-1">PDF, Word, Excel, PowerPoint, Gambar (maks. 10MB per file)</p>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Catatan Tambahan</label>
                         <textarea name="additional_notes" rows="3" placeholder="Catatan lainnya..."
-                            class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent">{{ old('additional_notes') }}</textarea>
+                            class="input-field">{{ old('additional_notes') }}</textarea>
                     </div>
                 </div>
             </div>

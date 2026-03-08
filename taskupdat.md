@@ -96,3 +96,7 @@
 ---
 
 > **Catatan malam ini:** Prioritaskan modul Campaign (CP-01 s/d CP-06), Database Client (DC-01 s/d DC-05), dan Kanban (KB-01 s/d KB-03) terlebih dahulu.
+
+-edit form brief sesuai spreadsheet format
+-buat link untuk external mengisi form brief
+- form brief otomatis terbuat ketika di kanban posisi priefing

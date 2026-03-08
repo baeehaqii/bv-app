@@ -8,4 +8,5 @@ use Filament\Resources\Pages\CreateRecord;
 class CreateDataClient extends CreateRecord
 {
     protected static string $resource = DataClientResource::class;
+    protected static bool $canCreateAnother = false;
 }

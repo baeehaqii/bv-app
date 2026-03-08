@@ -88,6 +88,15 @@ class MediaPlansTable
                     ->color(fn($state) => ($state ?? 0) < 30 ? 'danger' : 'success')
                     ->toggleable(isToggledHiddenByDefault: true),
 
+                TextColumn::make('status')
+                    ->label('Plan Status')
+                    ->badge()
+                    ->color(fn(string $state): string => match ($state) {
+                        'Planning' => 'warning',
+                        'Ongoing' => 'success',
+                        default => 'gray',
+                    }),
+
                 TextColumn::make('internalBudget.status')
                     ->label('Budget Status')
                     ->badge()
@@ -141,6 +150,20 @@ class MediaPlansTable
             ])
             ->recordActions([
                 EditAction::make(),
+                Action::make('markOngoing')
+                    ->label('Mark as Ongoing')
+                    ->icon('heroicon-o-play')
+                    ->color('success')
+                    ->requiresConfirmation()
+                    ->visible(fn($record) => $record->status !== 'Ongoing')
+                    ->action(fn($record) => $record->update(['status' => 'Ongoing'])),
+                Action::make('markPlanning')
+                    ->label('Revert to Planning')
+                    ->icon('heroicon-o-arrow-uturn-left')
+                    ->color('warning')
+                    ->requiresConfirmation()
+                    ->visible(fn($record) => $record->status === 'Ongoing')
+                    ->action(fn($record) => $record->update(['status' => 'Planning'])),
                 Action::make('quotation')
                     ->label('Quotation')
                     ->icon('heroicon-o-document-arrow-down')

@@ -13,48 +13,57 @@ return new class extends Migration {
             // Token unik untuk akses public (client portal)
             $table->string('token', 64)->unique()->index();
 
+            // Relasi ke sales activity (auto-link saat status briefing)
+            $table->foreignId('bv_sales_id')->nullable()->constrained('bv_sales')->nullOnDelete();
+
             // Relasi ke campaign (opsional, bisa dibuat dulu sebelum campaign)
             $table->unsignedBigInteger('campaign_id')->nullable()->index();
 
             // Relasi ke client
             $table->foreignId('client_id')->nullable()->constrained('data_clients')->nullOnDelete();
 
-            // Info dasar brief
+            // === KOL Needs Fields (sesuai format spreadsheet) ===
+
+            // Info dasar
             $table->string('title');
-            $table->string('brand_name')->nullable();
-            $table->string('product_name')->nullable();
-            $table->text('campaign_objective')->nullable();
-            $table->text('target_audience')->nullable();
-            $table->text('key_message')->nullable();
-            $table->text('mandatory_content')->nullable();
-            $table->text('do_and_dont')->nullable();
-            $table->text('reference_links')->nullable();
-            $table->text('hashtags')->nullable();
-            $table->text('mentions')->nullable();
+            $table->string('brand')->nullable();           // Brand (nama brand dari client)
+            $table->string('client_status')->nullable();   // Client Status (Direct / Agency / Another Agency)
+            $table->string('pic')->nullable();             // PIC (Person In Charge dari client)
+            $table->string('campaign_name')->nullable();   // Campaign Name
+            $table->string('timeline')->nullable();        // Timeline (e.g. "January - February 2026")
+            $table->text('campaign_objective')->nullable(); // Campaign Objective
 
-            // Timeline
-            $table->date('content_deadline')->nullable();
-            $table->date('posting_date')->nullable();
+            // Criteria of KOL (rich text, bisa ada Main KOL & Macro KOL dsb)
+            $table->text('criteria_of_kol')->nullable();
 
-            // Budget
-            $table->decimal('budget', 18, 2)->default(0);
-            $table->text('budget_notes')->nullable();
+            // SOW (Scope of Work)
+            $table->text('sow')->nullable();
+
+            // Budget per tier
+            $table->string('budget_main_kol')->nullable();  // e.g. "1M - 1,5M"
+            $table->string('budget_macro_kol')->nullable(); // e.g. "250JT - 300JT"
+
+            // Deadline
+            $table->string('deadline')->nullable();  // e.g. "January 2026"
+
+            // Status
+            $table->string('status')->default('draft'); // draft, submitted, reviewed, approved, revision
+
+            // Sheet Links
+            $table->string('sheet_link_internal')->nullable(); // Link spreadsheet internal
+            $table->string('sheet_link_external')->nullable(); // Link spreadsheet external
+
+            // Catatan tambahan
+            $table->text('additional_notes')->nullable();
 
             // Attachments (JSON array of file paths)
             $table->json('attachments')->nullable();
-
-            // Notes & tambahan
-            $table->text('additional_notes')->nullable();
-
-            // Status brief
-            $table->string('status')->default('draft'); // draft, submitted, reviewed, approved, revision
 
             // Siapa yang submit (jika dari client portal)
             $table->string('submitted_by_name')->nullable();
             $table->string('submitted_by_email')->nullable();
             $table->timestamp('submitted_at')->nullable();
 
-            // Internal review
             $table->foreignId('reviewed_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamp('reviewed_at')->nullable();
             $table->text('review_notes')->nullable();

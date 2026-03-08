@@ -40,6 +40,7 @@ class DataClientsTable
                 TextColumn::make('agency_name')
                     ->label('Agency')
                     ->placeholder('-')
+                    ->formatStateUsing(fn($state) => is_array($state) ? implode(', ', $state) : $state)
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: false),
 

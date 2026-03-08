@@ -15,18 +15,27 @@
     }
     $clientType = $dataClient?->type;
     $agencyName = $dataClient?->agency_name;
+    if (is_array($agencyName)) {
+        $agencyName = implode(', ', array_filter($agencyName));
+    }
+
+    // Form brief link (hanya untuk kolom briefing)
+    $formBriefUrl = null;
+    if ($columnId === 'briefing' && $model) {
+        $formBriefUrl = $model->formBrief?->getPublicUrl();
+    }
 
     // Card left-border color berdasarkan kolom kanban
     $cardBorderColor = match ($columnId) {
-        'briefing' => '#60a5fa', // blue-400
+        'briefing'          => '#60a5fa', // blue-400
         'proposal_building' => '#fbbf24', // amber-400
-        'negotiation' => '#c084fc', // purple-400
-        'campaign_live' => '#818cf8', // indigo-400
-        'reporting' => '#fb923c', // orange-400
-        'close_lose' => '#f87171', // red-400
-        'invoicing' => '#22d3ee', // cyan-400
-        'paid' => '#4ade80', // green-400
-        default => '#e5e7eb', // gray-200
+        'negotiation'       => '#c084fc', // purple-400
+        'campaign_live'     => '#818cf8', // indigo-400
+        'reporting'         => '#fb923c', // orange-400
+        'close_lose'        => '#f87171', // red-400
+        'invoicing'         => '#22d3ee', // cyan-400
+        'paid'              => '#4ade80', // green-400
+        default             => '#e5e7eb', // gray-200
     };
 @endphp
 
@@ -51,6 +60,33 @@
             </p>
         </div>
 
+        {{-- Form Brief link (hanya di kolom briefing) --}}
+        @if($columnId === 'briefing')
+            @if($formBriefUrl)
+                <div class="mt-1.5" @click.stop>
+                    <a href="{{ $formBriefUrl }}" target="_blank"
+                        class="inline-flex items-center gap-1 text-[10px] font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline"
+                        title="Buka Form Brief — salin link ini untuk client">
+                        <svg class="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" />
+                        </svg>
+                        Form Brief Client
+                    </a>
+                </div>
+            @else
+                <div class="mt-1.5">
+                    <span class="inline-flex items-center gap-1 text-[10px] text-gray-400 dark:text-gray-500 italic">
+                        <svg class="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+                        </svg>
+                        Form brief belum dibuat
+                    </span>
+                </div>
+            @endif
+        @endif
+
         {{-- Footer: badges + comment count --}}
         <div class="flex items-center justify-between mt-2 gap-1.5">
             <div class="flex items-center gap-1.5 min-w-0">
@@ -59,16 +95,17 @@
                         <span class="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0"></span>
                         Agency
                     </span>
-                    @if($agencyName)
-                        <span class="text-[10px] text-gray-400 dark:text-gray-500 truncate max-w-[90px]"
-                            title="{{ $agencyName }}">
-                            · {{ $agencyName }}
-                        </span>
-                    @endif
                 @elseif($clientType === 'direct')
                     <span class="inline-flex items-center gap-1 text-[10px] font-medium text-sky-600 dark:text-sky-400">
                         <span class="w-1.5 h-1.5 rounded-full bg-sky-400 flex-shrink-0"></span>
                         Direct
+                    </span>
+                @endif
+                
+                @if($agencyName)
+                    <span class="text-[10px] text-gray-400 dark:text-gray-500 truncate max-w-[90px]"
+                        title="{{ $agencyName }}">
+                        · {{ $agencyName }}
                     </span>
                 @endif
             </div>

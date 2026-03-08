@@ -16,34 +16,23 @@ use Illuminate\Support\Facades\Mail;
 class CampaignNotificationService
 {
     /**
-     * Konfigurasi penerima notifikasi — sesuaikan email/WA di sini.
-     * Ke depan bisa diambil dari tabel settings atau konfigurasi.
+     * Konfigurasi penerima notifikasi — menggunakan file .env
      */
-    protected static array $recipients = [
-        'influencer' => [
-            'emails' => [
-                // Manager KOL & Email Grup
-                // 'manager.kol@beyondviral.id',
-                // 'grup-kol@beyondviral.id',
+    protected static function getRecipients(): array
+    {
+        return [
+            'influencer' => [
+                'emails' => array_filter(explode(',', env('NOTIFY_INFLUENCER_EMAILS', 'manager.kol@beyondviral.id,grup-kol@beyondviral.id'))),
+                'phones' => array_filter(explode(',', env('NOTIFY_INFLUENCER_PHONES', ''))),
+                'label' => 'Manager KOL & Email Grup',
             ],
-            'phones' => [
-                // WhatsApp Manager KOL
-                // '08xxxxxxxxxx',
+            'social_media' => [
+                'emails' => array_filter(explode(',', env('NOTIFY_SOCIAL_MEDIA_EMAILS', 'media.creative@beyondviral.id'))),
+                'phones' => array_filter(explode(',', env('NOTIFY_SOCIAL_MEDIA_PHONES', ''))),
+                'label' => 'Media Creative',
             ],
-            'label' => 'Manager KOL & Email Grup',
-        ],
-        'social_media' => [
-            'emails' => [
-                // Media Creative team
-                // 'media.creative@beyondviral.id',
-            ],
-            'phones' => [
-                // WhatsApp Media Creative
-                // '08xxxxxxxxxx',
-            ],
-            'label' => 'Media Creative',
-        ],
-    ];
+        ];
+    }
 
     /**
      * Kirim notifikasi berdasarkan platform/item campaign.
@@ -79,7 +68,7 @@ class CampaignNotificationService
      */
     protected static function sendNotification(string $type, BvCampign $campaign, string $campaignName, string $clientName): void
     {
-        $config = static::$recipients[$type] ?? null;
+        $config = static::getRecipients()[$type] ?? null;
         if (!$config) {
             return;
         }

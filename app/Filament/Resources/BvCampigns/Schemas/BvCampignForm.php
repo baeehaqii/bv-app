@@ -201,18 +201,9 @@ class BvCampignForm
                                             if ($state) {
                                                 $brief = FormBrief::find($state);
                                                 if ($brief) {
-                                                    $set('campaign_name', $brief->title);
+                                                    // Gunakan campaign_name dari brief, fallback ke title
+                                                    $set('campaign_name', $brief->campaign_name ?? $brief->title);
                                                     $set('campaign_description', $brief->campaign_objective);
-                                                    if ($brief->posting_date) {
-                                                        $set('campaign_date', $brief->posting_date->format('Y-m-d'));
-                                                        $set('campaign_month', $brief->posting_date->month);
-                                                    }
-                                                    if ($brief->budget) {
-                                                        $set('deal_value', $brief->budget);
-                                                    }
-                                                    if ($brief->content_deadline) {
-                                                        $set('brief_received_date', $brief->content_deadline->format('Y-m-d'));
-                                                    }
                                                 }
                                             }
                                         })

@@ -18,6 +18,14 @@ class MediaPlan extends Model
     ];
 
     /**
+     * Get PIC Campaign (Tugas Brief Assignee)
+     */
+    public function picCampaign(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(BvSalesList::class, 'pic_campaign_id');
+    }
+
+    /**
      * Get all KOLs for this media plan
      */
     public function kols(): HasMany

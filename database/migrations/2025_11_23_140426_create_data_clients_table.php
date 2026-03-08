@@ -13,7 +13,6 @@ return new class extends Migration {
         Schema::create('data_clients', function (Blueprint $table) {
             $table->id();
             $table->string('nama_brand');
-            $table->string('produk')->nullable();
             $table->string('category')->nullable();
             $table->string('priority')->nullable();
             $table->string('website')->nullable();
@@ -24,6 +23,7 @@ return new class extends Migration {
             $table->string('status')->nullable();
             $table->date('date_outreach')->nullable();
             $table->date('date_follow_up')->nullable();
+            $table->string('status_client')->nullable();
             $table->text('notes')->nullable();
             $table->timestamps();
         });
