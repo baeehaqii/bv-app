@@ -1,5 +1,6 @@
 /* Flowforge Kanban Board Styles */
 @source "../../../../vendor/relaticle/flowforge/resources/views/**/*.blade.php";
+@source "../../../views/vendor/flowforge/**/*.blade.php";
 
 /* Flaticon uicons - for brand icons (Instagram, TikTok, YouTube) */
 @import "@flaticon/flaticon-uicons/css/all/all";

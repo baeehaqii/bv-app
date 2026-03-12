@@ -31,7 +31,11 @@
             </div>
 
             {{-- Summary Cards --}}
-            <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div class="grid grid-cols-2 gap-3 sm:grid-cols-5">
+                <div class="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-3">
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Total Client</p>
+                    <p class="text-lg font-bold text-gray-950 dark:text-white">{{ number_format($totals['total_clients']) }}</p>
+                </div>
                 <div class="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-3">
                     <p class="text-xs text-gray-500 dark:text-gray-400">Total Campaign</p>
                     <p class="text-lg font-bold text-gray-950 dark:text-white">{{ number_format($totals['total_campaigns']) }}</p>
@@ -59,6 +63,7 @@
                         <thead>
                             <tr class="bg-gray-50 dark:bg-gray-800/80">
                                 <th class="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">BD Manager</th>
+                                <th class="px-4 py-2.5 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Client</th>
                                 <th class="px-4 py-2.5 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Campaign</th>
                                 <th class="px-4 py-2.5 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Won</th>
                                 <th class="px-4 py-2.5 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Lost</th>
@@ -79,6 +84,7 @@
                                             <span class="font-medium text-gray-900 dark:text-gray-100">{{ $report['name'] }}</span>
                                         </div>
                                     </td>
+                                    <td class="px-4 py-3 text-center text-gray-700 dark:text-gray-300">{{ $report['total_clients'] }}</td>
                                     <td class="px-4 py-3 text-center text-gray-700 dark:text-gray-300">{{ $report['total_campaigns'] }}</td>
                                     <td class="px-4 py-3 text-center">
                                         <span class="inline-flex items-center px-1.5 py-0.5 text-xs font-medium rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400">
@@ -107,6 +113,7 @@
                         <tfoot>
                             <tr class="bg-gray-100 dark:bg-gray-800 font-semibold">
                                 <td class="px-4 py-3 text-gray-900 dark:text-white">Total</td>
+                                <td class="px-4 py-3 text-center text-gray-900 dark:text-white">{{ $totals['total_clients'] }}</td>
                                 <td class="px-4 py-3 text-center text-gray-900 dark:text-white">{{ $totals['total_campaigns'] }}</td>
                                 <td class="px-4 py-3 text-center text-emerald-700 dark:text-emerald-400">{{ $totals['won_campaigns'] }}</td>
                                 <td class="px-4 py-3 text-center text-red-700 dark:text-red-400">{{ $totals['lost_campaigns'] }}</td>

@@ -47,7 +47,70 @@ class DataClientForm
                     \Filament\Forms\Components\TagsInput::make('agency_name')
                         ->label('Daftar Agency')
                         ->placeholder('Tambah agency lalu tekan Enter...')
-                        ->helperText('Bisa memasukkan lebih dari satu nama agency'),
+                        ->helperText('Bisa memasukkan lebih dari satu nama agency')
+                        ->live(onBlur: true)
+                        ->afterStateUpdated(function (\Filament\Schemas\Components\Utilities\Get $get, \Filament\Schemas\Components\Utilities\Set $set, $state, $old, \Livewire\Component $livewire, $component) {
+                            $tags = is_array($state) ? $state : [];
+                            $oldTags = is_array($old) ? $old : [];
+
+                            $existingPics = is_array($get('pics')) ? collect($get('pics')) : collect();
+                            $newPics = [];
+                            foreach ($tags as $tag) {
+                                $existing = $existingPics->firstWhere('agency', $tag);
+                                $newPics[] = [
+                                    'agency' => $tag,
+                                    'name' => $existing['name'] ?? null,
+                                    'wa_number' => $existing['wa_number'] ?? null,
+                                    'email' => $existing['email'] ?? null,
+                                    'description' => $existing['description'] ?? null,
+                                ];
+                            }
+                            $set('pics', array_values($newPics));
+                        })
+                        ->suffixAction(
+                            \Filament\Actions\Action::make('managePics')
+                                ->label('Detail PIC')
+                                ->icon('heroicon-m-user-plus')
+                                ->slideOver()
+                                ->modalHeading('Detail PIC Agency')
+                                ->modalDescription('Lengkapi informasi PIC untuk masing-masing agency yang dipilih.')
+                                ->form([
+                                    \Filament\Forms\Components\Repeater::make('pics_modal')
+                                        ->label('')
+                                        ->schema([
+                                            \Filament\Forms\Components\TextInput::make('agency')
+                                                ->label('Agency')
+                                                ->readOnly()
+                                                ->required(),
+                                            \Filament\Forms\Components\TextInput::make('name')
+                                                ->label('Nama PIC Agency')
+                                                ->required(),
+                                            \Filament\Forms\Components\TextInput::make('email')
+                                                ->label('Alamat Email PIC Agency')
+                                                ->email()
+                                                ->required(),
+                                            \Filament\Forms\Components\TextInput::make('wa_number')
+                                                ->label('Nomor WhatsApp PIC Agency')
+                                                ->tel()
+                                                ->required(),
+                                            \Filament\Forms\Components\Textarea::make('description')
+                                                ->label('Deskripsi PIC Agency')
+                                                ->required(),
+                                        ])
+                                        ->addable(false)
+                                        ->deletable(false)
+                                        ->reorderable(false)
+                                        ->columns(1)
+                                ])
+                                ->mountUsing(function ($form, $get) {
+                                    $form->fill([
+                                        'pics_modal' => is_array($get('pics')) ? $get('pics') : [],
+                                    ]);
+                                })
+                                ->action(function (array $data, $set) {
+                                    $set('pics', $data['pics_modal'] ?? []);
+                                })
+                        ),
 
                     Select::make('category')
                         ->label('Kategori')->required()
@@ -132,24 +195,30 @@ class DataClientForm
 
                     // DC-03: PIC sesuai Client Type — Agency (repeater)
                     Repeater::make('pics')
-                        ->label('PIC Agency')
+                        ->label('Daftar PIC Masing-Masing Agency')
                         ->schema([
+                            TextInput::make('agency')
+                                ->label('Agency')
+                                ->readOnly()
+                                ->required(),
                             TextInput::make('name')
                                 ->label('Nama')->placeholder('Nama PIC Agency...')
-                                ->required(),
-                            TextInput::make('wa_number')
-                                ->label('Nomor WhatsApp')->placeholder('081234567890')
-                                ->tel()
                                 ->required(),
                             TextInput::make('email')
                                 ->email()->placeholder('email@contoh.com')
                                 ->label('Email')->required(),
-                            TextInput::make('role')
-                                ->label('Jabatan')->required()->placeholder('Jabatan PIC Agency...'),
+                            TextInput::make('wa_number')
+                                ->label('Nomor WhatsApp')->placeholder('081234567890')
+                                ->tel()
+                                ->required(),
+                            Textarea::make('description')
+                                ->label('Deskripsi')->required()->placeholder('Deskripsi PIC Agency...'),
                         ])
                         ->columns(2)
-                        ->visible(fn(Get $get) => $get('type') === 'agency')
-                        ->addActionLabel('Tambah PIC Agency'),
+                        ->visible(fn(Get $get) => is_array($get('agency_name')) && count($get('agency_name')) > 0)
+                        ->addable(false)
+                        ->deletable(false)
+                        ->reorderable(false),
                 ])
                 ->collapsible(),
 

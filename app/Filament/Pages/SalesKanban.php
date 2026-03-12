@@ -84,7 +84,7 @@ class SalesKanban extends BoardPage implements HasTable
                 ->modalHeading('Create Sales Activity')
                 ->slideOver()
                 ->mutateFormDataUsing(function (array $data): array {
-                    $data['status'] = $data['status'] ?? SalesStatus::BRIEFING->value;
+                    $data['status'] = $data['status'] ?? SalesStatus::NOT_STARTED->value;
                     $data['position'] = (int) BvSales::where('status', $data['status'])->max('position') + 1;
                     return $data;
                 }),
@@ -180,9 +180,13 @@ class SalesKanban extends BoardPage implements HasTable
                     ->badge()
                     ->separator(','),
 
-                TextColumn::make('campaign_periode')
+                TextColumn::make('campaign_month')
                     ->label('Period')
-                    ->formatStateUsing(fn($state, $record) => $state ? strtoupper($state) . ' ' . $record->campaign_year : '-')
+                    ->formatStateUsing(function ($state, $record) {
+                        return $state && $record->campaign_year
+                            ? \Carbon\Carbon::createFromDate(null, $state, 1)->translatedFormat('F') . ' ' . $record->campaign_year
+                            : '-';
+                    })
                     ->sortable(),
 
                 TextColumn::make('budget_propose')
@@ -215,19 +219,10 @@ class SalesKanban extends BoardPage implements HasTable
                         return SalesStatus::tryFrom($state)?->getLabel() ?? $state;
                     })
                     ->color(function ($state) {
-                        $statusValue = $state instanceof SalesStatus ? $state->value : $state;
-                        return match ($statusValue) {
-
-                            SalesStatus::BRIEFING->value => 'info',
-                            SalesStatus::PROPOSAL_BUILDING->value => 'warning',
-                            SalesStatus::NEGOTIATION->value => 'purple',
-                            SalesStatus::CAMPAIGN_LIVE->value => 'indigo',
-                            SalesStatus::REPORTING->value => 'orange',
-                            SalesStatus::CLOSE_LOSE->value => 'danger',
-                            SalesStatus::INVOICING->value => 'cyan',
-                            SalesStatus::PAID->value => 'success',
-                            default => 'gray',
-                        };
+                        if ($state instanceof SalesStatus) {
+                            return $state->getColor();
+                        }
+                        return SalesStatus::tryFrom($state)?->getColor() ?? 'gray';
                     })
                     ->sortable(),
 
@@ -270,40 +265,49 @@ class SalesKanban extends BoardPage implements HasTable
     protected function getKanbanColumns(): array
     {
         return [
+            Column::make(SalesStatus::NOT_STARTED->value)
+                ->label(SalesStatus::NOT_STARTED->getLabel())
+                ->color(Color::Gray)
+                ->icon(SalesStatus::NOT_STARTED->getIcon()),
+
+            Column::make(SalesStatus::PITCHING->value)
+                ->label(SalesStatus::PITCHING->getLabel())
+                ->color(Color::Gray)
+                ->icon(SalesStatus::PITCHING->getIcon()),
 
             Column::make(SalesStatus::BRIEFING->value)
                 ->label(SalesStatus::BRIEFING->getLabel())
-                ->color(Color::Blue)
+                ->color(Color::Yellow)
                 ->icon(SalesStatus::BRIEFING->getIcon()),
 
             Column::make(SalesStatus::PROPOSAL_BUILDING->value)
                 ->label(SalesStatus::PROPOSAL_BUILDING->getLabel())
-                ->color(Color::Amber)
+                ->color(Color::Purple)
                 ->icon(SalesStatus::PROPOSAL_BUILDING->getIcon()),
 
             Column::make(SalesStatus::NEGOTIATION->value)
                 ->label(SalesStatus::NEGOTIATION->getLabel())
-                ->color(Color::Purple)
+                ->color(Color::Blue)
                 ->icon(SalesStatus::NEGOTIATION->getIcon()),
 
             Column::make(SalesStatus::CAMPAIGN_LIVE->value)
                 ->label(SalesStatus::CAMPAIGN_LIVE->getLabel())
-                ->color(Color::Indigo)
+                ->color(Color::Green)
                 ->icon(SalesStatus::CAMPAIGN_LIVE->getIcon()),
 
             Column::make(SalesStatus::REPORTING->value)
                 ->label(SalesStatus::REPORTING->getLabel())
-                ->color(Color::Orange)
+                ->color(Color::Amber)
                 ->icon(SalesStatus::REPORTING->getIcon()),
 
             Column::make(SalesStatus::CLOSE_LOSE->value)
                 ->label(SalesStatus::CLOSE_LOSE->getLabel())
-                ->color(Color::Red)
+                ->color(Color::Gray)
                 ->icon(SalesStatus::CLOSE_LOSE->getIcon()),
 
             Column::make(SalesStatus::INVOICING->value)
                 ->label(SalesStatus::INVOICING->getLabel())
-                ->color(Color::Cyan)
+                ->color(Color::Red)
                 ->icon(SalesStatus::INVOICING->getIcon()),
 
             Column::make(SalesStatus::PAID->value)

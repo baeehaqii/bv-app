@@ -20,7 +20,6 @@ class BvSales extends Model
         'budget_propose',
         'deal_value',
         'margin',
-        'campaign_periode',
         'campaign_year',
         'close_date',
         'comments',
@@ -30,6 +29,12 @@ class BvSales extends Model
         'brief_submit_date',
         'status',
         'position',
+        'form_brief_id',
+        'campaign_month',
+        'campaign_date',
+        'start_date',
+        'end_date',
+        'pic_media_plan',
     ];
 
     protected $casts = [
@@ -50,6 +55,10 @@ class BvSales extends Model
 
     protected static function booted(): void
     {
+        static::created(function (BvSales $sales) {
+            $sales->createCampaignData();
+        });
+
         static::updated(function (BvSales $sales) {
             if (
                 $sales->wasChanged('status') &&
@@ -73,6 +82,38 @@ class BvSales extends Model
             'title' => 'KOL Needs — ' . $this->event_name,
             'brand' => $this->company_name,
             'campaign_name' => $this->event_name,
+        ]);
+    }
+
+    /**
+     * Otomatis membuat data campaign di BvCampaign(Media Plan External)
+     */
+    public function createCampaignData(): void
+    {
+        $client = \App\Models\DataClient::where('nama_brand', $this->company_name)->first();
+
+        // Cari sales name
+        $picInternal = $this->salesList ? $this->salesList->nama_sales : null;
+
+        \App\Models\BvCampign::create([
+            'bv_sales_id' => $this->id,
+            'form_brief_id' => $this->form_brief_id,
+            'client_id' => $client?->id,
+            'client_type' => $client?->type ?? 'direct',
+            'agency_name' => $client?->agency_name,
+            'campaign_name' => $this->event_name,
+            'campaign_description' => $this->detail ?? '-',
+            'campaign_month' => $this->campaign_month,
+            'campaign_date' => $this->campaign_date,
+            'deal_value' => $this->deal_value ?? 0,
+            'total_cost' => $this->budget_propose ?? 0,
+            'start_date' => $this->start_date,
+            'end_date' => $this->end_date,
+            'close_date' => $this->close_date,
+            'brief_received_date' => $this->brief_submit_date,
+            'pic_internal' => $picInternal,
+            'pic_media_plan' => $this->pic_media_plan,
+            'status' => 'draft',
         ]);
     }
 

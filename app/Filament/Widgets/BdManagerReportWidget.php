@@ -43,6 +43,7 @@ class BdManagerReportWidget extends Widget
 
         $reports = [];
         $totals = [
+            'total_clients' => 0,
             'total_campaigns' => 0,
             'won_campaigns' => 0,
             'lost_campaigns' => 0,
@@ -61,9 +62,16 @@ class BdManagerReportWidget extends Widget
 
             $allDeals = $query->get();
 
+            // Hitung total client yg dipegang sales ini dalam periode tersebut
+            $clientQuery = \App\Models\DataClient::where('pic_internal_sales_id', $sales->id);
+            if ($dateRange['start'] && $dateRange['end']) {
+                $clientQuery->whereBetween('created_at', [$dateRange['start'], $dateRange['end']]);
+            }
+            $totalClients = $clientQuery->count();
+
             $totalCampaigns = $allDeals->count();
-            if ($totalCampaigns === 0) {
-                continue; // Skip sales tanpa campaign di periode ini
+            if ($totalCampaigns === 0 && $totalClients === 0) {
+                continue; // Skip sales tanpa campaign maupun client di periode ini
             }
 
             $wonCampaigns = $allDeals->filter(fn($d) => in_array($d->status?->value ?? $d->status, [
@@ -87,6 +95,7 @@ class BdManagerReportWidget extends Widget
 
             $reports[] = [
                 'name' => $sales->nama_sales,
+                'total_clients' => $totalClients,
                 'total_campaigns' => $totalCampaigns,
                 'won_campaigns' => $wonCampaigns,
                 'lost_campaigns' => $lostCampaigns,
@@ -96,6 +105,7 @@ class BdManagerReportWidget extends Widget
                 'win_rate' => $winRate,
             ];
 
+            $totals['total_clients'] += $totalClients;
             $totals['total_campaigns'] += $totalCampaigns;
             $totals['won_campaigns'] += $wonCampaigns;
             $totals['lost_campaigns'] += $lostCampaigns;

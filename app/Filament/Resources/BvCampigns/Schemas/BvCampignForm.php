@@ -59,27 +59,9 @@ class BvCampignForm
                                                     $set('close_date', $sales->close_date?->format('Y-m-d'));
                                                     $set('brief_received_date', $sales->brief_submit_date?->format('Y-m-d'));
 
-                                                    // Auto-fill bulan dari campaign_periode
-                                                    if ($sales->campaign_periode) {
-                                                        $monthMap = array_combine(
-                                                            [
-                                                                'january',
-                                                                'february',
-                                                                'march',
-                                                                'april',
-                                                                'may',
-                                                                'june',
-                                                                'july',
-                                                                'august',
-                                                                'september',
-                                                                'october',
-                                                                'november',
-                                                                'december'
-                                                            ],
-                                                            range(1, 12)
-                                                        );
-                                                        $monthNum = $monthMap[strtolower($sales->campaign_periode)] ?? null;
-                                                        $set('campaign_month', $monthNum);
+                                                    // Auto-fill bulan dari campaign_month
+                                                    if ($sales->campaign_month) {
+                                                        $set('campaign_month', $sales->campaign_month);
                                                     }
 
                                                     // Auto-fill client dari company_name
@@ -108,6 +90,7 @@ class BvCampignForm
                                     Grid::make(2)->schema([
                                         Select::make('campaign_month')
                                             ->label('Bulan Campaign')
+                                            ->placeholder('Pilih Bulan Campaign')
                                             ->options(function () {
                                                 $months = [];
                                                 for ($i = 1; $i <= 12; $i++) {
@@ -119,6 +102,7 @@ class BvCampignForm
 
                                         DatePicker::make('campaign_date')
                                             ->label('Tanggal Campaign')
+                                            ->placeholder('Pilih Tanggal Campaign')
                                             ->native(false)
                                             ->displayFormat('d M Y'),
                                     ]),
@@ -126,12 +110,14 @@ class BvCampignForm
                                     Grid::make(2)->schema([
                                         DatePicker::make('start_date')
                                             ->label('Start Date')
+                                            ->placeholder('Pilih Start Date')
                                             ->native(false)
                                             ->displayFormat('d M Y')
                                             ->required(),
 
                                         DatePicker::make('end_date')
                                             ->label('End Date')
+                                            ->placeholder('Pilih End Date')
                                             ->native(false)
                                             ->displayFormat('d M Y')
                                             ->required()
@@ -142,6 +128,7 @@ class BvCampignForm
                                     Grid::make(2)->schema([
                                         TextInput::make('deal_value')
                                             ->label('Deal Value')
+                                            ->placeholder('0')
                                             ->prefix('Rp')
                                             ->numeric()
                                             ->default(0)
@@ -150,16 +137,24 @@ class BvCampignForm
 
                                         DatePicker::make('close_date')
                                             ->label('Close Date')
+                                            ->placeholder('Pilih Close Date')
                                             ->native(false)
                                             ->displayFormat('d M Y'),
                                     ]),
 
-                                    // CP-05: Tanggal Dapat Brief
-                                    DatePicker::make('brief_received_date')
-                                        ->label('Tanggal Dapat Brief')
-                                        ->native(false)
-                                        ->displayFormat('d M Y')
-                                        ->helperText('Tanggal menerima brief dari client'),
+                                    // CP-05: Tanggal Dapat Brief & PIC Media Plan Internal
+                                    Grid::make(2)->schema([
+                                        DatePicker::make('brief_received_date')
+                                            ->label('Tanggal Dapat Brief')
+                                            ->placeholder('Pilih Tanggal Dapat Brief')
+                                            ->native(false)
+                                            ->displayFormat('d M Y')
+                                            ->helperText('Tanggal menerima brief dari client'),
+
+                                        TextInput::make('pic_media_plan')
+                                            ->label('PIC Media Plan / Internal')
+                                            ->placeholder('Masukkan PIC Media Plan...'),
+                                    ]),
 
                                     FileUpload::make('campaign_image')
                                         ->label('Insert Image/Banner Campaign')
@@ -416,11 +411,6 @@ class BvCampignForm
                                     TextInput::make('pic_internal')
                                         ->label('PIC Internal')
                                         ->placeholder('Person in charge'),
-
-                                    // CP-06: PIC Media Plan Internal
-                                    TextInput::make('pic_media_plan')
-                                        ->label('PIC Media Plan Internal')
-                                        ->placeholder('Person in charge untuk media plan internal'),
 
                                     TextInput::make('report_link')
                                         ->label('Report Link')

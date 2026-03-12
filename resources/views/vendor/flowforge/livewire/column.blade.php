@@ -12,7 +12,8 @@
 @endphp
 
 <div
-    class="flowforge-column w-[280px] min-w-[280px] flex-shrink-0 bg-gray-50 dark:bg-gray-800/50 rounded-lg flex flex-col max-h-full overflow-hidden">
+    class="flowforge-column flex-shrink-0 bg-gray-50 dark:bg-gray-800/50 rounded-lg flex flex-col max-h-full overflow-hidden" 
+    style="width: 320px; min-width: 320px;">
     <!-- Column Header -->
     <div class="flowforge-column-header flex items-center justify-between py-2.5 px-3">
         <div class="flex items-center gap-1.5">

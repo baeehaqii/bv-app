@@ -67,7 +67,7 @@ class BvSalesForm
             Select::make('status')
                 ->label('Status')
                 ->options(SalesStatus::toArray())
-                ->default(SalesStatus::BRIEFING->value)
+                ->default(SalesStatus::NOT_STARTED->value)
                 ->required(),
 
             Textarea::make('comments')
