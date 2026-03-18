@@ -12,7 +12,6 @@ use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Model;
 
 class GrossProfitTargetResource extends Resource
 {
@@ -33,55 +32,6 @@ class GrossProfitTargetResource extends Resource
     protected static ?string $slug = 'target-gross-profit';
 
     protected static ?string $recordTitleAttribute = 'year';
-
-    /**
-     * Role yang diperbolehkan membuat, mengedit, dan menghapus target GP.
-     * C Level dan Finance selain Super Admin.
-     */
-    protected static array $editableRoles = [
-        'super_admin',
-        'c_level',
-        'finance',
-    ];
-
-    // -------------------------------------------------------
-    // Authorization
-    // -------------------------------------------------------
-
-    /**
-     * Semua user yang sudah login bisa melihat halaman ini (View).
-     * Hanya role tertentu yang bisa melakukan perubahan data.
-     */
-    public static function canCreate(): bool
-    {
-        return static::hasAllowedRole();
-    }
-
-    public static function canEdit(Model $record): bool
-    {
-        return static::hasAllowedRole();
-    }
-
-    public static function canDelete(Model $record): bool
-    {
-        return static::hasAllowedRole();
-    }
-
-    public static function canDeleteAny(): bool
-    {
-        return static::hasAllowedRole();
-    }
-
-    protected static function hasAllowedRole(): bool
-    {
-        $user = auth()->user();
-        if (!$user) {
-            return false;
-        }
-
-        // Spatie HasRoles – cek apakah user punya salah satu role yang diizinkan
-        return $user->hasAnyRole(static::$editableRoles);
-    }
 
     // -------------------------------------------------------
     // Schema / Table

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\BvEmploye;
 use App\Models\FormBrief;
 use Illuminate\Http\Request;
 
@@ -12,14 +13,37 @@ class FormBriefPublicController extends Controller
      */
     public function show(string $token)
     {
-        $brief = FormBrief::where('token', $token)->with('client')->firstOrFail();
+        $brief = FormBrief::where('token', $token)->with('client', 'bvSales')->firstOrFail();
+
+        $salesName = $brief->bvSales?->pic_media_plan ?: 'Tim Beyond Viral';
+        $salesWhatsapp = null;
+
+        if ($brief->bvSales?->pic_media_plan) {
+            $employee = BvEmploye::query()
+                ->where('nama_lengkap', $brief->bvSales->pic_media_plan)
+                ->orWhere('nama_lengkap', 'like', '%' . $brief->bvSales->pic_media_plan . '%')
+                ->first();
+
+            $salesWhatsapp = $employee?->whatsapp;
+        }
+
+        $salesWhatsapp = preg_replace('/[^0-9]/', '', (string) $salesWhatsapp);
+        if ($salesWhatsapp !== '') {
+            if (str_starts_with($salesWhatsapp, '0')) {
+                $salesWhatsapp = '62' . substr($salesWhatsapp, 1);
+            } elseif (!str_starts_with($salesWhatsapp, '62')) {
+                $salesWhatsapp = '62' . $salesWhatsapp;
+            }
+        }
+
+        $salesWhatsappUrl = $salesWhatsapp !== '' ? 'https://wa.me/' . $salesWhatsapp : null;
 
         // Jika sudah disubmit, tampilkan halaman thank you
         if ($brief->isSubmitted()) {
             return view('form-brief.submitted', compact('brief'));
         }
 
-        return view('form-brief.public', compact('brief'));
+        return view('form-brief.public', compact('brief', 'salesName', 'salesWhatsapp', 'salesWhatsappUrl'));
     }
 
     /**

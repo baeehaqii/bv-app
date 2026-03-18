@@ -3,11 +3,9 @@
 namespace Database\Seeders;
 
 use App\Models\User;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 use Spatie\Permission\Models\Role;
-use Spatie\Permission\Models\Permission;
 
 class UserSeeder extends Seeder
 {
@@ -16,38 +14,47 @@ class UserSeeder extends Seeder
      */
     public function run(): void
     {
-        // Pastikan role super_admin sudah ada
+        // Pastikan role OD sudah ada
         $superAdminRole = Role::firstOrCreate(['name' => 'super_admin']);
-
-        // Assign semua permissions ke super_admin role
-        $permissions = Permission::all();
-        $superAdminRole->syncPermissions($permissions);
+        $financeRole = Role::firstOrCreate(['name' => 'Finance']);
+        $salesBdRole = Role::firstOrCreate(['name' => 'Sales/BD']);
+        $operationRole = Role::firstOrCreate(['name' => 'Operation KOL & Creative']);
 
         // Data users
         $users = [
             [
-                'name' => 'Baehaqi',
-                'email' => 'baehaqi@bv.com',
+                'name' => 'CEO',
+                'email' => 'ceo@bv.com',
                 'password' => 'Ap4sihya',
+                'role' => $superAdminRole,
             ],
             [
-                'name' => 'Gerry',
-                'email' => 'gerry@bv.com',
+                'name' => 'COO',
+                'email' => 'coo@bv.com',
                 'password' => 'Ap4sihya',
+                'role' => $superAdminRole,
             ],
             [
-                'name' => 'Syelind',
-                'email' => 'syelind@bv.com',
+                'name' => 'Finance Team',
+                'email' => 'finance@bv.com',
                 'password' => 'Ap4sihya',
+                'role' => $financeRole,
             ],
             [
-                'name' => 'Fajar',
-                'email' => 'fajar@bv.com',
+                'name' => 'Sales BD Team',
+                'email' => 'sales.bd@bv.com',
                 'password' => 'Ap4sihya',
+                'role' => $salesBdRole,
+            ],
+            [
+                'name' => 'Operation KOL Creative Team',
+                'email' => 'operation.kol@bv.com',
+                'password' => 'Ap4sihya',
+                'role' => $operationRole,
             ],
         ];
 
-        // Buat atau update users dan assign role super_admin
+        // Buat atau update users dan assign role sesuai matrix OD
         foreach ($users as $userData) {
             $user = User::updateOrCreate(
                 ['email' => $userData['email']],
@@ -58,14 +65,9 @@ class UserSeeder extends Seeder
                 ]
             );
 
-            // Assign role super_admin
-            if (!$user->hasRole('super_admin')) {
-                $user->assignRole($superAdminRole);
-            }
+            $user->syncRoles([$userData['role']]);
 
-            $this->command->info("User {$user->email} created/updated with super_admin role.");
+            $this->command->info("User {$user->email} created/updated with role {$userData['role']->name}.");
         }
-
-        $this->command->info("Super Admin role memiliki " . $superAdminRole->permissions->count() . " permissions.");
     }
 }

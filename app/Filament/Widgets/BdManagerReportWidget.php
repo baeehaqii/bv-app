@@ -3,8 +3,10 @@
 namespace App\Filament\Widgets;
 
 use App\Enums\SalesStatus;
+use App\Filament\Pages\SalesKanban;
+use App\Models\BvBussinesDirector;
 use App\Models\BvSales;
-use App\Models\BvSalesList;
+use App\Models\DataClient;
 use Carbon\Carbon;
 use Filament\Widgets\Concerns\InteractsWithPageFilters;
 use Filament\Widgets\Widget;
@@ -12,7 +14,7 @@ use Filament\Widgets\Widget;
 /**
  * Widget: BD Manager Report
  *
- * Menampilkan report performa per BD Manager (Sales) meliputi:
+ * Menampilkan report performa per Business Director meliputi:
  * - Jumlah campaign
  * - Total deal value
  * - Total budget propose
@@ -31,6 +33,18 @@ class BdManagerReportWidget extends Widget
 
     protected static ?int $sort = 3;
 
+    public bool $campaignModalOpen = false;
+
+    public string $selectedBdName = '';
+
+    public array $selectedBdCampaigns = [];
+
+    public array $selectedBdSalesNames = [];
+
+    public string $selectedPeriodLabel = '';
+
+    public string $salesActivityUrl = '';
+
     /**
      * Ambil data report per BD Manager berdasarkan filter periode.
      */
@@ -39,7 +53,10 @@ class BdManagerReportWidget extends Widget
         $period = $this->filters['period'] ?? 'monthly';
         $dateRange = $this->getDateRange($period);
 
-        $salesPeople = BvSalesList::orderBy('nama_sales')->get();
+        $directors = BvBussinesDirector::query()
+            ->with(['salesLists:id,bv_bussines_director_id,nama_sales'])
+            ->orderBy('nama_lengkap')
+            ->get();
 
         $reports = [];
         $totals = [
@@ -52,8 +69,16 @@ class BdManagerReportWidget extends Widget
             'total_gross_profit' => 0,
         ];
 
-        foreach ($salesPeople as $sales) {
-            $query = BvSales::where('bv_sales_list_id', $sales->id);
+        foreach ($directors as $director) {
+            $salesIds = $director->salesLists->pluck('id')->all();
+            $salesCount = count($salesIds);
+
+            $query = BvSales::query()
+                ->when(
+                    $salesCount > 0,
+                    fn($q) => $q->whereIn('bv_sales_list_id', $salesIds),
+                    fn($q) => $q->whereRaw('1 = 0')
+                );
 
             // Filter berdasarkan periode
             if ($dateRange['start'] && $dateRange['end']) {
@@ -62,16 +87,25 @@ class BdManagerReportWidget extends Widget
 
             $allDeals = $query->get();
 
-            // Hitung total client yg dipegang sales ini dalam periode tersebut
-            $clientQuery = \App\Models\DataClient::where('pic_internal_sales_id', $sales->id);
+            // Hitung total client yg dipegang seluruh sales di bawah BD ini
+            $clientQuery = DataClient::query()
+                ->when(
+                    $salesCount > 0,
+                    fn($q) => $q->whereIn('pic_internal_sales_id', $salesIds),
+                    fn($q) => $q->whereRaw('1 = 0')
+                );
+
             if ($dateRange['start'] && $dateRange['end']) {
                 $clientQuery->whereBetween('created_at', [$dateRange['start'], $dateRange['end']]);
             }
-            $totalClients = $clientQuery->count();
+
+            $totalClients = (clone $clientQuery)
+                ->distinct('id')
+                ->count('id');
 
             $totalCampaigns = $allDeals->count();
             if ($totalCampaigns === 0 && $totalClients === 0) {
-                continue; // Skip sales tanpa campaign maupun client di periode ini
+                continue; // Skip BD tanpa campaign maupun client di periode ini
             }
 
             $wonCampaigns = $allDeals->filter(fn($d) => in_array($d->status?->value ?? $d->status, [
@@ -94,7 +128,9 @@ class BdManagerReportWidget extends Widget
             $winRate = $totalCampaigns > 0 ? round(($wonCampaigns / $totalCampaigns) * 100, 1) : 0;
 
             $reports[] = [
-                'name' => $sales->nama_sales,
+                'bd_id' => $director->id,
+                'name' => $director->nama_lengkap,
+                'total_sales' => $salesCount,
                 'total_clients' => $totalClients,
                 'total_campaigns' => $totalCampaigns,
                 'won_campaigns' => $wonCampaigns,
@@ -122,6 +158,82 @@ class BdManagerReportWidget extends Widget
             'totals' => $totals,
             'period_label' => $dateRange['label'],
         ];
+    }
+
+    public function openCampaignModal(int $bdId): void
+    {
+        $period = $this->filters['period'] ?? 'monthly';
+        $dateRange = $this->getDateRange($period);
+
+        $director = BvBussinesDirector::query()
+            ->with(['salesLists:id,bv_bussines_director_id,nama_sales'])
+            ->find($bdId);
+
+        if (!$director) {
+            $this->closeCampaignModal();
+            return;
+        }
+
+        $salesNames = $director->salesLists->pluck('nama_sales', 'id');
+        $salesIds = $salesNames->keys()->all();
+
+        if (count($salesIds) === 0) {
+            $this->selectedBdName = $director->nama_lengkap;
+            $this->selectedBdCampaigns = [];
+            $this->selectedBdSalesNames = [];
+            $this->selectedPeriodLabel = $dateRange['label'];
+            $this->campaignModalOpen = true;
+            $this->salesActivityUrl = SalesKanban::getUrl();
+
+            return;
+        }
+
+        $query = BvSales::query()->whereIn('bv_sales_list_id', $salesIds);
+
+        if ($dateRange['start'] && $dateRange['end']) {
+            $query->whereBetween('created_at', [$dateRange['start'], $dateRange['end']]);
+        }
+
+        $campaigns = $query
+            ->with(['salesList:id,nama_sales'])
+            ->orderByDesc('deal_value')
+            ->get()
+            ->map(function (BvSales $campaign) {
+                $status = $campaign->status?->getLabel() ?? (string) $campaign->status;
+
+                return [
+                    'campaign_name' => $campaign->event_name,
+                    'client_name' => $campaign->company_name,
+                    'sales_name' => $campaign->salesList?->nama_sales ?? '-',
+                    'status' => $status,
+                    'deal_value' => (float) $campaign->deal_value,
+                    'budget_propose' => (float) $campaign->budget_propose,
+                ];
+            })
+            ->toArray();
+
+        $this->selectedBdName = $director->nama_lengkap;
+        $this->selectedBdCampaigns = $campaigns;
+        $this->selectedBdSalesNames = $salesNames
+            ->values()
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+        $this->selectedPeriodLabel = $dateRange['label'];
+        $this->campaignModalOpen = true;
+        $this->salesActivityUrl = SalesKanban::getUrl();
+    }
+
+    public function closeCampaignModal(): void
+    {
+        $this->campaignModalOpen = false;
+        $this->selectedBdName = '';
+        $this->selectedBdCampaigns = [];
+        $this->selectedBdSalesNames = [];
+        $this->selectedPeriodLabel = '';
+        $this->salesActivityUrl = '';
     }
 
     /**

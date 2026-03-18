@@ -3,6 +3,7 @@
 namespace App\Filament\Forms;
 
 use App\Enums\SalesStatus;
+use App\Models\BvBussinesDirector;
 use App\Models\BvSalesList;
 use App\Models\DataClient;
 use Filament\Actions\Action;
@@ -13,6 +14,7 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Infolists\Components\TextEntry;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 
@@ -22,7 +24,7 @@ class BvSalesForm
     {
         return [
             Section::make('Campaign Information')
-            ->description('Informasi campaign yang akan di kerjakan')
+                ->description('Informasi campaign yang akan di kerjakan')
                 ->schema([
                     Grid::make(2)
                         ->schema([
@@ -32,11 +34,29 @@ class BvSalesForm
                                 ->required()
                                 ->maxLength(255),
 
-                            Select::make('bv_sales_list_id')
-                                ->label('Sales Name')
-                                ->relationship('salesList', 'nama_sales')
+                            Select::make('selected_bd_id')
+                                ->label('Business Director')
+                                ->dehydrated(false)
+                                ->options(fn() => BvBussinesDirector::where('status', 'aktif')->orderBy('nama_lengkap')->pluck('nama_lengkap', 'id'))
+                                ->default(fn($record) => $record?->salesList?->bv_bussines_director_id)
+                                ->afterStateUpdated(fn($state, callable $set) => $set('bv_sales_list_id', null))
                                 ->searchable()
                                 ->preload()
+                                ->live(),
+
+                            Select::make('bv_sales_list_id')
+                                ->label('Sales Name')
+                                ->options(function (Get $get) {
+                                    $bdId = $get('selected_bd_id');
+
+                                    return BvSalesList::query()
+                                        ->when($bdId, fn($query) => $query->where('bv_bussines_director_id', $bdId))
+                                        ->orderBy('nama_sales')
+                                        ->pluck('nama_sales', 'id');
+                                })
+                                ->searchable()
+                                ->preload()
+                                ->live()
                                 ->required(),
 
 
@@ -201,7 +221,7 @@ class BvSalesForm
                 ]),
 
             Section::make('Campaign Schedule')
-            ->description('Informasi timeline campaign yang akan di kerjakan')
+                ->description('Informasi timeline campaign yang akan di kerjakan')
                 ->schema([
                     Grid::make(2)
                         ->schema([
@@ -283,13 +303,13 @@ class BvSalesForm
                 ]),
 
             Section::make('Status & Detail Campaign')
-            ->description('Informasi status dan detail campaign')
+                ->description('Informasi status dan detail campaign')
                 ->schema([
                     Grid::make(2)
                         ->schema([
                             Select::make('status')
                                 ->label('Status')
-                                ->options(SalesStatus::toArray()) ->columnSpanFull()
+                                ->options(SalesStatus::toArray())->columnSpanFull()
                                 ->default(SalesStatus::NOT_STARTED->value)
                                 ->required(),
 
@@ -308,25 +328,93 @@ class BvSalesForm
                 ->collapsed()
                 ->hidden(fn(string $operation): bool => $operation === 'create')
                 ->schema([
-                    Grid::make(2)
-                        ->schema([
-                            FileUpload::make('brief_files')
-                                ->label('Brief Files')
-                                ->multiple()
-                                ->directory('sales-briefs')
-                                ->acceptedFileTypes(['application/pdf', 'text/csv', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'image/png', 'image/jpeg'])
-                                ->maxSize(10240)
-                                ->downloadable()
-                                ->openable()
-                                ->reorderable()
-                                ->columnSpan(2),
+                    // Brief dari client — tampil ketika FormBrief sudah ada
+                    Placeholder::make('client_brief_preview')
+                        ->label('')
+                        ->hidden(fn($record) => !$record?->formBrief)
+                        ->content(function ($record) {
+                            $brief = $record?->formBrief;
+                            if (!$brief)
+                                return '';
 
-                            TextInput::make('brief_link')
-                                ->label('Brief Link')
-                                ->placeholder('https://...')
-                                ->url()
-                                ->suffixIcon('heroicon-o-link'),
-                        ]),
+                            $statusColors = [
+                                'draft' => ['bg' => '#f3f4f6', 'text' => '#374151'],
+                                'submitted' => ['bg' => '#dbeafe', 'text' => '#1e40af'],
+                                'reviewed' => ['bg' => '#fef3c7', 'text' => '#92400e'],
+                                'approved' => ['bg' => '#dcfce7', 'text' => '#14532d'],
+                                'revision' => ['bg' => '#fee2e2', 'text' => '#991b1b'],
+                            ];
+                            $sc = $statusColors[$brief->status] ?? $statusColors['draft'];
+
+                            $rows = [];
+
+                            if ($brief->submitted_by_name) {
+                                $rows[] = ['label' => 'Submitted by', 'value' => e($brief->submitted_by_name) . ($brief->submitted_at ? ' · ' . \Carbon\Carbon::parse($brief->submitted_at)->format('d M Y') : '')];
+                            }
+                            if ($brief->timeline)
+                                $rows[] = ['label' => 'Timeline', 'value' => e($brief->timeline)];
+                            if ($brief->campaign_objective)
+                                $rows[] = ['label' => 'Campaign Objective', 'value' => nl2br(e($brief->campaign_objective))];
+                            if ($brief->criteria_of_kol)
+                                $rows[] = ['label' => 'Criteria of KOL', 'value' => nl2br(e($brief->criteria_of_kol))];
+                            if ($brief->sow)
+                                $rows[] = ['label' => 'Scope of Work', 'value' => nl2br(e($brief->sow))];
+                            if ($brief->budget_main_kol)
+                                $rows[] = ['label' => 'Budget Main KOL', 'value' => e($brief->budget_main_kol)];
+                            if ($brief->budget_macro_kol)
+                                $rows[] = ['label' => 'Budget Macro KOL', 'value' => e($brief->budget_macro_kol)];
+                            if ($brief->deadline)
+                                $rows[] = ['label' => 'Deadline', 'value' => e($brief->deadline)];
+                            if ($brief->additional_notes)
+                                $rows[] = ['label' => 'Catatan', 'value' => nl2br(e($brief->additional_notes))];
+
+                            $rowsHtml = '';
+                            foreach ($rows as $row) {
+                                $rowsHtml .= '<tr>
+                                    <td style="padding:6px 8px;font-size:12px;color:#6b7280;white-space:nowrap;vertical-align:top;width:140px;">' . $row['label'] . '</td>
+                                    <td style="padding:6px 8px;font-size:13px;color:#111827;">' . $row['value'] . '</td>
+                                </tr>';
+                            }
+
+                            $linksHtml = '';
+                            if ($brief->sheet_link_external) {
+                                $linksHtml .= '<a href="' . e($brief->sheet_link_external) . '" target="_blank" rel="noopener noreferrer"
+                                    style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#3b82f6;text-decoration:none;margin-right:12px;">
+                                    <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244"/></svg>
+                                    Brief Client</a>';
+                            }
+                            if ($brief->sheet_link_internal) {
+                                $linksHtml .= '<a href="' . e($brief->sheet_link_internal) . '" target="_blank" rel="noopener noreferrer"
+                                    style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#8b5cf6;text-decoration:none;">
+                                    <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244"/></svg>
+                                    Internal Sheet</a>';
+                            }
+
+                            return new \Illuminate\Support\HtmlString('
+                                <div style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;font-family:inherit;">
+                                    <div style="padding:10px 14px;background:#f9fafb;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;">
+                                        <div style="display:flex;align-items:center;gap:8px;">
+                                            <span style="font-size:13px;font-weight:600;color:#111827;">' . e($brief->title) . '</span>
+                                            <span style="padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;background:' . $sc['bg'] . ';color:' . $sc['text'] . ';">' . ucfirst($brief->status) . '</span>
+                                        </div>
+                                        ' . ($linksHtml ? '<div style="display:flex;gap:4px;">' . $linksHtml . '</div>' : '') . '
+                                    </div>
+                                    ' . ($rowsHtml ? '<table style="width:100%;border-collapse:collapse;">' . $rowsHtml . '</table>' : '') . '
+                                </div>
+                            ');
+                        })
+                        ->columnSpanFull(),
+
+                    FileUpload::make('brief_files')
+                        ->label('Brief Files')
+                        ->multiple()
+                        ->directory('sales-briefs')
+                        ->acceptedFileTypes(['application/pdf', 'text/csv', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'image/png', 'image/jpeg'])
+                        ->maxSize(10240)
+                        ->downloadable()
+                        ->openable()
+                        ->reorderable()
+                        ->columnSpanFull(),
                 ]),
         ];
     }

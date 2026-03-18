@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
 // use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Database\Seeders\MasterPphSeeder;
@@ -22,6 +21,10 @@ class DatabaseSeeder extends Seeder
             '--option' => '2',
         ]);
         $this->command->info('Shield generation completed!');
+
+        // Sinkronisasi role matrix OD berbasis permission Shield
+        $this->call(RolePermissionSeeder::class);
+        $this->command->info('RolePermission seeding completed!');
 
         // Jalankan UserSeeder
         $this->call(UserSeeder::class);

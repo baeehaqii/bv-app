@@ -33,42 +33,6 @@ class SalesTargetResource extends Resource
 
     protected static ?string $recordTitleAttribute = 'id';
 
-    protected static array $editableRoles = [
-        'super_admin',
-        'c_level',
-        'finance',
-    ];
-
-    // -------------------------------------------------------
-    // Authorization — hanya Super Admin, C Level, Finance
-    // -------------------------------------------------------
-
-    public static function canCreate(): bool
-    {
-        return static::hasAllowedRole();
-    }
-
-    public static function canEdit(\Illuminate\Database\Eloquent\Model $record): bool
-    {
-        return static::hasAllowedRole();
-    }
-
-    public static function canDelete(\Illuminate\Database\Eloquent\Model $record): bool
-    {
-        return static::hasAllowedRole();
-    }
-
-    public static function canDeleteAny(): bool
-    {
-        return static::hasAllowedRole();
-    }
-
-    protected static function hasAllowedRole(): bool
-    {
-        $user = auth()->user();
-        return $user && $user->hasAnyRole(static::$editableRoles);
-    }
-
     // -------------------------------------------------------
     // Schema / Table
     // -------------------------------------------------------

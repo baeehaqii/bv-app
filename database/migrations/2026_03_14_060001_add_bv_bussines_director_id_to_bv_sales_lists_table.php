@@ -10,11 +10,11 @@ return new class extends Migration {
      */
     public function up(): void
     {
-        Schema::table('bv_campaigns', function (Blueprint $table) {
-            $table->foreignId('bv_sales_id')
+        Schema::table('bv_sales_lists', function (Blueprint $table) {
+            $table->foreignId('bv_bussines_director_id')
                 ->nullable()
                 ->after('id')
-                ->constrained('bv_sales')
+                ->constrained('bv_bussines_directors')
                 ->nullOnDelete();
         });
     }
@@ -24,9 +24,8 @@ return new class extends Migration {
      */
     public function down(): void
     {
-        Schema::table('bv_campaigns', function (Blueprint $table) {
-            $table->dropForeign(['bv_sales_id']);
-            $table->dropColumn('bv_sales_id');
+        Schema::table('bv_sales_lists', function (Blueprint $table) {
+            $table->dropConstrainedForeignId('bv_bussines_director_id');
         });
     }
 };

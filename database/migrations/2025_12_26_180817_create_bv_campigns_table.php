@@ -13,6 +13,9 @@ return new class extends Migration {
         Schema::create('bv_campaigns', function (Blueprint $table) {
             $table->id();
 
+            // Sales relationship
+            $table->foreignId('bv_sales_id')->nullable()->constrained('bv_sales')->nullOnDelete();
+
             // Form Brief relationship (FB-04)
             $table->foreignId('form_brief_id')->nullable()->constrained('form_briefs')->nullOnDelete();
 

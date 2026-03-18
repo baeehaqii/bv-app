@@ -85,7 +85,15 @@
                                         </div>
                                     </td>
                                     <td class="px-4 py-3 text-center text-gray-700 dark:text-gray-300">{{ $report['total_clients'] }}</td>
-                                    <td class="px-4 py-3 text-center text-gray-700 dark:text-gray-300">{{ $report['total_campaigns'] }}</td>
+                                    <td class="px-4 py-3 text-center">
+                                        <button
+                                            type="button"
+                                            wire:click="openCampaignModal({{ $report['bd_id'] }})"
+                                            class="font-semibold text-gray-700 dark:text-gray-200 hover:underline"
+                                        >
+                                            {{ $report['total_campaigns'] }}
+                                        </button>
+                                    </td>
                                     <td class="px-4 py-3 text-center">
                                         <span class="inline-flex items-center px-1.5 py-0.5 text-xs font-medium rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400">
                                             {{ $report['won_campaigns'] }}
@@ -97,7 +105,15 @@
                                         </span>
                                     </td>
                                     <td class="px-4 py-3 text-right text-gray-600 dark:text-gray-400">{{ $fmt($report['total_budget_propose']) }}</td>
-                                    <td class="px-4 py-3 text-right font-semibold text-primary-600 dark:text-primary-400">{{ $fmt($report['total_deal_value']) }}</td>
+                                    <td class="px-4 py-3 text-right">
+                                        <button
+                                            type="button"
+                                            wire:click="openCampaignModal({{ $report['bd_id'] }})"
+                                            class="font-semibold text-primary-600 dark:text-primary-400 hover:underline"
+                                        >
+                                            {{ $fmt($report['total_deal_value']) }}
+                                        </button>
+                                    </td>
                                     <td class="px-4 py-3 text-right font-semibold text-emerald-600 dark:text-emerald-400">{{ $fmt($report['gross_profit']) }}</td>
                                     <td class="px-4 py-3 text-center">
                                         @php
@@ -157,4 +173,78 @@
             @endif
         </div>
     </x-filament::section>
+
+    @if($campaignModalOpen)
+        <div
+            x-data
+            class="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto"
+            style="z-index: 9999;"
+        >
+            <div
+                class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm transition-opacity"
+                wire:click="closeCampaignModal"
+            ></div>
+
+            <div class="relative w-full max-w-5xl bg-white dark:bg-gray-900 rounded-xl shadow-2xl overflow-hidden ring-1 ring-gray-200 dark:ring-gray-800 animate-in fade-in zoom-in-95 duration-200">
+                <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between bg-gray-50 dark:bg-gray-800/50">
+                    <div>
+                        <h3 class="text-base font-semibold text-gray-900 dark:text-white">
+                            Campaign Detail - {{ $selectedBdName }}
+                        </h3>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">Periode: {{ $selectedPeriodLabel }}</p>
+                        <div class="mt-2 flex flex-wrap items-center gap-1.5">
+                            <span class="text-xs text-gray-500 dark:text-gray-400">Sales under BD:</span>
+                            @forelse($selectedBdSalesNames as $salesName)
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-primary-50 text-primary-700 dark:bg-primary-500/10 dark:text-primary-300">
+                                    {{ $salesName }}
+                                </span>
+                            @empty
+                                <span class="text-xs text-gray-400 dark:text-gray-500">Belum ada sales terhubung.</span>
+                            @endforelse
+                        </div>
+                    </div>
+                    <button wire:click="closeCampaignModal" class="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 transition-colors">
+                        <x-heroicon-m-x-mark class="w-5 h-5" />
+                    </button>
+                </div>
+
+                <div class="p-6">
+                    @if(count($selectedBdCampaigns) > 0)
+                        <div class="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+                            <table class="w-full text-sm text-left">
+                                <thead class="bg-gray-50 dark:bg-gray-800 text-gray-500 font-medium border-b border-gray-200 dark:border-gray-700">
+                                    <tr>
+                                        <th class="px-4 py-3">Campaign</th>
+                                        <th class="px-4 py-3">Client</th>
+                                        <th class="px-4 py-3">Sales</th>
+                                        <th class="px-4 py-3">Status</th>
+                                        <th class="px-4 py-3 text-right">Budget Propose</th>
+                                        <th class="px-4 py-3 text-right">Deal Value</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-100 dark:divide-gray-700 bg-white dark:bg-gray-900">
+                                    @foreach($selectedBdCampaigns as $campaign)
+                                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                                            <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">{{ $campaign['campaign_name'] }}</td>
+                                            <td class="px-4 py-3 text-gray-600 dark:text-gray-300">{{ $campaign['client_name'] }}</td>
+                                            <td class="px-4 py-3 text-gray-600 dark:text-gray-300">{{ $campaign['sales_name'] }}</td>
+                                            <td class="px-4 py-3 text-gray-600 dark:text-gray-300">{{ $campaign['status'] }}</td>
+                                            <td class="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{{ $fmt($campaign['budget_propose']) }}</td>
+                                            <td class="px-4 py-3 text-right">
+                                                <a href="{{ $salesActivityUrl }}" class="font-semibold text-primary-600 dark:text-primary-400 hover:underline" target="_blank" rel="noopener noreferrer">
+                                                    {{ $fmt($campaign['deal_value']) }}
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @else
+                        <p class="text-sm text-gray-500 dark:text-gray-400">Belum ada campaign pada periode ini.</p>
+                    @endif
+                </div>
+            </div>
+        </div>
+    @endif
 </x-filament-widgets::widget>

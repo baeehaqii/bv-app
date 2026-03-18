@@ -11,7 +11,6 @@ use App\Models\DataClient;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
-use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 
 class DataClientResource extends Resource
@@ -19,8 +18,8 @@ class DataClientResource extends Resource
     protected static ?string $model = DataClient::class;
 
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-swatch';
-    protected static string|\UnitEnum|null $navigationGroup = "Database";
-    protected static ?int $navigationSort = 1;
+    protected static string|\UnitEnum|null $navigationGroup = 'Sales';
+    protected static ?int $navigationSort = 11;
     protected static ?string $navigationLabel = 'Database Client';
     protected static ?string $modelLabel = 'Database Client';
     protected static ?string $pluralModelLabel = 'Database Client';

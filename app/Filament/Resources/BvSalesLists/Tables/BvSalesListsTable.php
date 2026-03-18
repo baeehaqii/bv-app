@@ -16,6 +16,9 @@ class BvSalesListsTable
             ->columns([
                 TextColumn::make('nama_sales')
                     ->searchable(),
+                TextColumn::make('bussinesDirector.nama_lengkap')
+                    ->label('Business Director')
+                    ->searchable(),
                 TextColumn::make('alamat')
                     ->searchable(),
                 TextColumn::make('tanggal_gabung_bv')
