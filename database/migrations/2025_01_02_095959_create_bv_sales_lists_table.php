@@ -12,6 +12,7 @@ return new class extends Migration {
     {
         Schema::create('bv_sales_lists', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('bv_bussines_director_id')->nullable()->constrained('bv_bussines_directors')->nullOnDelete();
             $table->string('nama_sales');
             $table->string('alamat')->nullable();
             $table->string('tanggal_gabung_bv')->nullable();

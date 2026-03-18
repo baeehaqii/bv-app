@@ -70,10 +70,18 @@ return new class extends Migration {
 
             $table->timestamps();
         });
+
+        Schema::table('bv_sales', function (Blueprint $table) {
+            $table->foreign('form_brief_id')->references('id')->on('form_briefs')->nullOnDelete();
+        });
     }
 
     public function down(): void
     {
+        Schema::table('bv_sales', function (Blueprint $table) {
+            $table->dropForeign(['form_brief_id']);
+        });
+
         Schema::dropIfExists('form_briefs');
     }
 };

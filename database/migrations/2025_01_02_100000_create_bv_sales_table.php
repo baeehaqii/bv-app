@@ -12,7 +12,7 @@ return new class extends Migration {
     {
         Schema::create('bv_sales', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('form_brief_id')->nullable()->constrained('form_briefs')->nullOnDelete();
+            $table->unsignedBigInteger('form_brief_id')->nullable()->index();
             $table->foreignId('bv_sales_list_id')->nullable()->constrained('bv_sales_lists')->nullOnDelete();
             $table->string('event_name');
             $table->string('company_name')->nullable();

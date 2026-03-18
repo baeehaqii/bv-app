@@ -41,8 +41,14 @@ class UserSeeder extends Seeder
                 'role' => $financeRole,
             ],
             [
-                'name' => 'Sales BD Team',
-                'email' => 'sales.bd@bv.com',
+                'name' => 'Sales',
+                'email' => 'sales@bv.com',
+                'password' => 'Ap4sihya',
+                'role' => $salesBdRole,
+            ],
+            [
+                'name' => 'BD Manager',
+                'email' => 'bd.manager@bv.com',
                 'password' => 'Ap4sihya',
                 'role' => $salesBdRole,
             ],
