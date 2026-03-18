@@ -17,6 +17,28 @@ class Dashboard extends BaseDashboard
 {
     use HasFiltersForm;
 
+    public static function shouldRegisterNavigation(): bool
+    {
+        return auth()->check() && auth()->user()->hasRole(['super_admin', 'superadmin', 'Super Admin', 'CEO', 'COO']);
+    }
+
+    public function mount()
+    {
+        $user = auth()->user();
+
+        if ($user->hasRole(['Finance', 'finance'])) {
+            return redirect()->to(\App\Filament\Resources\BvCashflows\BvCashflowResource::getUrl());
+        }
+
+        if ($user->hasRole(['Operation KOL & Creative', 'Operation', 'Creative', 'KOL'])) {
+            return redirect()->to(\App\Filament\Resources\BvCampigns\BvCampignResource::getUrl());
+        }
+
+        if ($user->hasRole(['Sales/BD', 'sales', 'bd', 'Sales', 'BD', 'Business Development'])) {
+            return redirect()->to(\App\Filament\Pages\SalesKanban::getUrl());
+        }
+    }
+
     public function filtersForm(Schema $form): Schema
     {
         return $form
