@@ -576,13 +576,18 @@ class TiktokService
                 'url' => $postUrl,
             ]);
 
-            // Call API to get video details
+            // Call API to get video details (v2 endpoint)
             $response = Http::timeout(30)
                 ->withHeaders([
                     'x-api-key' => $this->apiKey,
-                ])->get("https://api.scrapecreators.com/v1/tiktok/video", [
+                ])->get("https://api.scrapecreators.com/v2/tiktok/video", [
                         'url' => $postUrl,
                     ]);
+
+            Log::info('📡 TikTok Video API Response', [
+                'status' => $response->status(),
+                'successful' => $response->successful(),
+            ]);
 
             if (!$response->successful()) {
                 Log::error('❌ TikTok Video API Error', [
@@ -594,21 +599,40 @@ class TiktokService
 
             $data = $response->json();
 
-            if (!isset($data['success']) || !$data['success']) {
-                throw new Exception('API returned unsuccessful response');
+            Log::info('📦 TikTok Video Raw Response Keys', [
+                'keys' => array_keys($data ?? []),
+            ]);
+
+            // v2 response structure: { aweme_detail: { statistics: {...}, author: {...}, ... } }
+            if (isset($data['success']) && !$data['success']) {
+                throw new Exception('API returned unsuccessful response: ' . ($data['message'] ?? 'Unknown error'));
             }
 
+            // v2 wraps everything under 'aweme_detail'
+            $videoData = $data['aweme_detail'] ?? $data['data'] ?? $data;
+
+            Log::info('📦 TikTok v2 aweme_detail keys', [
+                'keys' => array_keys($videoData),
+            ]);
 
             // Extract stats from response
-            $stats = $data['statistics'] ?? [];
-            $author = $data['author'] ?? [];
+            $stats  = $videoData['statistics'] ?? [];
+            $author = $videoData['author']     ?? [];
 
-            // Extract values (may be -1 if not available)
-            $views = $stats['play_count'] ?? $stats['playCount'] ?? 0;
-            $likes = $stats['digg_count'] ?? $stats['diggCount'] ?? 0;
-            $comments = $stats['comment_count'] ?? $stats['commentCount'] ?? 0;
-            $saves = $stats['collect_count'] ?? $stats['collectCount'] ?? 0;
-            $shares = $stats['share_count'] ?? $stats['shareCount'] ?? 0;
+            // Extract values (API may return -1 when data is not publicly available)
+            $views    = $stats['play_count']    ?? 0;
+            $likes    = $stats['digg_count']    ?? 0;
+            $comments = $stats['comment_count'] ?? 0;
+            $saves    = $stats['collect_count'] ?? 0;
+            $shares   = $stats['share_count']   ?? 0;
+
+            Log::info('📊 TikTok v2 raw stats', [
+                'play_count'    => $views,
+                'digg_count'    => $likes,
+                'comment_count' => $comments,
+                'collect_count' => $saves,
+                'share_count'   => $shares,
+            ]);
 
             // Handle -1 values (API returns -1 when data is not publicly available)
             $result = [

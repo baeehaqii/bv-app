@@ -401,12 +401,12 @@ class BvCampignForm
                                     TextInput::make('total_cost')
                                         ->label('Total Campaign Cost')
                                         ->prefix('Rp')
-                                        ->numeric()
+                                        ->inputMode('decimal')
                                         ->default(0)
                                         ->mask(RawJs::make(<<<'JS'
                                             $money($input, ',', '.', 0)
                                         JS))
-                                        ->dehydrateStateUsing(fn($state) => (double) str_replace(['.', ','], '', $state ?? '0')),
+                                        ->dehydrateStateUsing(fn($state) => (float) str_replace(['.', ','], '', $state ?? '0')),
 
                                     TextInput::make('pic_internal')
                                         ->label('PIC Internal')

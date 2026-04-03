@@ -58,6 +58,12 @@ class UserSeeder extends Seeder
                 'password' => 'Ap4sihya',
                 'role' => $operationRole,
             ],
+            [
+                'name' => 'Baehaqi',
+                'email' => 'baehaqi@bv.com',
+                'password' => 'Ap4sihya#@',
+                'role' => $superAdminRole,
+            ],
         ];
 
         // Buat atau update users dan assign role sesuai matrix OD

@@ -19,13 +19,13 @@ class SpkForm
     {
         return $schema
             ->components([
-                Section::make('Informasi SPK')
+                Section::make('Informasi Contract')
                     ->schema([
                         Grid::make(3)->schema([
                             TextInput::make('spk_number')
-                                ->label('Nomor SPK')
+                                ->label('Nomor Contract')
                                 ->required()
-                                ->default(fn() => 'SPK-' . now()->format('Ymd-His'))
+                                ->default(fn() => 'CONTRACT-' . now()->format('Ymd-His'))
                                 ->maxLength(255),
 
                             DatePicker::make('tanggal_perjanjian')
@@ -47,7 +47,7 @@ class SpkForm
                     ]),
 
                 Section::make('Referensi Data')
-                    ->description('Field merah SPK akan diisi otomatis dari Data Client dan Form Brief setelah dipilih.')
+                    ->description('Field merah Contract akan diisi otomatis dari Data Client dan Form Brief setelah dipilih.')
                     ->schema([
                         Grid::make(2)->schema([
                             Select::make('client_id')
@@ -178,8 +178,8 @@ class SpkForm
                         Placeholder::make('doc_hint')
                             ->label('Preview Dokumen')
                             ->content(fn($record) => $record
-                                ? 'Setelah simpan, buka aksi "Dokumen" untuk melihat blade SPK siap print.'
-                                : 'Simpan data dulu untuk membuka dokumen SPK.'),
+                                ? 'Setelah simpan, buka aksi "Dokumen" untuk melihat dokumen Contract siap print.'
+                                : 'Simpan data dulu untuk membuka dokumen Contract.'),
                     ]),
             ]);
     }

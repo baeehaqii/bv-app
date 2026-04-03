@@ -18,8 +18,8 @@ enum SalesStatus: string
     public function getLabel(): string
     {
         return match ($this) {
-            self::NOT_STARTED => 'Not Started',
-            self::PITCHING => 'Pitching',
+            self::NOT_STARTED => 'New Leads',
+            self::PITCHING => 'Contacted',
             self::BRIEFING => 'Briefing',
             self::PROPOSAL_BUILDING => 'Proposal Building',
             self::NEGOTIATION => 'Negotiation',
@@ -50,8 +50,8 @@ enum SalesStatus: string
     public function getIcon(): string
     {
         return match ($this) {
-            self::NOT_STARTED => 'heroicon-o-minus-circle',
-            self::PITCHING => 'heroicon-o-megaphone',
+            self::NOT_STARTED => 'heroicon-o-user-plus',
+            self::PITCHING => 'heroicon-o-phone',
             self::BRIEFING => 'heroicon-o-document-text',
             self::PROPOSAL_BUILDING => 'heroicon-o-document-plus',
             self::NEGOTIATION => 'heroicon-o-chat-bubble-left-right',

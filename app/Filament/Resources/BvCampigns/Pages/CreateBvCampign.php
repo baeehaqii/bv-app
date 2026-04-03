@@ -17,10 +17,10 @@ class CreateBvCampign extends CreateRecord
         // Collect media platforms
         $platforms = [];
 
-        if (!empty($data['instagram_reels_enabled']) || !empty($data['instagram_feed_enabled'])) {
+        if (!empty($data['instagram_reels_enabled']) || !empty($data['instagram_feed_enabled']) || !empty($data['instagram_story_enabled'])) {
             $platforms[] = 'instagram';
         }
-        if (!empty($data['tiktok_video_enabled']) || !empty($data['tiktok_photos_enabled'])) {
+        if (!empty($data['tiktok_video_enabled']) || !empty($data['tiktok_photos_enabled']) || !empty($data['tiktok_story_enabled'])) {
             $platforms[] = 'tiktok';
         }
         if (!empty($data['youtube_short_enabled']) || !empty($data['youtube_video_enabled'])) {
@@ -34,8 +34,10 @@ class CreateBvCampign extends CreateRecord
         $creatorFields = [
             'instagram_reels_creators',
             'instagram_feed_creators',
+            'instagram_story_creators',
             'tiktok_video_creators',
             'tiktok_photos_creators',
+            'tiktok_story_creators',
             'youtube_short_creators',
             'youtube_video_creators',
         ];
@@ -58,14 +60,18 @@ class CreateBvCampign extends CreateRecord
         unset(
             $data['instagram_reels_enabled'],
             $data['instagram_feed_enabled'],
+            $data['instagram_story_enabled'],
             $data['tiktok_video_enabled'],
             $data['tiktok_photos_enabled'],
+            $data['tiktok_story_enabled'],
             $data['youtube_short_enabled'],
             $data['youtube_video_enabled'],
             $data['instagram_reels_creators'],
             $data['instagram_feed_creators'],
+            $data['instagram_story_creators'],
             $data['tiktok_video_creators'],
             $data['tiktok_photos_creators'],
+            $data['tiktok_story_creators'],
             $data['youtube_short_creators'],
             $data['youtube_video_creators']
         );
@@ -82,8 +88,10 @@ class CreateBvCampign extends CreateRecord
         $creatorMappings = [
             'instagram_reels_creators' => ['platform' => 'instagram', 'content_type' => 'reels'],
             'instagram_feed_creators' => ['platform' => 'instagram', 'content_type' => 'feed'],
+            'instagram_story_creators' => ['platform' => 'instagram', 'content_type' => 'story'],
             'tiktok_video_creators' => ['platform' => 'tiktok', 'content_type' => 'video'],
             'tiktok_photos_creators' => ['platform' => 'tiktok', 'content_type' => 'photos'],
+            'tiktok_story_creators' => ['platform' => 'tiktok', 'content_type' => 'story'],
             'youtube_short_creators' => ['platform' => 'youtube', 'content_type' => 'short'],
             'youtube_video_creators' => ['platform' => 'youtube', 'content_type' => 'video'],
         ];

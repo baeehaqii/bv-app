@@ -17,7 +17,7 @@ class SpksTable
         return $table
             ->columns([
                 TextColumn::make('spk_number')
-                    ->label('Nomor SPK')
+                    ->label('Nomor Contract')
                     ->searchable()
                     ->sortable(),
 
