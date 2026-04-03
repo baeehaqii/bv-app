@@ -14,12 +14,19 @@ class SalesTargetPolicy
     
     public function viewAny(AuthUser $authUser): bool
     {
-        return $authUser->can('ViewAny:SalesTarget');
+        // Akses Shield (super_admin, Finance, Sales/BD) ATAU
+        // sales person yang akunnya terhubung ke BvSalesList (personal view)
+        return $authUser->can('ViewAny:SalesTarget')
+            || \App\Models\BvSalesList::where('user_id', $authUser->id)->exists();
     }
 
     public function view(AuthUser $authUser, SalesTarget $salesTarget): bool
     {
-        return $authUser->can('View:SalesTarget');
+        // Akses Shield ATAU pemilik record (BvSalesList milik user ini)
+        return $authUser->can('View:SalesTarget')
+            || \App\Models\BvSalesList::where('user_id', $authUser->id)
+                ->where('id', $salesTarget->bv_sales_list_id)
+                ->exists();
     }
 
     public function create(AuthUser $authUser): bool

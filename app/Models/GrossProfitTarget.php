@@ -12,9 +12,10 @@ class GrossProfitTarget extends Model
     protected $guarded = [];
 
     protected $casts = [
-        'target_amount' => 'decimal:2',
-        'year' => 'integer',
-        'month' => 'integer',
+        'target_amount'       => 'decimal:2',
+        'target_deal_revenue' => 'decimal:2',
+        'year'                => 'integer',
+        'month'               => 'integer',
     ];
 
     // -------------------------------------------------------
@@ -83,6 +84,22 @@ class GrossProfitTarget extends Model
     public static function totalForYear(int $year): float
     {
         return (float) static::forYear($year)->sum('target_amount');
+    }
+
+    /**
+     * Target Deal Revenue (omset) untuk bulan tertentu.
+     */
+    public static function dealRevenueForMonth(int $year, int $month): float
+    {
+        return (float) static::forMonth($year, $month)->value('target_deal_revenue') ?? 0;
+    }
+
+    /**
+     * Total Target Deal Revenue untuk satu tahun penuh.
+     */
+    public static function dealRevenueForYear(int $year): float
+    {
+        return (float) static::forYear($year)->sum('target_deal_revenue');
     }
 
     /**

@@ -12,6 +12,8 @@ return new class extends Migration {
     {
         Schema::create('bv_sales_lists', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete()
+                ->comment('Akun user yang terhubung ke sales person ini (untuk akses personal target)');
             $table->foreignId('bv_bussines_director_id')->nullable()->constrained('bv_bussines_directors')->nullOnDelete();
             $table->string('nama_sales');
             $table->string('alamat')->nullable();

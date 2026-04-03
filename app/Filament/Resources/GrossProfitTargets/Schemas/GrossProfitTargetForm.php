@@ -15,8 +15,8 @@ class GrossProfitTargetForm
     public static function configure(Schema $schema): Schema
     {
         return $schema->components([
-            Section::make('Target Gross Profit Bulanan')
-                ->description('Set nominal target gross profit per bulan. Target Quarter dan Tahunan dihitung otomatis dari akumulasi data bulanan.')
+            Section::make('Target Finance Bulanan')
+                ->description('Set target Deal Revenue dan Gross Profit per bulan. Target Quarter dan Tahunan dihitung otomatis dari akumulasi data bulanan.')
                 ->schema([
                     Select::make('year')
                         ->label('Tahun')
@@ -46,6 +46,17 @@ class GrossProfitTargetForm
                         ->native(false)
                         ->columnSpan(1),
 
+                    TextInput::make('target_deal_revenue')
+                        ->label('Target Deal Revenue (Rp)')
+                        ->prefix('Rp')
+                        ->mask(RawJs::make('$money($input)'))
+                        ->stripCharacters(',')
+                        ->numeric()
+                        ->required()
+                        ->minValue(0)
+                        ->helperText('Total omset/penjualan yang harus dicapai perusahaan bulan ini. Digunakan sebagai acuan distribusi target per sales.')
+                        ->columnSpan(1),
+
                     TextInput::make('target_amount')
                         ->label('Target Gross Profit (Rp)')
                         ->prefix('Rp')
@@ -54,8 +65,8 @@ class GrossProfitTargetForm
                         ->numeric()
                         ->required()
                         ->minValue(0)
-                        ->helperText('Nominal target gross profit untuk bulan yang dipilih.')
-                        ->columnSpan(2),
+                        ->helperText('Keuntungan bersih yang harus dicapai perusahaan bulan ini.')
+                        ->columnSpan(1),
 
                     Textarea::make('notes')
                         ->label('Catatan')

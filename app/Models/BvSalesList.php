@@ -43,6 +43,12 @@ class BvSalesList extends Model
         });
     }
 
+    /** Akun user yang terhubung ke sales person ini */
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
     public function bussinesDirector(): BelongsTo
     {
         return $this->belongsTo(BvBussinesDirector::class, 'bv_bussines_director_id');

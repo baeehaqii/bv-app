@@ -40,14 +40,22 @@ class GrossProfitTargetsTable
                     ->alignCenter()
                     ->width(80),
 
-                TextColumn::make('target_amount')
-                    ->label('Target Bulanan')
+                TextColumn::make('target_deal_revenue')
+                    ->label('Target Deal Revenue')
                     ->money('IDR')
                     ->sortable()
+                    ->color('info')
                     ->weight('semibold'),
 
-                TextColumn::make('quarter_target')
-                    ->label('Target Quarter')
+                TextColumn::make('target_amount')
+                    ->label('Target Gross Profit')
+                    ->money('IDR')
+                    ->sortable()
+                    ->color('success')
+                    ->weight('semibold'),
+
+                TextColumn::make('gp_quarter_target')
+                    ->label('GP Quarter')
                     ->getStateUsing(
                         fn($record) =>
                         GrossProfitTarget::totalForQuarter(
@@ -57,14 +65,16 @@ class GrossProfitTargetsTable
                     )
                     ->formatStateUsing(fn($state) => 'Rp ' . number_format($state, 0, ',', '.'))
                     ->color('warning')
-                    ->alignRight(),
+                    ->alignRight()
+                    ->toggleable(isToggledHiddenByDefault: false),
 
-                TextColumn::make('year_target')
-                    ->label('Target Tahunan')
+                TextColumn::make('gp_year_target')
+                    ->label('GP Tahunan')
                     ->getStateUsing(fn($record) => GrossProfitTarget::totalForYear($record->year))
                     ->formatStateUsing(fn($state) => 'Rp ' . number_format($state, 0, ',', '.'))
-                    ->color('success')
-                    ->alignRight(),
+                    ->color('primary')
+                    ->alignRight()
+                    ->toggleable(isToggledHiddenByDefault: false),
 
                 TextColumn::make('notes')
                     ->label('Catatan')

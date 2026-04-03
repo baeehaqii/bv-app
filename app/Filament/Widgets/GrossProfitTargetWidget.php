@@ -8,13 +8,13 @@ use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 
 /**
- * Widget: Target Gross Profit Summary
+ * Widget: Target Finance — Deal Revenue & Gross Profit
  *
- * Menampilkan target GP Bulanan, Quarterly, dan Tahunan.
+ * Menampilkan 6 stats dalam 2 baris:
+ *   Baris 1 ��� Target Deal Revenue : Bulanan | Quarter | Tahunan
+ *   Baris 2 — Target Gross Profit : Bulanan | Quarter | Tahunan
+ *
  * Target Quarter & Tahunan dihitung otomatis dari akumulasi data bulanan.
- *
- * Permission: Assign widget permission via Filament Shield agar hanya
- * role Super Admin, C Level, dan Finance yang bisa melihatnya.
  */
 class GrossProfitTargetWidget extends BaseWidget
 {
@@ -24,46 +24,67 @@ class GrossProfitTargetWidget extends BaseWidget
 
     protected function getStats(): array
     {
-        $now = Carbon::now();
-        $year = $now->year;
-        $month = $now->month;
+        $now     = Carbon::now();
+        $year    = $now->year;
+        $month   = $now->month;
         $quarter = GrossProfitTarget::quarterFromMonth($month);
 
-        // ---- Target Bulanan ----
-        $monthlyTarget = (float) GrossProfitTarget::forMonth($year, $month)->value('target_amount') ?? 0;
-
-        // ---- Target Quarter (Q1/Q2/Q3/Q4) ----
-        $quarterTarget = GrossProfitTarget::totalForQuarter($year, $quarter);
-
-        // ---- Target Tahunan ----
-        $yearTarget = GrossProfitTarget::totalForYear($year);
-
-        // ---- Label bulan & quarter ----
-        $monthLabel = $now->translatedFormat('F Y');
+        $monthLabel   = $now->translatedFormat('F Y');
         $quarterLabel = "Q{$quarter} {$year}";
-        $yearLabel = (string) $year;
+        $yearLabel    = (string) $year;
 
-        // Helper format rupiah
+        $quarterMonthNames = implode('+', array_map(
+            fn($m) => Carbon::createFromDate($year, $m, 1)->translatedFormat('M'),
+            GrossProfitTarget::quarterMonths($quarter)
+        ));
+
         $fmt = fn(float $val): string => 'Rp ' . number_format($val, 0, ',', '.');
 
-        return [
-            Stat::make("🎯 Target GP Bulan Ini ({$monthLabel})", $fmt($monthlyTarget))
-                ->description($monthlyTarget > 0 ? 'Target sudah diset' : 'Belum diset — silakan input di menu Finance')
-                ->descriptionIcon($monthlyTarget > 0 ? 'heroicon-m-check-circle' : 'heroicon-m-exclamation-circle')
-                ->color($monthlyTarget > 0 ? 'success' : 'warning'),
+        // ── Deal Revenue ─────────────────────────────────────────────────
+        $monthlyRevenue  = GrossProfitTarget::dealRevenueForMonth($year, $month);
+        $quarterRevenue  = (float) GrossProfitTarget::forQuarter($year, $quarter)->sum('target_deal_revenue');
+        $yearRevenue     = GrossProfitTarget::dealRevenueForYear($year);
 
-            Stat::make("📊 Target GP Quarter ({$quarterLabel})", $fmt($quarterTarget))
-                ->description('Akumulasi target ' . implode('+', array_map(
-                    fn($m) => Carbon::createFromDate($year, $m, 1)->translatedFormat('M'),
-                    GrossProfitTarget::quarterMonths($quarter)
-                )))
+        // ── Gross Profit ──────────────────────────────────────────────────
+        $monthlyGp   = (float) GrossProfitTarget::forMonth($year, $month)->value('target_amount') ?? 0;
+        $quarterGp   = GrossProfitTarget::totalForQuarter($year, $quarter);
+        $yearGp      = GrossProfitTarget::totalForYear($year);
+
+        $notSetDesc  = 'Belum diset — input di menu Finance';
+        $setDesc     = fn(string $ctx) => "Target {$ctx} sudah diset";
+
+        return [
+            // ── Baris 1: Deal Revenue ────────────────────────────────────
+            Stat::make("💰 Deal Revenue Bulan Ini ({$monthLabel})", $fmt($monthlyRevenue))
+                ->description($monthlyRevenue > 0 ? $setDesc('bulanan') : $notSetDesc)
+                ->descriptionIcon($monthlyRevenue > 0 ? 'heroicon-m-check-circle' : 'heroicon-m-exclamation-circle')
+                ->color($monthlyRevenue > 0 ? 'info' : 'warning'),
+
+            Stat::make("📈 Deal Revenue Quarter ({$quarterLabel})", $fmt($quarterRevenue))
+                ->description('Akumulasi target ' . $quarterMonthNames)
                 ->descriptionIcon('heroicon-m-arrow-trending-up')
                 ->color('info'),
 
-            Stat::make("🏆 Target GP Tahunan ({$yearLabel})", $fmt($yearTarget))
-                ->description('Total target dari 12 bulan di tahun ' . $yearLabel)
+            Stat::make("🏦 Deal Revenue Tahunan ({$yearLabel})", $fmt($yearRevenue))
+                ->description('Total target deal revenue tahun ' . $yearLabel)
+                ->descriptionIcon('heroicon-m-building-library')
+                ->color('info'),
+
+            // ── Baris 2: Gross Profit ────────────────────────────────────
+            Stat::make("🎯 Gross Profit Bulan Ini ({$monthLabel})", $fmt($monthlyGp))
+                ->description($monthlyGp > 0 ? $setDesc('bulanan') : $notSetDesc)
+                ->descriptionIcon($monthlyGp > 0 ? 'heroicon-m-check-circle' : 'heroicon-m-exclamation-circle')
+                ->color($monthlyGp > 0 ? 'success' : 'warning'),
+
+            Stat::make("📊 Gross Profit Quarter ({$quarterLabel})", $fmt($quarterGp))
+                ->description('Akumulasi target ' . $quarterMonthNames)
+                ->descriptionIcon('heroicon-m-arrow-trending-up')
+                ->color('success'),
+
+            Stat::make("🏆 Gross Profit Tahunan ({$yearLabel})", $fmt($yearGp))
+                ->description('Total target gross profit tahun ' . $yearLabel)
                 ->descriptionIcon('heroicon-m-calendar')
-                ->color('primary'),
+                ->color('success'),
         ];
     }
 }

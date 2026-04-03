@@ -17,19 +17,19 @@ class GrossProfitTargetResource extends Resource
 {
     protected static ?string $model = GrossProfitTarget::class;
 
-    protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-chart-bar';
+    protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-banknotes';
 
     protected static string|\UnitEnum|null $navigationGroup = 'Finance';
 
     protected static ?int $navigationSort = 1;
 
-    protected static ?string $navigationLabel = 'Target Gross Profit';
+    protected static ?string $navigationLabel = 'Target Finance';
 
-    protected static ?string $modelLabel = 'Target GP';
+    protected static ?string $modelLabel = 'Target Finance';
 
-    protected static ?string $pluralModelLabel = 'Target Gross Profit';
+    protected static ?string $pluralModelLabel = 'Target Finance';
 
-    protected static ?string $slug = 'target-gross-profit';
+    protected static ?string $slug = 'target-finance';
 
     protected static ?string $recordTitleAttribute = 'year';
 
