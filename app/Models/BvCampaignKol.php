@@ -25,6 +25,7 @@ class BvCampaignKol extends Model
         'instagram' => 'Instagram',
         'tiktok' => 'TikTok',
         'youtube' => 'YouTube',
+        'threads' => 'Threads',
     ];
 
     /**
@@ -43,6 +44,9 @@ class BvCampaignKol extends Model
         'youtube' => [
             'short' => 'Short',
             'video' => 'Video',
+        ],
+        'threads' => [
+            'post' => 'Post',
         ],
     ];
 

@@ -79,6 +79,11 @@ class EditBvCampign extends EditRecord
             $data['youtube_video_creators'] = $mapToForm($groupedKols['youtube_video']);
         }
 
+        // Threads Post
+        if ($groupedKols->has('threads_post')) {
+            $data['threads_post_enabled'] = true;
+            $data['threads_post_creators'] = $mapToForm($groupedKols['threads_post']);
+        }
 
         return $data;
     }
@@ -97,6 +102,9 @@ class EditBvCampign extends EditRecord
         if (!empty($data['youtube_short_enabled']) || !empty($data['youtube_video_enabled'])) {
             $platforms[] = 'youtube';
         }
+        if (!empty($data['threads_post_enabled'])) {
+            $platforms[] = 'threads';
+        }
 
         $data['media_platforms'] = $platforms;
 
@@ -111,6 +119,7 @@ class EditBvCampign extends EditRecord
             'tiktok_story_creators',
             'youtube_short_creators',
             'youtube_video_creators',
+            'threads_post_creators',
         ];
 
         foreach ($creatorFields as $field) {
@@ -136,6 +145,7 @@ class EditBvCampign extends EditRecord
             $data['tiktok_story_enabled'],
             $data['youtube_short_enabled'],
             $data['youtube_video_enabled'],
+            $data['threads_post_enabled'],
             $data['instagram_reels_creators'],
             $data['instagram_feed_creators'],
             $data['instagram_story_creators'],
@@ -143,7 +153,8 @@ class EditBvCampign extends EditRecord
             $data['tiktok_photos_creators'],
             $data['tiktok_story_creators'],
             $data['youtube_short_creators'],
-            $data['youtube_video_creators']
+            $data['youtube_video_creators'],
+            $data['threads_post_creators']
         );
 
         return $data;
@@ -166,6 +177,7 @@ class EditBvCampign extends EditRecord
             'tiktok_story_creators' => ['platform' => 'tiktok', 'content_type' => 'story'],
             'youtube_short_creators' => ['platform' => 'youtube', 'content_type' => 'short'],
             'youtube_video_creators' => ['platform' => 'youtube', 'content_type' => 'video'],
+            'threads_post_creators' => ['platform' => 'threads', 'content_type' => 'post'],
         ];
 
         foreach ($creatorMappings as $field => $mapping) {

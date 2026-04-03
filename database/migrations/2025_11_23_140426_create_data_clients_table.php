@@ -28,10 +28,15 @@ return new class extends Migration {
             $table->string('status_client')->nullable();
             $table->text('notes')->nullable();
             $table->string('account_owner')->nullable();
-            $table->string('agency_name')->nullable();
+            $table->json('agency_name')->nullable()->comment('Nama-nama agensi (JSON array, untuk tipe agency)');
             $table->string('parent_brand')->nullable();
             $table->string('instagram')->nullable();
             $table->string('tiktok')->nullable();
+            $table->string('youtube')->nullable();
+            $table->string('threads')->nullable();
+            $table->string('nama_pic_2')->nullable()->comment('PIC ke-2: Nama');
+            $table->string('role_pic_2')->nullable()->comment('PIC ke-2: Role/Jabatan');
+            $table->string('email_pic_2')->nullable()->comment('PIC ke-2: Email');
             $table->integer('top')->nullable()->comment('Term of Payment in days');
             $table->timestamps();
         });

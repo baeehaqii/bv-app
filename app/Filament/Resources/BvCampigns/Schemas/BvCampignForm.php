@@ -168,7 +168,6 @@ class BvCampignForm
                                     Textarea::make('campaign_description')
                                         ->label('Campaign Description')
                                         ->placeholder('Describe your campaign...')
-                                        ->required()
                                         ->rows(4)
                                         ->columnSpanFull(),
                                 ]),
@@ -340,6 +339,26 @@ class BvCampignForm
                                         ->collapsible()
                                         ->itemLabel(fn(array $state): ?string => $state['creator_name'] ?? 'New Creator'),
                                 ]),
+
+                            // Threads Section
+                            Section::make('Threads')
+                                ->description('Post & Thread')
+                                ->collapsible()
+                                ->schema([
+                                    Toggle::make('threads_post_enabled')
+                                        ->label('Post')
+                                        ->live()
+                                        ->afterStateUpdated(fn($state, $set) => !$state && $set('threads_post_creators', [])),
+
+                                    Repeater::make('threads_post_creators')
+                                        ->label('')
+                                        ->schema(self::getCreatorFields())
+                                        ->visible(fn($get) => $get('threads_post_enabled'))
+                                        ->addActionLabel('Add more creator')
+                                        ->defaultItems(0)
+                                        ->collapsible()
+                                        ->itemLabel(fn(array $state): ?string => $state['creator_name'] ?? 'New Creator'),
+                                ]),
                         ]),
 
                     // Step 3: Confirmation
@@ -432,8 +451,7 @@ class BvCampignForm
         return [
             TextInput::make('creator_name')
                 ->label('Creator Name')
-                ->placeholder('Insert creator name')
-                ->required(),
+                ->placeholder('Insert creator name'),
 
             Grid::make(2)
                 ->schema([

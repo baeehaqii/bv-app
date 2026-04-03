@@ -152,7 +152,11 @@ class DataClientForm
                     TextInput::make('instagram')
                         ->label('Instagram')->placeholder('@contohbrand')->required(),
                     TextInput::make('tiktok')->placeholder('@contohbrand')
-                        ->label('TikTok')->required(),
+                        ->label('TikTok'),
+                    TextInput::make('youtube')->placeholder('@contohchannel')
+                        ->label('YouTube'),
+                    TextInput::make('threads')->placeholder('@contohbrand')
+                        ->label('Threads'),
                     TextInput::make('top')
                         ->label('Term of Payment (hari)')
                         ->numeric()->placeholder('Term of Payment')
@@ -189,6 +193,19 @@ class DataClientForm
                         TextInput::make('email_pic')
                             ->email()->placeholder('email@contoh.com')->required()
                             ->label('Email PIC'),
+                    ])
+                        ->columns(3)
+                        ->visible(fn(Get $get) => $get('type') !== 'agency'),
+
+                    // DC-06: PIC ke-2 — hanya untuk Direct Brand, opsional
+                    Group::make([
+                        TextInput::make('nama_pic_2')
+                            ->label('Nama PIC ke-2')->placeholder('Nama PIC kedua (opsional)...'),
+                        TextInput::make('role_pic_2')
+                            ->label('Jabatan PIC ke-2')->placeholder('Jabatan PIC kedua...'),
+                        TextInput::make('email_pic_2')
+                            ->email()->placeholder('email@contoh.com')
+                            ->label('Email PIC ke-2'),
                     ])
                         ->columns(3)
                         ->visible(fn(Get $get) => $get('type') !== 'agency'),
@@ -233,6 +250,7 @@ class DataClientForm
                             'Number of Meeting' => 'Number of Meeting',
                             'Brief' => 'Brief',
                             'Waiting Feedback' => 'Waiting Feedback',
+                            'On Going' => 'On Going',
                             'Not Available' => 'Not Available',
                         ])
                         ->default('Newest')

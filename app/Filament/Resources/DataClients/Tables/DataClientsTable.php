@@ -123,6 +123,26 @@ class DataClientsTable
                             ->modalCancelActionLabel('Tutup'),
                     ),
 
+                TextColumn::make('instagram')
+                    ->label('Instagram')
+                    ->placeholder('-')
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                TextColumn::make('tiktok')
+                    ->label('TikTok')
+                    ->placeholder('-')
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                TextColumn::make('youtube')
+                    ->label('YouTube')
+                    ->placeholder('-')
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                TextColumn::make('threads')
+                    ->label('Threads')
+                    ->placeholder('-')
+                    ->toggleable(isToggledHiddenByDefault: true),
+
                 TextColumn::make('status')
                     ->label('Status')
                     ->badge()
@@ -131,6 +151,7 @@ class DataClientsTable
                         'Number of Meeting' => 'primary',
                         'Brief' => 'warning',
                         'Waiting Feedback' => 'danger',
+                        'On Going' => 'success',
                         'Not Available' => 'gray',
                         default => 'gray',
                     })
@@ -171,6 +192,7 @@ class DataClientsTable
                         'Number of Meeting' => 'Number of Meeting',
                         'Brief' => 'Brief',
                         'Waiting Feedback' => 'Waiting Feedback',
+                        'On Going' => 'On Going',
                         'Not Available' => 'Not Available',
                     ]),
             ])
