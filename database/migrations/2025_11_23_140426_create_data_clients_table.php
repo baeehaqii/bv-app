@@ -12,6 +12,7 @@ return new class extends Migration {
     {
         Schema::create('data_clients', function (Blueprint $table) {
             $table->id();
+            $table->flowforgePositionColumn('position');
             $table->string('nama_brand');
             $table->string('type')->default('direct');
             $table->string('category')->nullable();

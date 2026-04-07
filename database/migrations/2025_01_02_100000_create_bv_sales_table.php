@@ -21,7 +21,7 @@ return new class extends Migration {
             $table->decimal('deal_value', 15, 2)->default(0);
             $table->decimal('margin', 10, 2)->default(0);
             $table->string('campaign_periode')->nullable();
-            $table->date('campaign_month')->nullable();
+            $table->unsignedTinyInteger('campaign_month')->nullable();
             $table->date('campaign_date')->nullable();
             $table->date('start_date')->nullable();
             $table->date('end_date')->nullable();

@@ -47,6 +47,8 @@ class BvSales extends Model
         'campaign_year' => 'integer',
         'close_date' => 'date',
         'status' => SalesStatus::class,
+        'campaign_month' => 'integer',
+        'campaign_date' => 'date',
     ];
 
     // -------------------------------------------------------

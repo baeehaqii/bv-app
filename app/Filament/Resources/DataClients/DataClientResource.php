@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\DataClients;
 
 use App\Filament\Resources\DataClients\Pages\CreateDataClient;
+use App\Filament\Resources\DataClients\Pages\DataClientKanban;
 use App\Filament\Resources\DataClients\Pages\EditDataClient;
 use App\Filament\Resources\DataClients\Pages\ListDataClients;
 use App\Filament\Resources\DataClients\Schemas\DataClientForm;
@@ -47,6 +48,7 @@ class DataClientResource extends Resource
     {
         return [
             'index' => ListDataClients::route('/'),
+            'kanban' => DataClientKanban::route('/kanban'),
             'create' => CreateDataClient::route('/create'),
             'edit' => EditDataClient::route('/{record}/edit'),
         ];

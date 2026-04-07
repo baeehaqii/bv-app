@@ -37,6 +37,12 @@ class ListDataClients extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('kanban_view')
+                ->label('Kanban View')
+                ->icon('heroicon-o-view-columns')
+                ->color('gray')
+                ->url(fn() => DataClientResource::getUrl('kanban')),
+
             Action::make('dateFilter')
                 ->label(fn() => match ($this->dateFilter) {
                     'today' => 'Filter: Today',
