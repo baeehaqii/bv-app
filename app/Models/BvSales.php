@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use App\Models\BvCampign;
 
 class BvSales extends Model
 {
@@ -35,6 +36,8 @@ class BvSales extends Model
         'start_date',
         'end_date',
         'pic_media_plan',
+        'meeting_notes',
+        'quotation_sign',
     ];
 
     protected $casts = [
@@ -49,6 +52,7 @@ class BvSales extends Model
         'status' => SalesStatus::class,
         'campaign_month' => 'integer',
         'campaign_date' => 'date',
+        'quotation_sign' => 'array',
     ];
 
     // -------------------------------------------------------
@@ -62,11 +66,12 @@ class BvSales extends Model
         });
 
         static::updated(function (BvSales $sales) {
-            if (
-                $sales->wasChanged('status') &&
-                $sales->status === SalesStatus::BRIEFING
-            ) {
+            if ($sales->wasChanged('status') && $sales->status === SalesStatus::BRIEFING) {
                 $sales->ensureFormBriefExists();
+            }
+
+            if ($sales->wasChanged(['status', 'quotation_sign'])) {
+                $sales->syncCampaignOngoingStatus();
             }
         });
     }
@@ -85,6 +90,35 @@ class BvSales extends Model
             'brand' => $this->company_name,
             'campaign_name' => $this->event_name,
         ]);
+    }
+
+    /**
+     * Sync status campaign ke 'ongoing' ketika sales live + quotation_sign sudah diupload.
+     * Sekaligus isi media_platforms dari KOL yang sudah ada.
+     */
+    public function syncCampaignOngoingStatus(): void
+    {
+        $campaign = $this->campaign;
+        if (!$campaign) {
+            return;
+        }
+
+        $isLive            = $this->status === SalesStatus::CAMPAIGN_LIVE;
+        $hasQuotationSign  = !empty($this->quotation_sign);
+
+        if ($isLive && $hasQuotationSign) {
+            $platforms = $campaign->kols()
+                ->distinct()
+                ->pluck('platform')
+                ->filter()
+                ->values()
+                ->toArray();
+
+            $campaign->update([
+                'status'          => 'ongoing',
+                'media_platforms' => $platforms ?: $campaign->media_platforms,
+            ]);
+        }
     }
 
     /**
@@ -139,6 +173,11 @@ class BvSales extends Model
     public function formBrief(): HasOne
     {
         return $this->hasOne(FormBrief::class, 'bv_sales_id');
+    }
+
+    public function campaign(): HasOne
+    {
+        return $this->hasOne(BvCampign::class, 'bv_sales_id');
     }
 
     // -------------------------------------------------------

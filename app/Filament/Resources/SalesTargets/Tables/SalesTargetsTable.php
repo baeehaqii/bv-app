@@ -9,6 +9,7 @@ use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Columns\TextInputColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 
@@ -47,11 +48,13 @@ class SalesTargetsTable
                     ->alignCenter()
                     ->width(80),
 
-                TextColumn::make('target_amount')
-                    ->label('Target Bulanan')
-                    ->money('IDR')
-                    ->sortable()
-                    ->weight('semibold'),
+                TextInputColumn::make('target_amount')
+                    ->label('Target Bulanan (Rp)')
+                    ->rules(['numeric', 'min:0'])
+                    ->extraInputAttributes(['style' => 'min-width:160px;text-align:right;'])
+                    ->beforeStateDehydrated(fn($state) => (int) str_replace(['.', ',', 'Rp', ' '], '', $state ?? '0'))
+                    ->getStateUsing(fn($record) => (int) $record->target_amount)
+                    ->sortable(),
 
                 TextColumn::make('quarter_target')
                     ->label('Target Quarter')
@@ -77,10 +80,10 @@ class SalesTargetsTable
                     ->color('success')
                     ->alignRight(),
 
-                TextColumn::make('notes')
+                TextInputColumn::make('notes')
                     ->label('Catatan')
-                    ->limit(40)
-                    ->placeholder('-')
+                    ->placeholder('Tulis catatan...')
+                    ->extraInputAttributes(['style' => 'min-width:180px;'])
                     ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('updatedBy.name')

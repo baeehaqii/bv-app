@@ -134,7 +134,7 @@ class CreateBvCampign extends CreateRecord
 
                 $mediaPlan = \App\Models\MediaPlan::create([
                     'brand' => $client?->nama_brand ?? '-',
-                    'pic_client' => $client?->nama_pic ?? '-',
+                    'pic_client' => collect($client?->pic_clients ?? [])->first()['name'] ?? '-',
                     'quotation_number' => \App\Helpers\QuotationNumberGenerator::generate(),
                     'campaign_type' => 'Content Creation', // Default
                     'campaign_name' => $record->campaign_name,

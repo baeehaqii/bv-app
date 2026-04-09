@@ -20,8 +20,8 @@ class FormBriefResource extends Resource
     protected static ?string $model = FormBrief::class;
 
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-document-text';
-    protected static string|\UnitEnum|null $navigationGroup = 'Campign Area ';
-    protected static ?int $navigationSort = 4;
+    protected static string|\UnitEnum|null $navigationGroup = 'Master Data';
+    protected static ?int $navigationSort = 1;
     protected static ?string $navigationLabel = 'Form Brief';
     protected static ?string $modelLabel = 'Form Brief';
     protected static ?string $pluralModelLabel = 'Form Brief';

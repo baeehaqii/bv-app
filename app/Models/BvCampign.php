@@ -14,6 +14,7 @@ class BvCampign extends Model
 
     protected $casts = [
         'media_platforms' => 'array',
+        'client_brief_files' => 'array',
         'start_date' => 'date',
         'end_date' => 'date',
         'close_date' => 'date',

@@ -19,10 +19,8 @@ return new class extends Migration {
             $table->string('priority')->nullable();
             $table->string('website')->nullable();
             $table->foreignId('pic_internal_sales_id')->nullable()->constrained('bv_sales_lists')->nullOnDelete()->comment('PIC Internal (Sales) dari tim BV');
-            $table->string('nama_pic')->nullable();
-            $table->string('role_pic')->nullable();
-            $table->string('email_pic')->nullable();
             $table->json('pics')->nullable();
+            $table->json('pic_clients')->nullable()->comment('PIC client (berlaku untuk agency & direct brand, multiple entries)');
             $table->string('status')->nullable();
             $table->date('date_outreach')->nullable();
             $table->date('date_follow_up')->nullable();
@@ -35,9 +33,6 @@ return new class extends Migration {
             $table->string('tiktok')->nullable();
             $table->string('youtube')->nullable();
             $table->string('threads')->nullable();
-            $table->string('nama_pic_2')->nullable()->comment('PIC ke-2: Nama');
-            $table->string('role_pic_2')->nullable()->comment('PIC ke-2: Role/Jabatan');
-            $table->string('email_pic_2')->nullable()->comment('PIC ke-2: Email');
             $table->integer('top')->nullable()->comment('Term of Payment in days');
             $table->timestamps();
         });

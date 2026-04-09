@@ -8,6 +8,7 @@ use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Columns\TextInputColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 
@@ -40,19 +41,21 @@ class GrossProfitTargetsTable
                     ->alignCenter()
                     ->width(80),
 
-                TextColumn::make('target_deal_revenue')
-                    ->label('Target Deal Revenue')
-                    ->money('IDR')
-                    ->sortable()
-                    ->color('info')
-                    ->weight('semibold'),
+                TextInputColumn::make('target_deal_revenue')
+                    ->label('Target Deal Revenue (Rp)')
+                    ->rules(['numeric', 'min:0'])
+                    ->extraInputAttributes(['style' => 'min-width:180px;text-align:right;'])
+                    ->beforeStateDehydrated(fn($state) => (int) str_replace(['.', ',', 'Rp', ' '], '', $state ?? '0'))
+                    ->getStateUsing(fn($record) => (int) $record->target_deal_revenue)
+                    ->sortable(),
 
-                TextColumn::make('target_amount')
-                    ->label('Target Gross Profit')
-                    ->money('IDR')
-                    ->sortable()
-                    ->color('success')
-                    ->weight('semibold'),
+                TextInputColumn::make('target_amount')
+                    ->label('Target Gross Profit (Rp)')
+                    ->rules(['numeric', 'min:0'])
+                    ->extraInputAttributes(['style' => 'min-width:180px;text-align:right;'])
+                    ->beforeStateDehydrated(fn($state) => (int) str_replace(['.', ',', 'Rp', ' '], '', $state ?? '0'))
+                    ->getStateUsing(fn($record) => (int) $record->target_amount)
+                    ->sortable(),
 
                 TextColumn::make('gp_quarter_target')
                     ->label('GP Quarter')
@@ -76,10 +79,10 @@ class GrossProfitTargetsTable
                     ->alignRight()
                     ->toggleable(isToggledHiddenByDefault: false),
 
-                TextColumn::make('notes')
+                TextInputColumn::make('notes')
                     ->label('Catatan')
-                    ->limit(40)
-                    ->placeholder('-')
+                    ->placeholder('Tulis catatan...')
+                    ->extraInputAttributes(['style' => 'min-width:180px;'])
                     ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('updatedBy.name')

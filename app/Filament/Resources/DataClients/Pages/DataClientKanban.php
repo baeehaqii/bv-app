@@ -39,7 +39,7 @@ class DataClientKanban extends BoardResourcePage
                 ->modalWidth('2xl')
                 ->slideOver()
                 ->mutateFormDataUsing(function (array $data): array {
-                    $data['status'] = $data['status'] ?? 'Newest';
+                    $data['status'] = $data['status'] ?? 'draft';
                     $data['position'] = str_pad(
                         (string) ((int) DataClient::where('status', $data['status'])->max('position') + 1000),
                         10, '0', STR_PAD_LEFT
@@ -79,34 +79,29 @@ class DataClientKanban extends BoardResourcePage
     protected function getKanbanColumns(): array
     {
         return [
-            Column::make('Newest')
-                ->label('Newest')
+            Column::make('draft')
+                ->label('Draft')
+                ->color(Color::Gray)
+                ->icon('heroicon-o-pencil'),
+
+            Column::make('upcoming')
+                ->label('Upcoming')
                 ->color(Color::Blue)
-                ->icon('heroicon-o-star'),
+                ->icon('heroicon-o-calendar'),
 
-            Column::make('Number of Meeting')
-                ->label('Meeting')
-                ->color(Color::Indigo)
-                ->icon('heroicon-o-users'),
-
-            Column::make('Brief')
-                ->label('Brief')
-                ->color(Color::Yellow)
-                ->icon('heroicon-o-document-text'),
-
-            Column::make('Waiting Feedback')
-                ->label('Waiting Feedback')
-                ->color(Color::Orange)
-                ->icon('heroicon-o-clock'),
-
-            Column::make('On Going')
-                ->label('On Going')
+            Column::make('ongoing')
+                ->label('Ongoing')
                 ->color(Color::Green)
                 ->icon('heroicon-o-play'),
 
-            Column::make('Not Available')
-                ->label('Not Available')
-                ->color(Color::Gray)
+            Column::make('completed')
+                ->label('Completed')
+                ->color(Color::Teal)
+                ->icon('heroicon-o-check-circle'),
+
+            Column::make('cancelled')
+                ->label('Cancelled')
+                ->color(Color::Red)
                 ->icon('heroicon-o-x-circle'),
         ];
     }
@@ -130,16 +125,15 @@ class DataClientKanban extends BoardResourcePage
                 ->required(),
 
             Select::make('status')
-                ->label('Status Outreach')
+                ->label('Status Campaign')
                 ->options([
-                    'Newest' => 'Newest',
-                    'Number of Meeting' => 'Number of Meeting',
-                    'Brief' => 'Brief',
-                    'Waiting Feedback' => 'Waiting Feedback',
-                    'On Going' => 'On Going',
-                    'Not Available' => 'Not Available',
+                    'draft'     => 'Draft',
+                    'upcoming'  => 'Upcoming',
+                    'ongoing'   => 'Ongoing',
+                    'completed' => 'Completed',
+                    'cancelled' => 'Cancelled',
                 ])
-                ->default('Newest')
+                ->default('draft')
                 ->native(false)
                 ->required(),
 
@@ -175,9 +169,13 @@ class DataClientKanban extends BoardResourcePage
                 ->native(false)
                 ->nullable(),
 
-            TextInput::make('nama_pic')
-                ->label('Nama PIC')
-                ->placeholder('Nama Person in Charge...'),
+            TextInput::make('pic_clients_search')
+                ->label('Nama PIC Client')
+                ->placeholder('Cari nama PIC client...')
+                ->query(fn($query, $state) => $state
+                    ? $query->whereJsonContains('pic_clients', [['name' => $state]])
+                        ->orWhere('pic_clients', 'like', "%{$state}%")
+                    : $query),
 
             DatePicker::make('date_outreach')
                 ->label('Tanggal Outreach')

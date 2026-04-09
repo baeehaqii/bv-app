@@ -94,7 +94,7 @@ class SalesKanban extends BoardPage implements HasTable
     public function board(Board $board): Board
     {
         return $board
-            ->query(BvSales::query()->with(['salesList', 'salesComments', 'formBrief']))
+            ->query(BvSales::query()->with(['salesList', 'salesComments', 'formBrief', 'campaign']))
             ->columnIdentifier('status')
             ->positionIdentifier('position')
             ->recordTitleAttribute('event_name')

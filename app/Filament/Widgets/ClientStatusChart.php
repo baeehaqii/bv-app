@@ -43,21 +43,21 @@ class ClientStatusChart extends ChartWidget
             (int) (5 * $multiplier),
             (int) (3 * $multiplier),
         ];
-        $labels = ['Newest', 'Number of Meeting', 'Brief', 'Waiting Feedback', 'Not Available'];
+        $labels = ['Draft', 'Upcoming', 'Ongoing', 'Completed', 'Cancelled'];
 
         $backgroundColors = [
-            'rgba(59, 130, 246, 0.8)',   // Blue (Newest)
-            'rgba(16, 185, 129, 0.8)',   // Green (Number of Meeting)
-            'rgba(139, 92, 246, 0.8)',   // Purple (Brief)
-            'rgba(245, 158, 11, 0.8)',   // Amber (Waiting Feedback)
-            'rgba(107, 114, 128, 0.8)',  // Gray (Not Available)
+            'rgba(107, 114, 128, 0.8)',  // Gray (Draft)
+            'rgba(59, 130, 246, 0.8)',   // Blue (Upcoming)
+            'rgba(245, 158, 11, 0.8)',   // Amber (Ongoing)
+            'rgba(16, 185, 129, 0.8)',   // Green (Completed)
+            'rgba(239, 68, 68, 0.8)',    // Red (Cancelled)
         ];
         $borderColors = [
-            'rgb(59, 130, 246)',
-            'rgb(16, 185, 129)',
-            'rgb(139, 92, 246)',
-            'rgb(245, 158, 11)',
             'rgb(107, 114, 128)',
+            'rgb(59, 130, 246)',
+            'rgb(245, 158, 11)',
+            'rgb(16, 185, 129)',
+            'rgb(239, 68, 68)',
         ];
 
         return [

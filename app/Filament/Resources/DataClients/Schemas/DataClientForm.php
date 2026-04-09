@@ -40,14 +40,15 @@ class DataClientForm
 
                     TextInput::make('nama_brand')
                         ->label('Nama Brand')->placeholder('Masukan nama brand...')
-                        ->visible(fn(Get $get) => $get('type') === 'direct')
-                        ->required(),
+                        ->visible(fn(Get $get) => $get('type') === 'agency')
+                        ->required(fn(Get $get) => $get('type') === 'agency'),
 
-                    // Nama Agency (Client Type 5: Detail Agency bisa diisi untuk semua tipe)
+                    // Daftar Agency - hanya tampil untuk tipe agency
                     \Filament\Forms\Components\TagsInput::make('agency_name')
                         ->label('Daftar Agency')
                         ->placeholder('Tambah agency lalu tekan Enter...')
                         ->helperText('Bisa memasukkan lebih dari satu nama agency')
+                        ->visible(fn(Get $get) => $get('type') === 'agency')
                         ->live(onBlur: true)
                         ->afterStateUpdated(function (\Filament\Schemas\Components\Utilities\Get $get, \Filament\Schemas\Components\Utilities\Set $set, $state, $old, \Livewire\Component $livewire, $component) {
                             $tags = is_array($state) ? $state : [];
@@ -79,23 +80,22 @@ class DataClientForm
                                         ->label('')
                                         ->schema([
                                             \Filament\Forms\Components\TextInput::make('agency')
-                                                ->label('Agency')
+                                                ->label('Nama Agency')
                                                 ->readOnly()
                                                 ->required(),
                                             \Filament\Forms\Components\TextInput::make('name')
                                                 ->label('Nama PIC Agency')
                                                 ->required(),
                                             \Filament\Forms\Components\TextInput::make('email')
-                                                ->label('Alamat Email PIC Agency')
+                                                ->label('Alamat Email Agency')
                                                 ->email()
                                                 ->required(),
                                             \Filament\Forms\Components\TextInput::make('wa_number')
-                                                ->label('Nomor WhatsApp PIC Agency')
+                                                ->label('No WhatsApp Agency')
                                                 ->tel()
                                                 ->required(),
                                             \Filament\Forms\Components\Textarea::make('description')
-                                                ->label('Deskripsi PIC Agency')
-                                                ->required(),
+                                                ->label('Deskripsi PIC Agency'),
                                         ])
                                         ->addable(false)
                                         ->deletable(false)
@@ -143,12 +143,14 @@ class DataClientForm
                         ])
                         ->searchable()
                         ->native(false),
-                    TextInput::make('website')->required()
+                    TextInput::make('website')
                         ->label('Website')->placeholder('https://www.contohwebsite.com')
-                        ->url(),
+                        ->url()
+                        ->required(fn(Get $get) => $get('type') === 'direct'),
                     TextInput::make('parent_brand')
                         ->placeholder('Jika ini sub-brand, isi nama brand induknya')
-                        ->label('Parent Brand')->required(),
+                        ->label('Parent Brand')
+                        ->required(fn(Get $get) => $get('type') === 'direct'),
                     TextInput::make('instagram')
                         ->label('Instagram')->placeholder('@contohbrand')->required(),
                     TextInput::make('tiktok')->placeholder('@contohbrand')
@@ -160,7 +162,7 @@ class DataClientForm
                     TextInput::make('top')
                         ->label('Term of Payment (hari)')
                         ->numeric()->placeholder('Term of Payment')
-                        ->suffix('hari')->required(),
+                        ->suffix('hari'),
                     Select::make(name: 'status_client')
                         ->label('Status Client')->required()
                         ->options([
@@ -184,31 +186,41 @@ class DataClientForm
                         ->native(false)
                         ->nullable(),
 
-                    // DC-03: PIC sesuai Client Type — Direct
-                    Group::make([
-                        TextInput::make('nama_pic')
-                            ->label('Nama PIC Direct Brand')->placeholder('Nama PIC untuk Direct Brand...')->required(),
-                        TextInput::make('role_pic')
-                            ->label('Jabatan PIC')->placeholder('Jabatan PIC untuk Direct Brand...')->required(),
-                        TextInput::make('email_pic')
-                            ->email()->placeholder('email@contoh.com')->required()
-                            ->label('Email PIC'),
-                    ])
-                        ->columns(3)
-                        ->visible(fn(Get $get) => $get('type') !== 'agency'),
-
-                    // DC-06: PIC ke-2 — hanya untuk Direct Brand, opsional
-                    Group::make([
-                        TextInput::make('nama_pic_2')
-                            ->label('Nama PIC ke-2')->placeholder('Nama PIC kedua (opsional)...'),
-                        TextInput::make('role_pic_2')
-                            ->label('Jabatan PIC ke-2')->placeholder('Jabatan PIC kedua...'),
-                        TextInput::make('email_pic_2')
-                            ->email()->placeholder('email@contoh.com')
-                            ->label('Email PIC ke-2'),
-                    ])
-                        ->columns(3)
-                        ->visible(fn(Get $get) => $get('type') !== 'agency'),
+                    // PIC Client — berlaku untuk agency & direct brand, bisa lebih dari satu
+                    Repeater::make('pic_clients')
+                        ->label('PIC Client')
+                        ->helperText('Tambahkan satu atau lebih PIC dari sisi client/brand')
+                        ->schema([
+                            TextInput::make('name')
+                                ->label('Nama PIC Client')
+                                ->placeholder('Nama PIC Client...')
+                                ->required()
+                                ->columnSpan(1),
+                            TextInput::make('role')
+                                ->label('Jabatan')
+                                ->placeholder('Jabatan PIC...')
+                                ->columnSpan(1),
+                            TextInput::make('email')
+                                ->label('Email PIC Client')
+                                ->email()
+                                ->placeholder('email@contoh.com')
+                                ->required()
+                                ->columnSpan(1),
+                            TextInput::make('wa_number')
+                                ->label('No WhatsApp PIC Client')
+                                ->tel()
+                                ->placeholder('081234567890')
+                                ->columnSpan(1),
+                            TextInput::make('pic_leads')
+                                ->label('PIC Leads')
+                                ->placeholder('Nama leads terkait...')
+                                ->helperText('Tidak wajib')
+                                ->columnSpan(2),
+                        ])
+                        ->columns(2)
+                        ->addActionLabel('Tambah PIC Client')
+                        ->defaultItems(0)
+                        ->reorderable(false),
 
                     // DC-03: PIC sesuai Client Type — Agency (repeater)
                     Repeater::make('pics')
@@ -229,7 +241,7 @@ class DataClientForm
                                 ->tel()
                                 ->required(),
                             Textarea::make('description')
-                                ->label('Deskripsi')->required()->placeholder('Deskripsi PIC Agency...'),
+                                ->label('Deskripsi')->placeholder('Deskripsi PIC Agency...'),
                         ])
                         ->columns(2)
                         ->visible(fn(Get $get) => is_array($get('agency_name')) && count($get('agency_name')) > 0)
@@ -244,22 +256,22 @@ class DataClientForm
                 ->description('Status, jadwal outreach, dan catatan tambahan')
                 ->schema([
                     Select::make('status')
-                        ->label('Status Outreach')->required()
+                        ->label('Status Campaign')->required()
                         ->options([
-                            'Newest' => 'Newest',
-                            'Number of Meeting' => 'Number of Meeting',
-                            'Brief' => 'Brief',
-                            'Waiting Feedback' => 'Waiting Feedback',
-                            'On Going' => 'On Going',
-                            'Not Available' => 'Not Available',
+                            'draft'     => 'Draft',
+                            'upcoming'  => 'Upcoming',
+                            'ongoing'   => 'Ongoing',
+                            'completed' => 'Completed',
+                            'cancelled' => 'Cancelled',
                         ])
-                        ->default('Newest')
+                        ->default('draft')
                         ->live()
                         ->native(false),
                     DatePicker::make('date_outreach')
                         ->label('Tanggal Outreach')->required()->default(now()),
                     DatePicker::make('date_follow_up')
-                        ->label('Tanggal Follow Up')->required()->visible(fn(Get $get) => in_array($get('status'), ['Number of Meeting', 'Brief', 'Waiting Feedback'])),
+                        ->label('Tanggal Follow Up')
+                        ->visible(fn(Get $get) => in_array($get('status'), ['draft', 'upcoming', 'ongoing'])),
                     Textarea::make('notes')
                         ->label('Catatan')->columnSpanFull()
                         ->placeholder('Catatan tambahan mengenai client, hasil meeting, dll...'),

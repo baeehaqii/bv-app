@@ -123,6 +123,18 @@
             <p class="text-[13px] font-medium text-gray-900 dark:text-gray-100 leading-snug flex-1">
                 {{ $record['title'] }}
             </p>
+            {{-- Pencil icon: hanya tampil untuk BvSales card --}}
+            @if(!$isDataClient && $hasCardAction && $cardAction)
+                <button type="button"
+                    wire:click.stop="mountAction('{{ $cardAction }}', [], @js(['recordKey' => $record['id']]))"
+                    class="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-100 inline-flex items-center justify-center w-5 h-5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                    title="Edit campaign">
+                    <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125" />
+                    </svg>
+                </button>
+            @endif
         </div>
 
         {{-- Schema (if any) --}}

@@ -22,8 +22,9 @@ class BvCampignUpcomingResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-calendar-days';
     protected static string|\UnitEnum|null $navigationGroup = "Campign Area ";
-    protected static ?int $navigationSort = 2; // Upcoming likely separate or before/after Ongoing
+    protected static ?int $navigationSort = 2;
     protected static ?string $navigationLabel = 'Upcoming Campaign';
+    protected static bool $shouldRegisterNavigation = false;
     protected static ?string $modelLabel = 'Upcoming Campaign';
     protected static ?string $pluralModelLabel = 'Upcoming Campaigns';
     protected static ?string $slug = 'upcoming-campaign';

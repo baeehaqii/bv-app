@@ -73,6 +73,7 @@ return new class extends Migration {
             $table->integer('progress_percentage')->default(0);
 
             $table->text('brief_summary')->nullable();
+            $table->json('client_brief_files')->nullable();
             $table->timestamps();
         });
     }

@@ -9,6 +9,7 @@ use App\Models\FormBrief;
 use Carbon\Carbon;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\RichEditor;
 use Filament\Forms\Components\Select;
@@ -21,6 +22,7 @@ use Filament\Schemas\Components\Wizard;
 use Filament\Schemas\Components\Wizard\Step;
 use Filament\Schemas\Schema;
 use Filament\Support\RawJs;
+use Illuminate\Support\Facades\Storage;
 
 class BvCampignForm
 {
@@ -34,6 +36,135 @@ class BvCampignForm
                         ->icon('heroicon-o-information-circle')
                         ->description('Basic campaign information')
                         ->schema([
+                            // ─── Summary Campaign (hanya tampil saat edit) ───────────────
+                            Section::make('Summary Campaign')
+                                ->description('Ringkasan status dan informasi campaign')
+                                ->icon('heroicon-o-chart-bar')
+                                ->hidden(fn(string $operation): bool => $operation === 'create')
+                                ->schema([
+                                    Placeholder::make('campaign_summary_display')
+                                        ->label('')
+                                        ->columnSpanFull()
+                                        ->content(function ($record) {
+                                            if (!$record) return '';
+
+                                            $statusColors = [
+                                                'draft'     => ['#f3f4f6', '#374151'],
+                                                'upcoming'  => ['#dbeafe', '#1e40af'],
+                                                'ongoing'   => ['#dcfce7', '#14532d'],
+                                                'completed' => ['#d1fae5', '#065f46'],
+                                                'cancelled' => ['#fee2e2', '#991b1b'],
+                                            ];
+                                            [$bg, $text] = $statusColors[$record->status] ?? ['#f3f4f6', '#374151'];
+
+                                            $kolCount    = $record->kols()->count();
+                                            $kolPosted   = $record->kols()->where('status', 'posted')->count();
+                                            $totalCost   = 'Rp ' . number_format((float)$record->total_cost, 0, ',', '.');
+                                            $dealValue   = 'Rp ' . number_format((float)$record->deal_value, 0, ',', '.');
+                                            $platforms   = collect($record->media_platforms ?? [])->implode(', ') ?: '-';
+
+                                            $progress    = $record->progress;
+                                            $progressBar = $record->start_date && $record->end_date
+                                                ? '<div style="background:#e5e7eb;border-radius:999px;height:6px;overflow:hidden;margin-top:4px;">
+                                                       <div style="background:#22c55e;height:100%;width:' . $progress . '%;"></div>
+                                                   </div>
+                                                   <div style="font-size:11px;color:#6b7280;margin-top:2px;">' . $progress . '% selesai</div>'
+                                                : '<span style="font-size:12px;color:#9ca3af;">Tanggal belum diset</span>';
+
+                                            $rows = [
+                                                ['label' => 'Status',         'value' => '<span style="padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;background:' . $bg . ';color:' . $text . ';">' . ucfirst($record->status) . '</span>'],
+                                                ['label' => 'Client',         'value' => e($record->client?->nama_brand ?? $record->campaign_name)],
+                                                ['label' => 'Media Platform', 'value' => e($platforms)],
+                                                ['label' => 'KOL',            'value' => $kolCount . ' KOL (' . $kolPosted . ' posted)'],
+                                                ['label' => 'Total Cost',     'value' => e($totalCost)],
+                                                ['label' => 'Deal Value',     'value' => e($dealValue)],
+                                                ['label' => 'Progres Waktu',  'value' => $progressBar],
+                                            ];
+
+                                            $rowsHtml = '';
+                                            foreach ($rows as $row) {
+                                                $rowsHtml .= '<tr>
+                                                    <td style="padding:6px 8px;font-size:12px;color:#6b7280;white-space:nowrap;vertical-align:top;width:130px;">' . $row['label'] . '</td>
+                                                    <td style="padding:6px 8px;font-size:13px;color:#111827;">' . $row['value'] . '</td>
+                                                </tr>';
+                                            }
+
+                                            return new \Illuminate\Support\HtmlString('
+                                                <div style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
+                                                    <div style="padding:10px 14px;background:#f9fafb;border-bottom:1px solid #e5e7eb;">
+                                                        <span style="font-size:14px;font-weight:600;color:#111827;">' . e($record->campaign_name) . '</span>
+                                                    </div>
+                                                    <table style="width:100%;border-collapse:collapse;">' . $rowsHtml . '</table>
+                                                </div>
+                                            ');
+                                        }),
+                                ]),
+
+                            // ─── Brief Section (hanya tampil saat edit) ──────────────────
+                            Section::make('Brief & Dokumen Client')
+                                ->description('Brief summary terbaru dan upload brief dari client')
+                                ->icon('heroicon-o-document-text')
+                                ->collapsible()
+                                ->hidden(fn(string $operation): bool => $operation === 'create')
+                                ->schema([
+                                    Textarea::make('brief_summary')
+                                        ->label('Brief Summary Terbaru')
+                                        ->placeholder('Tuliskan ringkasan brief terbaru dari client...')
+                                        ->rows(4)
+                                        ->columnSpanFull(),
+
+                                    FileUpload::make('client_brief_files')
+                                        ->label('Upload Brief dari Client')
+                                        ->multiple()
+                                        ->directory('campaign-briefs')
+                                        ->acceptedFileTypes([
+                                            'application/pdf',
+                                            'image/png',
+                                            'image/jpeg',
+                                            'application/msword',
+                                            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                                            'application/vnd.ms-excel',
+                                            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                                        ])
+                                        ->maxSize(10240)
+                                        ->downloadable()
+                                        ->openable()
+                                        ->reorderable()
+                                        ->helperText('Format yang diterima: PDF, Word, Excel, JPG, PNG (maks. 10 MB)')
+                                        ->columnSpanFull(),
+
+                                    Placeholder::make('brief_pdf_viewer')
+                                        ->label('View Brief PDF')
+                                        ->hidden(fn($record) => empty($record?->client_brief_files))
+                                        ->columnSpanFull()
+                                        ->content(function ($record) {
+                                            $files = $record?->client_brief_files ?? [];
+                                            if (empty($files)) return '';
+
+                                            $links = '';
+                                            foreach ($files as $file) {
+                                                $url  = Storage::url($file);
+                                                $name = basename($file);
+                                                $ext  = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+                                                $isPdf = $ext === 'pdf';
+
+                                                $links .= '
+                                                    <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid #e5e7eb;border-radius:6px;background:#f9fafb;margin-bottom:6px;">
+                                                        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" style="color:' . ($isPdf ? '#ef4444' : '#3b82f6') . ';flex-shrink:0;">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                                                        </svg>
+                                                        <span style="font-size:13px;color:#374151;flex:1;truncate;">' . e($name) . '</span>
+                                                        <a href="' . e($url) . '" target="_blank" rel="noopener noreferrer"
+                                                            style="font-size:12px;color:#3b82f6;text-decoration:none;">
+                                                            ' . ($isPdf ? 'View PDF' : 'Download') . '
+                                                        </a>
+                                                    </div>';
+                                            }
+
+                                            return new \Illuminate\Support\HtmlString($links);
+                                        }),
+                                ]),
+
                             Section::make('Campaign Detail')
                                 ->schema([
                                     // Link ke Sales Activity → auto-fill fields

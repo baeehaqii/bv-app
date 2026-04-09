@@ -13,6 +13,7 @@ class DataClient extends Model
     protected $casts = [
         'pics' => 'array',
         'agency_name' => 'array',
+        'pic_clients' => 'array',
     ];
 
     // -------------------------------------------------------

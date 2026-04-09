@@ -3,7 +3,7 @@
 namespace App\Filament\Forms;
 
 use App\Enums\SalesStatus;
-use App\Models\BvBussinesDirector;
+use App\Models\BvCampign;
 use App\Models\BvSalesList;
 use App\Models\DataClient;
 use Filament\Actions\Action;
@@ -23,6 +23,92 @@ class BvSalesForm
     public static function getFormComponents(): array
     {
         return [
+            Section::make('Progres Campaign')
+                ->description('Ringkasan status dan progres media plan campaign ini')
+                ->icon('heroicon-o-chart-bar')
+                ->hidden(fn(string $operation): bool => $operation === 'create')
+                ->schema([
+                    Placeholder::make('campaign_progress_summary')
+                        ->label('')
+                        ->columnSpanFull()
+                        ->content(function ($record) {
+                            if (!$record) return '';
+
+                            $campaign = $record->campaign ?? BvCampign::where('bv_sales_id', $record->id)->first();
+
+                            $statusBadge = function (string $status): string {
+                                $colors = [
+                                    'draft'    => ['#f3f4f6', '#374151'],
+                                    'ongoing'  => ['#dcfce7', '#14532d'],
+                                    'live'     => ['#dcfce7', '#14532d'],
+                                    'done'     => ['#dbeafe', '#1e40af'],
+                                    'cancelled'=> ['#fee2e2', '#991b1b'],
+                                ];
+                                [$bg, $text] = $colors[$status] ?? ['#f3f4f6', '#374151'];
+                                return '<span style="padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;background:' . $bg . ';color:' . $text . ';">' . ucfirst($status) . '</span>';
+                            };
+
+                            if (!$campaign) {
+                                return new \Illuminate\Support\HtmlString(
+                                    '<div style="padding:12px 14px;border:1px solid #e5e7eb;border-radius:8px;background:#f9fafb;font-size:13px;color:#6b7280;">
+                                        Belum ada data campaign / media plan yang terhubung.
+                                    </div>'
+                                );
+                            }
+
+                            $kolCount     = $campaign->kols()->count();
+                            $kolApproved  = $campaign->kols()->where('status', 'approved')->count();
+                            $totalCost    = 'Rp ' . number_format((float)$campaign->total_cost, 0, ',', '.');
+                            $dealValue    = 'Rp ' . number_format((float)$campaign->deal_value, 0, ',', '.');
+                            $progress     = $campaign->progress;
+                            $campaignStatus = $campaign->status ?? 'draft';
+                            $editUrl      = url('/admin/campign-ongoing/' . $campaign->id . '/edit');
+
+                            $progressBar = '
+                                <div style="background:#e5e7eb;border-radius:999px;height:6px;overflow:hidden;margin-top:4px;">
+                                    <div style="background:#22c55e;height:100%;width:' . $progress . '%;border-radius:999px;transition:width .3s;"></div>
+                                </div>
+                                <div style="font-size:11px;color:#6b7280;margin-top:2px;">' . $progress . '% selesai</div>
+                            ';
+
+                            $rows = [
+                                ['label' => 'Status Campaign', 'value' => $statusBadge($campaignStatus)],
+                                ['label' => 'Total KOL',       'value' => '<span style="font-size:13px;color:#111827;">' . $kolCount . ' KOL (' . $kolApproved . ' approved)</span>'],
+                                ['label' => 'Total Cost',      'value' => '<span style="font-size:13px;color:#111827;">' . $totalCost . '</span>'],
+                                ['label' => 'Deal Value',      'value' => '<span style="font-size:13px;color:#111827;">' . $dealValue . '</span>'],
+                            ];
+
+                            if ($campaign->start_date && $campaign->end_date) {
+                                $rows[] = ['label' => 'Progres Waktu', 'value' => $progressBar];
+                            }
+
+                            $rowsHtml = '';
+                            foreach ($rows as $row) {
+                                $rowsHtml .= '
+                                    <tr>
+                                        <td style="padding:6px 8px;font-size:12px;color:#6b7280;white-space:nowrap;vertical-align:top;width:140px;">' . $row['label'] . '</td>
+                                        <td style="padding:6px 8px;">' . $row['value'] . '</td>
+                                    </tr>';
+                            }
+
+                            return new \Illuminate\Support\HtmlString('
+                                <div style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
+                                    <div style="padding:10px 14px;background:#f9fafb;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;">
+                                        <span style="font-size:13px;font-weight:600;color:#111827;">' . e($campaign->campaign_name) . '</span>
+                                        <a href="' . e($editUrl) . '" target="_blank" rel="noopener noreferrer"
+                                            style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#3b82f6;text-decoration:none;padding:4px 10px;border:1px solid #bfdbfe;border-radius:6px;background:#eff6ff;">
+                                            <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                                            </svg>
+                                            Buka Media Plan
+                                        </a>
+                                    </div>
+                                    <table style="width:100%;border-collapse:collapse;">' . $rowsHtml . '</table>
+                                </div>
+                            ');
+                        }),
+                ]),
+
             Section::make('Campaign Information')
                 ->description('Informasi campaign yang akan di kerjakan')
                 ->schema([
@@ -34,26 +120,9 @@ class BvSalesForm
                                 ->required()
                                 ->maxLength(255),
 
-                            Select::make('selected_bd_id')
-                                ->label('Business Director')
-                                ->dehydrated(false)
-                                ->options(fn() => BvBussinesDirector::where('status', 'aktif')->orderBy('nama_lengkap')->pluck('nama_lengkap', 'id'))
-                                ->default(fn($record) => $record?->salesList?->bv_bussines_director_id)
-                                ->afterStateUpdated(fn($state, callable $set) => $set('bv_sales_list_id', null))
-                                ->searchable()
-                                ->preload()
-                                ->live(),
-
                             Select::make('bv_sales_list_id')
                                 ->label('Sales Name')
-                                ->options(function (Get $get) {
-                                    $bdId = $get('selected_bd_id');
-
-                                    return BvSalesList::query()
-                                        ->when($bdId, fn($query) => $query->where('bv_bussines_director_id', $bdId))
-                                        ->orderBy('nama_sales')
-                                        ->pluck('nama_sales', 'id');
-                                })
+                                ->options(fn() => BvSalesList::orderBy('nama_sales')->pluck('nama_sales', 'id'))
                                 ->searchable()
                                 ->preload()
                                 ->live()
@@ -109,34 +178,32 @@ class BvSalesForm
                                                                 ->url(fn() => $client->website),
                                                         ]),
                                                     ]),
-                                                \Filament\Schemas\Components\Section::make('PIC Details')
+                                                \Filament\Schemas\Components\Section::make('PIC Client')
                                                     ->schema([
                                                         Grid::make(2)->schema(
-                                                            $client->type === 'agency' && !empty($client->pics)
-                                                            ? collect($client->pics)->flatMap(fn($pic, $i) => [
-                                                                TextEntry::make("pic_{$i}_name")
-                                                                    ->label('Name')
+                                                            !empty($client->pic_clients)
+                                                            ? collect($client->pic_clients)->flatMap(fn($pic, $i) => [
+                                                                TextEntry::make("pc_{$i}_name")
+                                                                    ->label('Nama PIC Client')
                                                                     ->getStateUsing(fn() => $pic['name'] ?? '-'),
-                                                                TextEntry::make("pic_{$i}_wa")
-                                                                    ->label('WhatsApp')
-                                                                    ->getStateUsing(fn() => $pic['wa_number'] ?? '-'),
-                                                                TextEntry::make("pic_{$i}_email")
+                                                                TextEntry::make("pc_{$i}_role")
+                                                                    ->label('Jabatan')
+                                                                    ->getStateUsing(fn() => $pic['role'] ?? '-'),
+                                                                TextEntry::make("pc_{$i}_email")
                                                                     ->label('Email')
                                                                     ->getStateUsing(fn() => $pic['email'] ?? '-'),
-                                                                TextEntry::make("pic_{$i}_role")
-                                                                    ->label('Role')
-                                                                    ->getStateUsing(fn() => $pic['role'] ?? '-'),
+                                                                TextEntry::make("pc_{$i}_wa")
+                                                                    ->label('WhatsApp')
+                                                                    ->getStateUsing(fn() => $pic['wa_number'] ?? '-'),
+                                                                TextEntry::make("pc_{$i}_leads")
+                                                                    ->label('PIC Leads')
+                                                                    ->getStateUsing(fn() => $pic['pic_leads'] ?? '-')
+                                                                    ->columnSpanFull(),
                                                             ])->toArray()
                                                             : [
-                                                                TextEntry::make('nama_pic')
-                                                                    ->label('PIC Name')
-                                                                    ->getStateUsing(fn() => $client->nama_pic ?? '-'),
-                                                                TextEntry::make('role_pic')
-                                                                    ->label('PIC Role')
-                                                                    ->getStateUsing(fn() => $client->role_pic ?? '-'),
-                                                                TextEntry::make('email_pic')
-                                                                    ->label('PIC Email')
-                                                                    ->getStateUsing(fn() => $client->email_pic ?? '-')
+                                                                TextEntry::make('no_pic_client')
+                                                                    ->label('')
+                                                                    ->getStateUsing(fn() => 'Belum ada PIC Client')
                                                                     ->columnSpanFull(),
                                                             ]
                                                         ),
@@ -207,6 +274,7 @@ class BvSalesForm
                             Select::make('company_name')
                                 ->label('Company Name')
                                 ->searchable()
+                                ->live()
                                 ->getSearchResultsUsing(fn(string $search): array => DataClient::where('nama_brand', 'like', "%{$search}%")->limit(50)->pluck('nama_brand', 'nama_brand')->toArray())
                                 ->options(DataClient::limit(50)->pluck('nama_brand', 'nama_brand'))
                                 ->createOptionForm(\App\Filament\Resources\DataClients\Schemas\DataClientForm::getFormSchema())
@@ -214,6 +282,24 @@ class BvSalesForm
                                     $client = DataClient::create($data);
                                     return $client->nama_brand;
                                 })
+                                ->hint(function ($state): ?string {
+                                    if (!$state) return null;
+                                    $type = DataClient::where('nama_brand', $state)->value('type');
+                                    return match ($type) {
+                                        'agency' => 'Agency',
+                                        'direct' => 'Direct Brand',
+                                        default   => null,
+                                    };
+                                })
+                                ->hintColor(function ($state): string {
+                                    $type = DataClient::where('nama_brand', $state)->value('type');
+                                    return match ($type) {
+                                        'agency' => 'warning',
+                                        'direct' => 'info',
+                                        default   => 'gray',
+                                    };
+                                })
+                                ->hintIcon(fn($state): ?string => $state ? 'heroicon-o-tag' : null)
                                 ->placeholder('Pilih atau buat')
                                 ->required()
                                 ->hidden(fn(string $operation): bool => $operation === 'edit'),
@@ -249,12 +335,6 @@ class BvSalesForm
                                 })
                                 ->native(false),
 
-                            DatePicker::make('campaign_date')
-                                ->label('Tanggal Campaign')
-                                ->placeholder('Pilih Tanggal Campaign')
-                                ->native(false)
-                                ->displayFormat('d M Y'),
-
                             DatePicker::make('start_date')
                                 ->label('Start Date')
                                 ->placeholder('Pilih Start Date')
@@ -274,16 +354,11 @@ class BvSalesForm
                                 ->displayFormat('d M Y')
                                 ->label('Close Date'),
 
-                            TextInput::make('pic_media_plan')
-                                ->label('PIC Media Plan / Internal')
-                                ->placeholder('Masukkan PIC Media Plan...'),
-
                             DatePicker::make('brief_submit_date')
-                                ->label('Tanggal Dapat Brief')
-                                ->placeholder('Pilih Tanggal Dapat Brief')
+                                ->label('Date of Brief')
+                                ->placeholder('Pilih Date of Brief')
                                 ->native(false)
-                                ->displayFormat('d M Y')
-                                ->helperText('Tanggal menerima brief dari client'),
+                                ->displayFormat('d M Y'),
                         ]),
 
                     Select::make('form_brief_id')
@@ -319,6 +394,40 @@ class BvSalesForm
                                 ->rows(3)
                                 ->columnSpan(2),
                         ]),
+                ]),
+
+            Section::make('Progres Meeting')
+                ->description('Catatan hasil meeting dengan client')
+                ->icon('heroicon-o-users')
+                ->collapsible()
+                ->hidden(fn(string $operation): bool => $operation === 'create')
+                ->schema([
+                    Textarea::make('meeting_notes')
+                        ->label('Catatan Meeting')
+                        ->placeholder('Tuliskan progres / hasil meeting di sini...')
+                        ->rows(4)
+                        ->columnSpanFull(),
+                ]),
+
+            Section::make('Quotation Sign')
+                ->description('Upload dokumen Quotation Sign setelah campaign live')
+                ->icon('heroicon-o-document-check')
+                ->collapsible()
+                ->hidden(fn(string $operation, $record): bool =>
+                    $operation === 'create' ||
+                    ($record?->status !== SalesStatus::CAMPAIGN_LIVE && $record?->status?->value !== SalesStatus::CAMPAIGN_LIVE->value)
+                )
+                ->schema([
+                    FileUpload::make('quotation_sign')
+                        ->label('Upload Quotation Sign')
+                        ->multiple()
+                        ->directory('quotation-signs')
+                        ->acceptedFileTypes(['application/pdf', 'image/png', 'image/jpeg', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'])
+                        ->maxSize(10240)
+                        ->downloadable()
+                        ->openable()
+                        ->reorderable()
+                        ->columnSpanFull(),
                 ]),
 
             Section::make('Brief & History')

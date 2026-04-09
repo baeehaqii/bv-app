@@ -60,11 +60,11 @@ class DataClientsTable
                     ->badge()
                     ->color('gray'),
 
-                // DC-03: PIC sesuai Client Type
-                TextColumn::make('nama_pic')
+                // DC-03: PIC Client (multiple, disimpan di JSON)
+                TextColumn::make('pic_clients')
                     ->label('PIC Client')
                     ->placeholder('-')
-                    ->searchable(),
+                    ->formatStateUsing(fn($state) => collect($state)->pluck('name')->filter()->implode(', ')),
 
                 TextColumn::make('priority')
                     ->label('Prioritas')
@@ -144,16 +144,23 @@ class DataClientsTable
                     ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('status')
-                    ->label('Status')
+                    ->label('Status Campaign')
                     ->badge()
                     ->color(fn(?string $state): string => match ($state) {
-                        'Newest' => 'info',
-                        'Number of Meeting' => 'primary',
-                        'Brief' => 'warning',
-                        'Waiting Feedback' => 'danger',
-                        'On Going' => 'success',
-                        'Not Available' => 'gray',
-                        default => 'gray',
+                        'draft'     => 'gray',
+                        'upcoming'  => 'info',
+                        'ongoing'   => 'warning',
+                        'completed' => 'success',
+                        'cancelled' => 'danger',
+                        default     => 'gray',
+                    })
+                    ->formatStateUsing(fn(?string $state): string => match ($state) {
+                        'draft'     => 'Draft',
+                        'upcoming'  => 'Upcoming',
+                        'ongoing'   => 'Ongoing',
+                        'completed' => 'Completed',
+                        'cancelled' => 'Cancelled',
+                        default     => $state ?? '-',
                     })
                     ->searchable(),
 
@@ -186,14 +193,13 @@ class DataClientsTable
                     ]),
 
                 SelectFilter::make('status')
-                    ->label('Status')
+                    ->label('Status Campaign')
                     ->options([
-                        'Newest' => 'Newest',
-                        'Number of Meeting' => 'Number of Meeting',
-                        'Brief' => 'Brief',
-                        'Waiting Feedback' => 'Waiting Feedback',
-                        'On Going' => 'On Going',
-                        'Not Available' => 'Not Available',
+                        'draft'     => 'Draft',
+                        'upcoming'  => 'Upcoming',
+                        'ongoing'   => 'Ongoing',
+                        'completed' => 'Completed',
+                        'cancelled' => 'Cancelled',
                     ]),
             ])
             ->recordActions([

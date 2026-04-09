@@ -22,6 +22,7 @@ class BvTrackerProgresKolResource extends Resource
     protected static string|\UnitEnum|null $navigationGroup = "Campign Area ";
     protected static ?int $navigationSort = 2;
     protected static ?string $navigationLabel = 'Tracker Progress KOL';
+    protected static bool $shouldRegisterNavigation = false;
     protected static ?string $modelLabel = 'Tracker Progress KOL';
     protected static ?string $pluralModelLabel = 'Tracker Progress KOL';
     protected static ?string $slug = 'tracker-progress-kol';

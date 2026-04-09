@@ -22,7 +22,7 @@ enum SalesStatus: string
             self::PITCHING => 'Contacted',
             self::BRIEFING => 'Briefing',
             self::PROPOSAL_BUILDING => 'Proposal Building',
-            self::NEGOTIATION => 'Negotiation',
+            self::NEGOTIATION => 'Negotiation/Submit',
             self::CAMPAIGN_LIVE => 'Campaign Live',
             self::REPORTING => 'Reporting',
             self::CLOSE_LOSE => 'Close Lost',

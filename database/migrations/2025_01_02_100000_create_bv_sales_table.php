@@ -34,6 +34,8 @@ return new class extends Migration {
             $table->string('brief_link')->nullable();
             $table->date('brief_submit_date')->nullable();
             $table->string('status')->default('not_started');
+            $table->text('meeting_notes')->nullable();
+            $table->json('quotation_sign')->nullable();
             $table->flowforgePositionColumn('position');
             $table->timestamps();
         });
