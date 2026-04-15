@@ -14,6 +14,7 @@ class DataClient extends Model
         'pics' => 'array',
         'agency_name' => 'array',
         'pic_clients' => 'array',
+        'has_agency' => 'boolean',
     ];
 
     // -------------------------------------------------------

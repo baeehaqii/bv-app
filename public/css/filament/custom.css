@@ -57,22 +57,49 @@
     }
 }
 
+/* Remove border and white background from all fi-section */
+.fi-section {
+    border-width: 0 !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+}
+
+/* Reduce spacing between sections in modal/slideover */
+.fi-modal-content .fi-fo-component-ctn > .fi-section,
+.fi-slide-over-content .fi-fo-component-ctn > .fi-section {
+    margin-top: 0.75rem !important;
+    margin-bottom: 0.75rem !important;
+}
+
+.fi-modal-content .fi-fo-component-ctn,
+.fi-slide-over-content .fi-fo-component-ctn {
+    gap: 0.75rem !important;
+}
+
 /* Smooth hover effects for stats */
 .fi-wi-stats-overview-stat {
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    transition:
+        transform 0.3s ease,
+        box-shadow 0.3s ease;
 }
 
 .fi-wi-stats-overview-stat:hover {
     transform: translateY(-2px);
-    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    box-shadow:
+        0 10px 25px -5px rgba(0, 0, 0, 0.1),
+        0 8px 10px -6px rgba(0, 0, 0, 0.1);
 }
 
 /* Chart card hover effects */
 .fi-wi-chart {
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    transition:
+        transform 0.3s ease,
+        box-shadow 0.3s ease;
 }
 
 .fi-wi-chart:hover {
     transform: translateY(-2px);
-    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    box-shadow:
+        0 10px 25px -5px rgba(0, 0, 0, 0.1),
+        0 8px 10px -6px rgba(0, 0, 0, 0.1);
 }

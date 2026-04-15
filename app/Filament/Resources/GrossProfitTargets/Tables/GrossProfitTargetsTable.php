@@ -45,7 +45,9 @@ class GrossProfitTargetsTable
                     ->label('Target Deal Revenue (Rp)')
                     ->rules(['numeric', 'min:0'])
                     ->extraInputAttributes(['style' => 'min-width:180px;text-align:right;'])
-                    ->beforeStateDehydrated(fn($state) => (int) str_replace(['.', ',', 'Rp', ' '], '', $state ?? '0'))
+                    ->afterStateUpdated(function ($record, $state) {
+                        $record->update(['target_deal_revenue' => (int) str_replace(['.', ',', 'Rp', ' '], '', $state ?? '0')]);
+                    })
                     ->getStateUsing(fn($record) => (int) $record->target_deal_revenue)
                     ->sortable(),
 
@@ -53,7 +55,9 @@ class GrossProfitTargetsTable
                     ->label('Target Gross Profit (Rp)')
                     ->rules(['numeric', 'min:0'])
                     ->extraInputAttributes(['style' => 'min-width:180px;text-align:right;'])
-                    ->beforeStateDehydrated(fn($state) => (int) str_replace(['.', ',', 'Rp', ' '], '', $state ?? '0'))
+                    ->afterStateUpdated(function ($record, $state) {
+                        $record->update(['target_amount' => (int) str_replace(['.', ',', 'Rp', ' '], '', $state ?? '0')]);
+                    })
                     ->getStateUsing(fn($record) => (int) $record->target_amount)
                     ->sortable(),
 

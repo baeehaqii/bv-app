@@ -186,6 +186,22 @@ class DataClientSeeder extends Seeder
         ];
 
         foreach ($clients as $client) {
+            // Konversi nama_pic/role_pic/email_pic lama ke format pic_clients JSON baru
+            $picClients = [];
+            if (!empty($client['nama_pic']) && $client['nama_pic'] !== '-') {
+                $picClients[] = [
+                    'nama_pic' => $client['nama_pic'],
+                    'role_pic' => $client['role_pic'] ?? null,
+                    'email_pic' => $client['email_pic'] ?? null,
+                    'wa_pic' => null,
+                    'is_leads' => false,
+                ];
+            }
+
+            unset($client['nama_pic'], $client['role_pic'], $client['email_pic']);
+
+            $client['pic_clients'] = !empty($picClients) ? json_encode($picClients) : null;
+
             DataClient::create($client);
         }
     }

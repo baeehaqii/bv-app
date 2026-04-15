@@ -52,7 +52,9 @@ class SalesTargetsTable
                     ->label('Target Bulanan (Rp)')
                     ->rules(['numeric', 'min:0'])
                     ->extraInputAttributes(['style' => 'min-width:160px;text-align:right;'])
-                    ->beforeStateDehydrated(fn($state) => (int) str_replace(['.', ',', 'Rp', ' '], '', $state ?? '0'))
+                    ->afterStateUpdated(function ($record, $state) {
+                        $record->update(['target_amount' => (int) str_replace(['.', ',', 'Rp', ' '], '', $state ?? '0')]);
+                    })
                     ->getStateUsing(fn($record) => (int) $record->target_amount)
                     ->sortable(),
 

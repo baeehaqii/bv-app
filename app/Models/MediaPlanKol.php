@@ -25,6 +25,8 @@ class MediaPlanKol extends Model
         'cpi_cpv' => 'float',
         'cpe' => 'float',
         'rate' => 'float',
+        'after_nego' => 'float',
+        'payment_date' => 'date',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];

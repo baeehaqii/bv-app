@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\DataClients\Widgets;
 
 use App\Models\DataClient;
+use Filament\Schemas\Components\Component;
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 use Livewire\Attributes\Reactive;
@@ -10,6 +11,12 @@ use Livewire\Attributes\Reactive;
 class DataClientStatsWidget extends StatsOverviewWidget
 {
     protected int|string|array $columnSpan = 'full';
+
+    public function getSectionContentComponent(): Component
+    {
+        return parent::getSectionContentComponent()
+            ->extraAttributes(['style' => 'background:transparent;box-shadow:none;border:none;']);
+    }
 
     #[Reactive]
     public $dateFilter = 'all';
@@ -68,32 +75,38 @@ class DataClientStatsWidget extends StatsOverviewWidget
                 ->description('Total clients in database')
                 ->descriptionIcon('heroicon-m-building-office-2')
                 ->color('success')
-                ->chart([5, 8, 12, 15, 20, 25, $totalClients]),
+                ->chart([5, 8, 12, 15, 20, 25, $totalClients])
+                ->extraAttributes(['style' => 'background-color:#ffffff;box-shadow:0 1px 3px rgba(0,0,0,0.08);border-radius:0.75rem;']),
 
             Stat::make('Client Status', "Active: {$activeClients} | Prospect: {$prospectClients}")
                 ->description("Inactive: {$inactiveClients} | Lost: {$lostClients}")
                 ->descriptionIcon('heroicon-m-chart-bar')
-                ->color('info'),
+                ->color('info')
+                ->extraAttributes(['style' => 'background-color:#ffffff;box-shadow:0 1px 3px rgba(0,0,0,0.08);border-radius:0.75rem;']),
 
             Stat::make('Priority Distribution', "High: {$highPriority} | Medium: {$mediumPriority}")
                 ->description("Low: {$lowPriority}")
                 ->descriptionIcon('heroicon-m-flag')
-                ->color('warning'),
+                ->color('warning')
+                ->extraAttributes(['style' => 'background-color:#ffffff;box-shadow:0 1px 3px rgba(0,0,0,0.08);border-radius:0.75rem;']),
 
             Stat::make('Lost Clients', number_format($lostClients) . ' Clients')
                 ->description('Total clients marked as lost')
                 ->descriptionIcon('heroicon-m-x-circle')
-                ->color('danger'),
+                ->color('danger')
+                ->extraAttributes(['style' => 'background-color:#ffffff;box-shadow:0 1px 3px rgba(0,0,0,0.08);border-radius:0.75rem;']),
 
             Stat::make('Recent Outreach', number_format($recentOutreach) . ' Clients')
                 ->description('Contacted in last 30 days')
                 ->descriptionIcon('heroicon-m-phone')
-                ->color('success'),
+                ->color('success')
+                ->extraAttributes(['style' => 'background-color:#ffffff;box-shadow:0 1px 3px rgba(0,0,0,0.08);border-radius:0.75rem;']),
 
             Stat::make('Pending Follow-ups', number_format($pendingFollowUps) . ' Clients')
                 ->description('Upcoming follow-up appointments')
                 ->descriptionIcon('heroicon-m-calendar')
-                ->color('danger'),
+                ->color('danger')
+                ->extraAttributes(['style' => 'background-color:#ffffff;box-shadow:0 1px 3px rgba(0,0,0,0.08);border-radius:0.75rem;']),
         ];
     }
 }

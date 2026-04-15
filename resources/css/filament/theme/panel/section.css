@@ -1,7 +1,11 @@
 .fi-section {
-    @apply bg-white dark:bg-gray-800 rounded-[calc(var(--radius-2xl)-var(--spacing))]  border border-gray-300 dark:border-gray-700 p-6 ring-0 shadow-none mb-0;
+    @apply bg-white dark:bg-gray-800 rounded-[calc(var(--radius-2xl)-var(--spacing))] border border-gray-300 dark:border-gray-700 p-6 ring-0 shadow-none mb-0;
 }
 
-/* .fi-sc-section {
-    @apply p-6 border border-gray-300 bg-gray-50 dark:bg-gray-800 rounded-2xl dark:border-gray-700 mb-8;
-} */
+.fi-sc-section:not(.fi-wi-widget .fi-sc-section) {
+    @apply bg-white dark:bg-gray-800 rounded-[calc(var(--radius-2xl)-var(--spacing))] border border-gray-300 dark:border-gray-700 p-6 ring-0 shadow-none;
+
+    & .fi-sc-section-label-ctn {
+        @apply mb-4;
+    }
+}

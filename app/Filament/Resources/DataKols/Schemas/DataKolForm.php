@@ -13,24 +13,48 @@ use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Section;
 use Filament\Forms\Components\DatePicker;
+use Filament\Support\RawJs;
 
 class DataKolForm
 {
+    private static array $channelOptions = [
+        'Instagram' => 'Instagram',
+        'Tiktok' => 'TikTok',
+        'Threads' => 'Threads',
+        'Youtube Channels' => 'YouTube Channels',
+        'Youtube Shorts' => 'YouTube Shorts',
+        'Facebook' => 'Facebook',
+        'Talent' => 'Talent',
+        'X' => 'X (Twitter)',
+    ];
+
+    private static array $scrapableChannels = ['Instagram', 'Tiktok', 'Youtube Channels', 'Youtube Shorts'];
+
     public static function configure(Schema $schema): Schema
     {
         return $schema
             ->components([
+                Section::make('Rate Card & SOW')
+                    ->description('Isi rate card dan scope of work sebelum data sosial media')
+                    ->columnSpanFull()
+                    ->schema([
+                        TextInput::make('rate_card')
+                            ->label('Rate Card')
+                            ->prefix('Rp')
+                            ->numeric()
+                            ->mask(RawJs::make('$money($input)'))
+                            ->dehydrateStateUsing(fn($state) => $state ? (float) str_replace(['.', ','], ['', '.'], preg_replace('/[^\d,.]/', '', $state)) : null)
+                            ->formatStateUsing(fn($state) => $state ? number_format((float) $state, 0, ',', '.') : null)
+                            ->placeholder('0')
+                            ->helperText('Published rate card untuk channel ini'),
+                    ])->columns(1),
+
                 Section::make('Social Media Data')
                     ->columnSpanFull()
                     ->schema([
                         Select::make('channel')
                             ->label('Channel')
-                            ->options([
-                                'Instagram' => 'Instagram',
-                                'Tiktok' => 'Tiktok',
-                                'Youtube Channels' => 'Youtube Channels',
-                                'Youtube Shorts' => 'Youtube Shorts',
-                            ])
+                            ->options(self::$channelOptions)
                             ->live(onBlur: true)
                             ->afterStateUpdated(fn(callable $set) => $set('link_userprofile', null))
                             ->required(),
@@ -40,7 +64,11 @@ class DataKolForm
                                 'Instagram' => 'Instagram Profile URL',
                                 'Tiktok' => 'TikTok Profile URL',
                                 'Youtube Channels' => 'YouTube Channel URL',
-                                'Youtube Shorts' => 'YouTube Channel URL',
+                                'Youtube Shorts' => 'YouTube Shorts URL',
+                                'Threads' => 'Threads Profile URL',
+                                'Facebook' => 'Facebook Profile/Page URL',
+                                'Talent' => 'Profil Talent / Portfolio URL',
+                                'X' => 'X (Twitter) Profile URL',
                                 default => 'Profile URL',
                             })
                             ->placeholder(fn(callable $get) => match ($get('channel')) {
@@ -48,15 +76,15 @@ class DataKolForm
                                 'Tiktok' => 'https://www.tiktok.com/@username atau @username saja',
                                 'Youtube Channels' => 'https://www.youtube.com/@username atau username saja',
                                 'Youtube Shorts' => 'https://www.youtube.com/@username atau username saja',
+                                'Threads' => 'https://www.threads.net/@username',
+                                'Facebook' => 'https://www.facebook.com/pagename',
+                                'Talent' => 'Link portfolio atau profil talent',
+                                'X' => 'https://x.com/username atau @username',
                                 default => 'Profile URL',
                             })
-                            ->helperText(fn(callable $get) => match ($get('channel')) {
-                                'Instagram' => '📋 Masukkan URL/username, tekan Tab/Enter, kemudian tunggu data ter-fetch dari Instagram',
-                                'Tiktok' => '📋 Masukkan URL/username, tekan Tab/Enter, kemudian tunggu data ter-fetch dari TikTok',
-                                'Youtube Channels' => '📋 Masukkan URL/username, tekan Tab/Enter, kemudian tunggu data ter-fetch dari YouTube',
-                                'Youtube Shorts' => '📋 Masukkan URL/username, tekan Tab/Enter, kemudian tunggu data ter-fetch dari YouTube Shorts',
-                                default => '📋 Masukkan URL/username dan tunggu data ter-fetch',
-                            })
+                            ->helperText(fn(callable $get) => in_array($get('channel'), self::$scrapableChannels)
+                                ? '📋 Masukkan URL/username, tekan Tab/Enter, kemudian tunggu data ter-fetch otomatis'
+                                : '📋 Masukkan URL/link profil channel ini')
                             ->required(fn(callable $get) => !empty($get('channel')))
                             ->live(onBlur: true)
                             ->afterStateUpdated(function (?string $state, callable $set, callable $get) {
@@ -65,6 +93,10 @@ class DataKolForm
                                 }
 
                                 $channel = $get('channel');
+
+                                if (!in_array($channel, self::$scrapableChannels)) {
+                                    return;
+                                }
 
                                 try {
                                     $profile = match ($channel) {
@@ -76,10 +108,9 @@ class DataKolForm
                                     };
 
                                     if (!$profile) {
-                                        throw new \Exception('Channel tidak didukung');
+                                        throw new \Exception('Channel tidak didukung untuk auto-fetch');
                                     }
 
-                                    // Auto-fill fields dari profile data
                                     $set('username', $profile['username']);
                                     $set('followers', $profile['followers_count']);
                                     $set('tier', $profile['tier']);
@@ -87,21 +118,18 @@ class DataKolForm
                                     $set('engagements', $profile['total_engagements']);
                                     $set('impressions', $profile['average_impressions']);
 
-                                    // Set category jika ada
                                     if (!empty($profile['business_category_name']) && $profile['business_category_name'] !== 'None') {
                                         $set('category', $profile['category_name'] ?? $profile['business_category_name']);
                                     } elseif (!empty($profile['category_name'])) {
                                         $set('category', $profile['category_name']);
                                     }
 
-                                    // Set contact
                                     if (!empty($profile['business_email'])) {
                                         $set('contact', $profile['business_email']);
                                     } elseif (!empty($profile['business_phone_number'])) {
                                         $set('contact', $profile['business_phone_number']);
                                     }
 
-                                    // Set notes dengan info tambahan
                                     $notes = [];
                                     if (!empty($profile['full_name'])) {
                                         $notes[] = "Nama: {$profile['full_name']}";
@@ -123,8 +151,7 @@ class DataKolForm
                                     $notes[] = "Following: " . number_format($profile['following_count']);
 
                                     $mediaLabel = match ($channel) {
-                                        'Tiktok' => 'Videos',
-                                        'Youtube Channels' => 'Videos',
+                                        'Tiktok', 'Youtube Channels' => 'Videos',
                                         'Youtube Shorts' => 'Shorts',
                                         default => 'Posts',
                                     };
@@ -137,7 +164,6 @@ class DataKolForm
                                     $set('notes', implode("\n", $notes));
                                     $set('terakhir_update', now()->format('Y-m-d'));
 
-                                    // Show success notification
                                     $channelLabel = match ($channel) {
                                         'Instagram' => 'Instagram',
                                         'Tiktok' => 'TikTok',
@@ -154,11 +180,10 @@ class DataKolForm
                                     Notification::make()
                                         ->title("✅ Data {$channelLabel} berhasil diambil!")
                                         ->success()
-                                        ->body("Profile @{$profile['username']} dengan " . number_format($profile['followers_count']) . " {$followerLabel}. Silahkan klik Create untuk menyimpan.")
+                                        ->body("Profile @{$profile['username']} dengan " . number_format($profile['followers_count']) . " {$followerLabel}.")
                                         ->send();
 
                                 } catch (\Exception $e) {
-                                    // Show error notification
                                     $channelLabel = match ($get('channel')) {
                                         'Instagram' => 'Instagram',
                                         'Tiktok' => 'TikTok',
@@ -174,11 +199,38 @@ class DataKolForm
                                         ->send();
                                 }
                             }),
+
                         TextInput::make('username')
                             ->label('Username')
                             ->readOnly()
                             ->dehydrated()
                             ->prefixIcon('heroicon-o-at-symbol'),
+
+                        Select::make('category')
+                            ->options([
+                                'Gamers & Lifestyle' => 'Gamers & Lifestyle',
+                                'Lifestyle' => 'Lifestyle',
+                                'Techno' => 'Techno',
+                                'Beauty' => 'Beauty',
+                                'Kpop' => 'Kpop',
+                                'Otomotif' => 'Otomotif',
+                                'Sport' => 'Sport',
+                                'Family' => 'Family',
+                                'Comedy' => 'Comedy',
+                                'Sport & Lifestyle' => 'Sport & Lifestyle',
+                                'Fashion & Lifestyle' => 'Fashion & Lifestyle',
+                                'DIY' => 'DIY',
+                                'Travel' => 'Travel',
+                                'Home Living' => 'Home Living',
+                                'Photography' => 'Photography',
+                                'Beauty & Lifestyle' => 'Beauty & Lifestyle',
+                                'Music' => 'Music',
+                                'Home Cook' => 'Home Cook',
+                                'Couple' => 'Couple',
+                                'Foodies' => 'Foodies',
+                            ])
+                            ->label('Category')
+                            ->searchable(),
 
                         TextInput::make('engagement_rate')
                             ->label('Engagement Rate')
@@ -227,31 +279,6 @@ class DataKolForm
                                     default => 'color: #6b7280;',
                                 }
                             ]),
-
-                        Select::make('category')
-                            ->options([
-                                'Gamers & Lifestyle' => 'Gamers & Lifestyle',
-                                'Lifestyle' => 'Lifestyle',
-                                'Techno' => 'Techno',
-                                'Beauty' => 'Beauty',
-                                'Kpop' => 'Kpop',
-                                'Otomotif' => 'Otomotif',
-                                'Sport' => 'Sport',
-                                'Family' => 'Family',
-                                'Comedy' => 'Comedy',
-                                'Sport & Lifestyle' => 'Sport & Lifestyle',
-                                'Fashion & Lifestyle' => 'Fashion & Lifestyle',
-                                'DIY' => 'DIY',
-                                'Travel' => 'Travel',
-                                'Home Living' => 'Home Living',
-                                'Photography' => 'Photography',
-                                'Beauty & Lifestyle' => 'Beauty & Lifestyle',
-                                'Music' => 'Music',
-                                'Home Cook' => 'Home Cook',
-                                'Couple' => 'Couple',
-                                'Foodies' => 'Foodies',
-                            ])
-                            ->label('Category'),
 
                         Select::make('status')
                             ->label('Status')

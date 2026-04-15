@@ -45,9 +45,7 @@ class SalesKanban extends BoardPage implements HasTable
 
     protected function getHeaderWidgets(): array
     {
-        return [
-            \App\Filament\Widgets\Sales\SalesStatsWidget::class,
-        ];
+        return [];
     }
 
     public function getViewData(): array
@@ -80,7 +78,7 @@ class SalesKanban extends BoardPage implements HasTable
                 ->createAnother(false)
                 ->color('white')
                 ->icon('heroicon-o-plus')
-                ->modalWidth('2xl')
+                ->modalWidth('4xl')
                 ->modalHeading('Create Sales Activity')
                 ->slideOver()
                 ->mutateFormDataUsing(function (array $data): array {
@@ -138,7 +136,7 @@ class SalesKanban extends BoardPage implements HasTable
                 \Filament\Actions\EditAction::make()
                     ->model(BvSales::class)
                     ->form(BvSalesForm::getFormComponents())
-                    ->modalWidth('2xl')
+                    ->modalWidth('4xl')
                     ->modalHeading('Edit Sales Activity')
                     ->slideOver()
                     ->extraModalFooterActions(fn(\Filament\Actions\EditAction $action): array => [

@@ -1,4 +1,16 @@
+.fi-input-wrp {
+    @apply shadow-none bg-white dark:bg-white/5 ring-1 ring-gray-200 dark:ring-white/10;
 
-  .fi-input-wrp {
-    @apply shadow-none
-   }
+    &:not(.fi-disabled):not(:has(.fi-ac-action:focus)) {
+        @apply focus-within:ring-primary-600 dark:focus-within:ring-primary-500 focus-within:ring-2;
+    }
+
+    &.fi-disabled {
+        @apply bg-gray-50 dark:bg-transparent;
+    }
+}
+
+select.fi-select-input,
+textarea.fi-textarea {
+    @apply bg-white dark:bg-white/5;
+}

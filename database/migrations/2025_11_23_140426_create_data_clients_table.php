@@ -15,6 +15,7 @@ return new class extends Migration {
             $table->flowforgePositionColumn('position');
             $table->string('nama_brand');
             $table->string('type')->default('direct');
+            $table->boolean('has_agency')->default(false)->comment('Direct brand yang juga memiliki agency');
             $table->string('category')->nullable();
             $table->string('priority')->nullable();
             $table->string('website')->nullable();

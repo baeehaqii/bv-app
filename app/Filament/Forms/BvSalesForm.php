@@ -14,7 +14,6 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 
@@ -32,17 +31,18 @@ class BvSalesForm
                         ->label('')
                         ->columnSpanFull()
                         ->content(function ($record) {
-                            if (!$record) return '';
+                            if (!$record)
+                                return '';
 
                             $campaign = $record->campaign ?? BvCampign::where('bv_sales_id', $record->id)->first();
 
                             $statusBadge = function (string $status): string {
                                 $colors = [
-                                    'draft'    => ['#f3f4f6', '#374151'],
-                                    'ongoing'  => ['#dcfce7', '#14532d'],
-                                    'live'     => ['#dcfce7', '#14532d'],
-                                    'done'     => ['#dbeafe', '#1e40af'],
-                                    'cancelled'=> ['#fee2e2', '#991b1b'],
+                                    'draft' => ['#f3f4f6', '#374151'],
+                                    'ongoing' => ['#dcfce7', '#14532d'],
+                                    'live' => ['#dcfce7', '#14532d'],
+                                    'done' => ['#dbeafe', '#1e40af'],
+                                    'cancelled' => ['#fee2e2', '#991b1b'],
                                 ];
                                 [$bg, $text] = $colors[$status] ?? ['#f3f4f6', '#374151'];
                                 return '<span style="padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;background:' . $bg . ';color:' . $text . ';">' . ucfirst($status) . '</span>';
@@ -56,13 +56,13 @@ class BvSalesForm
                                 );
                             }
 
-                            $kolCount     = $campaign->kols()->count();
-                            $kolApproved  = $campaign->kols()->where('status', 'approved')->count();
-                            $totalCost    = 'Rp ' . number_format((float)$campaign->total_cost, 0, ',', '.');
-                            $dealValue    = 'Rp ' . number_format((float)$campaign->deal_value, 0, ',', '.');
-                            $progress     = $campaign->progress;
+                            $kolCount = $campaign->kols()->count();
+                            $kolApproved = $campaign->kols()->where('status', 'approved')->count();
+                            $totalCost = 'Rp ' . number_format((float) $campaign->total_cost, 0, ',', '.');
+                            $dealValue = 'Rp ' . number_format((float) $campaign->deal_value, 0, ',', '.');
+                            $progress = $campaign->progress;
                             $campaignStatus = $campaign->status ?? 'draft';
-                            $editUrl      = url('/admin/campign-ongoing/' . $campaign->id . '/edit');
+                            $editUrl = url('/admin/campign-ongoing/' . $campaign->id . '/edit');
 
                             $progressBar = '
                                 <div style="background:#e5e7eb;border-radius:999px;height:6px;overflow:hidden;margin-top:4px;">
@@ -73,9 +73,9 @@ class BvSalesForm
 
                             $rows = [
                                 ['label' => 'Status Campaign', 'value' => $statusBadge($campaignStatus)],
-                                ['label' => 'Total KOL',       'value' => '<span style="font-size:13px;color:#111827;">' . $kolCount . ' KOL (' . $kolApproved . ' approved)</span>'],
-                                ['label' => 'Total Cost',      'value' => '<span style="font-size:13px;color:#111827;">' . $totalCost . '</span>'],
-                                ['label' => 'Deal Value',      'value' => '<span style="font-size:13px;color:#111827;">' . $dealValue . '</span>'],
+                                ['label' => 'Total KOL', 'value' => '<span style="font-size:13px;color:#111827;">' . $kolCount . ' KOL (' . $kolApproved . ' approved)</span>'],
+                                ['label' => 'Total Cost', 'value' => '<span style="font-size:13px;color:#111827;">' . $totalCost . '</span>'],
+                                ['label' => 'Deal Value', 'value' => '<span style="font-size:13px;color:#111827;">' . $dealValue . '</span>'],
                             ];
 
                             if ($campaign->start_date && $campaign->end_date) {
@@ -232,6 +232,36 @@ class BvSalesForm
                                 )
                                 ->hidden(fn(string $operation): bool => $operation === 'create'),
 
+                            Select::make('company_name')
+                                ->label('Company / Client Name')
+                                ->searchable()
+                                ->live()
+                                ->getSearchResultsUsing(fn(string $search): array => DataClient::where('nama_brand', 'like', "%{$search}%")->limit(50)->pluck('nama_brand', 'nama_brand')->toArray())
+                                ->options(DataClient::limit(50)->pluck('nama_brand', 'nama_brand'))
+                                ->createOptionForm(\App\Filament\Resources\DataClients\Schemas\DataClientForm::getFormSchema())
+                                ->createOptionUsing(function (array $data): string {
+                                    $client = DataClient::create($data);
+                                    return $client->nama_brand;
+                                })
+                                ->hint(function ($state): ?\Illuminate\Support\HtmlString {
+                                    if (!$state)
+                                        return null;
+                                    $type = DataClient::where('nama_brand', $state)->value('type');
+                                    [$label, $bg, $color] = match ($type) {
+                                        'agency' => ['Agency', '#fef3c7', '#92400e'],
+                                        'direct' => ['Direct Brand', '#dbeafe', '#1e40af'],
+                                        default => [null, null, null],
+                                    };
+                                    if (!$label)
+                                        return null;
+                                    return new \Illuminate\Support\HtmlString(
+                                        '<span style="display:inline-flex;align-items:center;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600;background:' . $bg . ';color:' . $color . ';">' . $label . '</span>'
+                                    );
+                                })
+                                ->placeholder('Pilih atau buat')
+                                ->required()
+                                ->hidden(fn(string $operation): bool => $operation === 'edit'),
+
                             Select::make('campaign_items')
                                 ->label('Campaign Items')
                                 ->multiple()
@@ -271,38 +301,6 @@ class BvSalesForm
                                 ->dehydrateStateUsing(fn($state) => (int) str_replace('.', '', $state))
                                 ->default(0),
 
-                            Select::make('company_name')
-                                ->label('Company Name')
-                                ->searchable()
-                                ->live()
-                                ->getSearchResultsUsing(fn(string $search): array => DataClient::where('nama_brand', 'like', "%{$search}%")->limit(50)->pluck('nama_brand', 'nama_brand')->toArray())
-                                ->options(DataClient::limit(50)->pluck('nama_brand', 'nama_brand'))
-                                ->createOptionForm(\App\Filament\Resources\DataClients\Schemas\DataClientForm::getFormSchema())
-                                ->createOptionUsing(function (array $data): string {
-                                    $client = DataClient::create($data);
-                                    return $client->nama_brand;
-                                })
-                                ->hint(function ($state): ?string {
-                                    if (!$state) return null;
-                                    $type = DataClient::where('nama_brand', $state)->value('type');
-                                    return match ($type) {
-                                        'agency' => 'Agency',
-                                        'direct' => 'Direct Brand',
-                                        default   => null,
-                                    };
-                                })
-                                ->hintColor(function ($state): string {
-                                    $type = DataClient::where('nama_brand', $state)->value('type');
-                                    return match ($type) {
-                                        'agency' => 'warning',
-                                        'direct' => 'info',
-                                        default   => 'gray',
-                                    };
-                                })
-                                ->hintIcon(fn($state): ?string => $state ? 'heroicon-o-tag' : null)
-                                ->placeholder('Pilih atau buat')
-                                ->required()
-                                ->hidden(fn(string $operation): bool => $operation === 'edit'),
                         ]),
                 ]),
 
@@ -413,7 +411,8 @@ class BvSalesForm
                 ->description('Upload dokumen Quotation Sign setelah campaign live')
                 ->icon('heroicon-o-document-check')
                 ->collapsible()
-                ->hidden(fn(string $operation, $record): bool =>
+                ->hidden(
+                    fn(string $operation, $record): bool =>
                     $operation === 'create' ||
                     ($record?->status !== SalesStatus::CAMPAIGN_LIVE && $record?->status?->value !== SalesStatus::CAMPAIGN_LIVE->value)
                 )

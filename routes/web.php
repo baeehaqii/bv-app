@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\FormBriefPublicController;
+use App\Http\Controllers\KolContractController;
+use App\Http\Controllers\KolImportTemplateController;
 use App\Http\Controllers\MediaPlanPdfController;
 use App\Http\Controllers\MediaPlanExcelController;
 use App\Http\Controllers\InternalBudgetPdfController;
@@ -17,6 +19,10 @@ Route::post('/brief/{token}', [FormBriefPublicController::class, 'submit'])->nam
 
 // Media Plan PDF Routes (require auth)
 Route::middleware(['auth'])->group(function () {
+    // KOL Import Template
+    Route::get('/kol-import/template', [KolImportTemplateController::class, 'download'])
+        ->name('kol-import.template');
+
     Route::get('/media-plan/{mediaPlan}/pdf', [MediaPlanPdfController::class, 'generate'])
         ->name('media-plan.pdf');
     Route::get('/media-plan/{mediaPlan}/pdf/preview', [MediaPlanPdfController::class, 'preview'])
@@ -47,5 +53,13 @@ Route::middleware(['auth'])->group(function () {
         ->name('quotation.preview');
     Route::get('/quotation/{mediaPlan}/html', [QuotationController::class, 'html'])
         ->name('quotation.html');
+
+    // KOL Contract (SPK) Routes
+    Route::get('/kol-contract/{spk}/download', [KolContractController::class, 'download'])
+        ->name('kol-contract.download');
+    Route::get('/kol-contract/{spk}/preview', [KolContractController::class, 'preview'])
+        ->name('kol-contract.preview');
+    Route::get('/kol-contract/{spk}/html', [KolContractController::class, 'html'])
+        ->name('kol-contract.html');
 });
 

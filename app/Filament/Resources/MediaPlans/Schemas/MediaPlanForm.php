@@ -229,9 +229,13 @@ class MediaPlanForm
                                                 ->label('Channel')
                                                 ->options([
                                                     'Instagram' => 'Instagram',
-                                                    'Tiktok' => 'Tiktok',
-                                                    'Youtube Channels' => 'Youtube Channels',
-                                                    'Youtube Shorts' => 'Youtube Shorts',
+                                                    'Tiktok' => 'TikTok',
+                                                    'Threads' => 'Threads',
+                                                    'Youtube Channels' => 'YouTube Channels',
+                                                    'Youtube Shorts' => 'YouTube Shorts',
+                                                    'Facebook' => 'Facebook',
+                                                    'Talent' => 'Talent',
+                                                    'X' => 'X (Twitter)',
                                                 ])
                                                 ->live(onBlur: true)
                                                 ->afterStateUpdated(function (callable $set) {
@@ -333,9 +337,13 @@ class MediaPlanForm
                                                                     ->label('Channel')
                                                                     ->options([
                                                                         'Instagram' => 'Instagram',
-                                                                        'Tiktok' => 'Tiktok',
-                                                                        'Youtube Channels' => 'Youtube Channels',
-                                                                        'Youtube Shorts' => 'Youtube Shorts',
+                                                                        'Tiktok' => 'TikTok',
+                                                                        'Threads' => 'Threads',
+                                                                        'Youtube Channels' => 'YouTube Channels',
+                                                                        'Youtube Shorts' => 'YouTube Shorts',
+                                                                        'Facebook' => 'Facebook',
+                                                                        'Talent' => 'Talent',
+                                                                        'X' => 'X (Twitter)',
                                                                     ])
                                                                     ->live(onBlur: true)
                                                                     ->afterStateUpdated(fn(callable $set) => $set('link_userprofile', null))
@@ -346,7 +354,11 @@ class MediaPlanForm
                                                                         'Instagram' => 'Instagram Profile URL',
                                                                         'Tiktok' => 'TikTok Profile URL',
                                                                         'Youtube Channels' => 'YouTube Channel URL',
-                                                                        'Youtube Shorts' => 'YouTube Channel URL',
+                                                                        'Youtube Shorts' => 'YouTube Shorts URL',
+                                                                        'Threads' => 'Threads Profile URL',
+                                                                        'Facebook' => 'Facebook Profile/Page URL',
+                                                                        'Talent' => 'Profil Talent / Portfolio URL',
+                                                                        'X' => 'X (Twitter) Profile URL',
                                                                         default => 'Profile URL',
                                                                     })
                                                                     ->placeholder(fn(callable $get) => match ($get('channel')) {
@@ -354,9 +366,15 @@ class MediaPlanForm
                                                                         'Tiktok' => 'https://www.tiktok.com/@username',
                                                                         'Youtube Channels' => 'https://www.youtube.com/@username',
                                                                         'Youtube Shorts' => 'https://www.youtube.com/@username',
+                                                                        'Threads' => 'https://www.threads.net/@username',
+                                                                        'Facebook' => 'https://www.facebook.com/pagename',
+                                                                        'Talent' => 'Link portfolio atau profil',
+                                                                        'X' => 'https://x.com/username',
                                                                         default => 'Profile URL',
                                                                     })
-                                                                    ->helperText('📋 Masukkan URL/username, tekan Tab/Enter untuk fetch data')
+                                                                    ->helperText(fn(callable $get) => in_array($get('channel'), ['Instagram', 'Tiktok', 'Youtube Channels', 'Youtube Shorts'])
+                                                                        ? '📋 Masukkan URL/username, tekan Tab/Enter untuk fetch data otomatis'
+                                                                        : '📋 Masukkan URL/link profil channel ini')
                                                                     ->required(fn(callable $get) => !empty($get('channel')))
                                                                     ->live(onBlur: true)
                                                                     ->afterStateUpdated(function (?string $state, callable $set, callable $get) {
@@ -365,6 +383,11 @@ class MediaPlanForm
                                                                         }
 
                                                                         $channel = $get('channel');
+                                                                        $scrapable = ['Instagram', 'Tiktok', 'Youtube Channels', 'Youtube Shorts'];
+
+                                                                        if (!in_array($channel, $scrapable)) {
+                                                                            return;
+                                                                        }
 
                                                                         try {
                                                                             $profile = match ($channel) {
@@ -376,7 +399,7 @@ class MediaPlanForm
                                                                             };
 
                                                                             if (!$profile) {
-                                                                                throw new \Exception('Channel tidak didukung');
+                                                                                throw new \Exception('Channel tidak didukung untuk auto-fetch');
                                                                             }
 
                                                                             // Auto-fill fields
@@ -495,11 +518,21 @@ class MediaPlanForm
                                                                     ->label('Terakhir Update')
                                                                     ->default(now()),
 
+                                                                TextInput::make('rate_card')
+                                                                    ->label('Rate Card')
+                                                                    ->prefix('Rp')
+                                                                    ->numeric()
+                                                                    ->mask(RawJs::make('$money($input)'))
+                                                                    ->dehydrateStateUsing(fn($state) => $state ? (float) str_replace(['.', ','], ['', '.'], preg_replace('/[^\d,.]/', '', $state)) : null)
+                                                                    ->placeholder('0')
+                                                                    ->helperText('Published rate card untuk channel ini'),
+
                                                                 Textarea::make('notes')
                                                                     ->label('Notes')
                                                                     ->rows(3)
                                                                     ->columnSpanFull(),
-                                                            ])->columns(2),
+                                                            ])->columns(3),
+
                                                     ])
                                                     ->action(function (array $data, callable $set) {
                                                         // Validate required fields
@@ -527,6 +560,7 @@ class MediaPlanForm
                                                             'contact' => $data['contact'] ?? null,
                                                             'terakhir_update' => $data['terakhir_update'] ?? now(),
                                                             'notes' => $data['notes'] ?? null,
+                                                            'rate_card' => isset($data['rate_card']) ? (float) str_replace(['.', ','], ['', '.'], preg_replace('/[^\d,.]/', '', $data['rate_card'])) : null,
                                                         ]);
 
                                                         // Auto-fill KOL data in the parent form
@@ -555,16 +589,20 @@ class MediaPlanForm
                                                 ->columnSpanFull(),
                                         ])->columns(3),
 
-                                    // Row 3: KOL Details
+                                    // Row 5: KOL Details
                                     section::make('KOL Details')
                                         ->schema([
                                             Select::make('channel')
                                                 ->label('Channel')
                                                 ->options([
                                                     'Instagram' => 'Instagram',
-                                                    'Tiktok' => 'Tiktok',
-                                                    'Youtube Channels' => 'Youtube Channels',
-                                                    'Youtube Shorts' => 'Youtube Shorts',
+                                                    'Tiktok' => 'TikTok',
+                                                    'Threads' => 'Threads',
+                                                    'Youtube Channels' => 'YouTube Channels',
+                                                    'Youtube Shorts' => 'YouTube Shorts',
+                                                    'Facebook' => 'Facebook',
+                                                    'Talent' => 'Talent',
+                                                    'X' => 'X (Twitter)',
                                                 ])
                                                 ->required()
                                                 ->default('Instagram')
@@ -645,6 +683,7 @@ class MediaPlanForm
                                                 }),
                                         ])->columns(3),
 
+                                    // Row 4: Scope of Work sudah dipindah ke atas, ini Performance Metrics
                                     // Row 4: Performance Metrics
                                     section::make('Performance Metrics')
                                         ->schema([
@@ -682,7 +721,7 @@ class MediaPlanForm
                                                 ->columnSpan(1),
                                         ])->columns(4),
 
-                                    // Row 5: Scope of Work
+                                    // Row 3: Scope of Work — dipindah ke atas sebelum KOL Details
                                     section::make('Scope of Work')
                                         ->schema([
                                             Select::make('scope_items')
@@ -695,8 +734,13 @@ class MediaPlanForm
                                                     'TikTok Post' => 'TikTok Post',
                                                     'TikTok Video' => 'TikTok Video',
                                                     'TikTok Story' => 'TikTok Story',
+                                                    'Threads Post' => 'Threads Post',
                                                     'YouTube Video' => 'YouTube Video',
                                                     'YouTube Shorts' => 'YouTube Shorts',
+                                                    'Facebook Post' => 'Facebook Post',
+                                                    'Facebook Reels' => 'Facebook Reels',
+                                                    'Talent Appearance' => 'Talent Appearance',
+                                                    'X Post' => 'X Post',
                                                 ])
                                                 ->searchable()
                                                 ->required()
@@ -742,6 +786,32 @@ class MediaPlanForm
                                                 ->helperText('Auto-filled from Internal Budget (Rounded)')
                                                 ->columnSpan(1),
                                         ])->columns(3),
+
+                                    // Nego & Payment
+                                    section::make('Nego & Payment')
+                                        ->schema([
+                                            TextInput::make('after_nego')
+                                                ->label('After Nego')
+                                                ->prefix('Rp')
+                                                ->mask(RawJs::make('$money($input)'))
+                                                ->formatStateUsing(fn($state) => $state ? number_format(round($state), 0, '.', ',') : null)
+                                                ->dehydrateStateUsing(fn($state) => $state ? round(self::parseNumber($state)) : null)
+                                                ->placeholder('0')
+                                                ->helperText('Real cost setelah negosiasi dengan KOL')
+                                                ->nullable()
+                                                ->columnSpan(1),
+
+                                            \Filament\Forms\Components\Select::make('payment_date')
+                                                ->label('Jadwal Payment')
+                                                ->options(function () {
+                                                    return \App\Helpers\PaymentScheduleHelper::getUpcomingSchedules();
+                                                })
+                                                ->placeholder('Pilih jadwal payment')
+                                                ->helperText('Jumat Week 1 & Week 3 setiap bulan')
+                                                ->nullable()
+                                                ->searchable()
+                                                ->columnSpan(1),
+                                        ])->columns(2),
 
                                     // Row 1: Selection & Status
                                     Fieldset::make('Selection')

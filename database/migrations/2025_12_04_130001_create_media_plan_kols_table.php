@@ -49,6 +49,10 @@ return new class extends Migration {
             // Rate (READ ONLY - from Internal Budget Rounded)
             $table->decimal('rate', 15, 2)->default(0);
 
+            // Nego & Payment
+            $table->decimal('after_nego', 15, 2)->nullable()->comment('Real cost setelah negosiasi dengan KOL');
+            $table->date('payment_date')->nullable()->comment('Tanggal payment (Jumat Week 1 atau Week 3)');
+
             // Notes
             $table->text('notes')->nullable();
 

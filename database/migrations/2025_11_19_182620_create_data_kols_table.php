@@ -25,6 +25,7 @@ return new class extends Migration {
             $table->string('contact')->nullable();
             $table->text('notes')->nullable();
             $table->date('terakhir_update')->nullable();
+            $table->decimal('rate_card', 15, 2)->nullable()->comment('Published rate card per channel');
 
             $table->timestamps();
         });

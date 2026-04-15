@@ -2,20 +2,20 @@
 
 namespace App\Filament\Resources\BvCampigns\Schemas;
 
-use App\Models\BvCampaignKol;
 use App\Models\BvSales;
 use App\Models\DataClient;
 use App\Models\FormBrief;
 use Carbon\Carbon;
+use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Repeater;
-use Filament\Forms\Components\RichEditor;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Toggle;
+use Filament\Notifications\Notification;
+use Filament\Schemas\Components\Actions;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Wizard;
@@ -46,24 +46,25 @@ class BvCampignForm
                                         ->label('')
                                         ->columnSpanFull()
                                         ->content(function ($record) {
-                                            if (!$record) return '';
+                                            if (!$record)
+                                                return '';
 
                                             $statusColors = [
-                                                'draft'     => ['#f3f4f6', '#374151'],
-                                                'upcoming'  => ['#dbeafe', '#1e40af'],
-                                                'ongoing'   => ['#dcfce7', '#14532d'],
+                                                'draft' => ['#f3f4f6', '#374151'],
+                                                'upcoming' => ['#dbeafe', '#1e40af'],
+                                                'ongoing' => ['#dcfce7', '#14532d'],
                                                 'completed' => ['#d1fae5', '#065f46'],
                                                 'cancelled' => ['#fee2e2', '#991b1b'],
                                             ];
                                             [$bg, $text] = $statusColors[$record->status] ?? ['#f3f4f6', '#374151'];
 
-                                            $kolCount    = $record->kols()->count();
-                                            $kolPosted   = $record->kols()->where('status', 'posted')->count();
-                                            $totalCost   = 'Rp ' . number_format((float)$record->total_cost, 0, ',', '.');
-                                            $dealValue   = 'Rp ' . number_format((float)$record->deal_value, 0, ',', '.');
-                                            $platforms   = collect($record->media_platforms ?? [])->implode(', ') ?: '-';
+                                            $kolCount = $record->kols()->count();
+                                            $kolPosted = $record->kols()->where('status', 'posted')->count();
+                                            $totalCost = 'Rp ' . number_format((float) $record->total_cost, 0, ',', '.');
+                                            $dealValue = 'Rp ' . number_format((float) $record->deal_value, 0, ',', '.');
+                                            $platforms = collect($record->media_platforms ?? [])->implode(', ') ?: '-';
 
-                                            $progress    = $record->progress;
+                                            $progress = $record->progress;
                                             $progressBar = $record->start_date && $record->end_date
                                                 ? '<div style="background:#e5e7eb;border-radius:999px;height:6px;overflow:hidden;margin-top:4px;">
                                                        <div style="background:#22c55e;height:100%;width:' . $progress . '%;"></div>
@@ -72,13 +73,13 @@ class BvCampignForm
                                                 : '<span style="font-size:12px;color:#9ca3af;">Tanggal belum diset</span>';
 
                                             $rows = [
-                                                ['label' => 'Status',         'value' => '<span style="padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;background:' . $bg . ';color:' . $text . ';">' . ucfirst($record->status) . '</span>'],
-                                                ['label' => 'Client',         'value' => e($record->client?->nama_brand ?? $record->campaign_name)],
+                                                ['label' => 'Status', 'value' => '<span style="padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;background:' . $bg . ';color:' . $text . ';">' . ucfirst($record->status) . '</span>'],
+                                                ['label' => 'Client', 'value' => e($record->client?->nama_brand ?? $record->campaign_name)],
                                                 ['label' => 'Media Platform', 'value' => e($platforms)],
-                                                ['label' => 'KOL',            'value' => $kolCount . ' KOL (' . $kolPosted . ' posted)'],
-                                                ['label' => 'Total Cost',     'value' => e($totalCost)],
-                                                ['label' => 'Deal Value',     'value' => e($dealValue)],
-                                                ['label' => 'Progres Waktu',  'value' => $progressBar],
+                                                ['label' => 'KOL', 'value' => $kolCount . ' KOL (' . $kolPosted . ' posted)'],
+                                                ['label' => 'Total Cost', 'value' => e($totalCost)],
+                                                ['label' => 'Deal Value', 'value' => e($dealValue)],
+                                                ['label' => 'Progres Waktu', 'value' => $progressBar],
                                             ];
 
                                             $rowsHtml = '';
@@ -139,13 +140,14 @@ class BvCampignForm
                                         ->columnSpanFull()
                                         ->content(function ($record) {
                                             $files = $record?->client_brief_files ?? [];
-                                            if (empty($files)) return '';
+                                            if (empty($files))
+                                                return '';
 
                                             $links = '';
                                             foreach ($files as $file) {
-                                                $url  = Storage::url($file);
+                                                $url = Storage::url($file);
                                                 $name = basename($file);
-                                                $ext  = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+                                                $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
                                                 $isPdf = $ext === 'pdf';
 
                                                 $links .= '
@@ -217,26 +219,29 @@ class BvCampignForm
                                         ->maxLength(255)
                                         ->columnSpanFull(),
 
-                                    // CP-03: Bulan & Tanggal Campaign
-                                    Grid::make(2)->schema([
-                                        Select::make('campaign_month')
-                                            ->label('Bulan Campaign')
-                                            ->placeholder('Pilih Bulan Campaign')
-                                            ->options(function () {
-                                                $months = [];
-                                                for ($i = 1; $i <= 12; $i++) {
-                                                    $months[$i] = Carbon::createFromDate(null, $i, 1)->translatedFormat('F');
-                                                }
-                                                return $months;
-                                            })
-                                            ->native(false),
+                                    // CP-03: Bulan Campaign
+                                    Select::make('campaign_month')
+                                        ->label('Bulan Campaign')
+                                        ->placeholder('Pilih Bulan Campaign')
+                                        ->options(function () {
+                                            $months = [];
+                                            for ($i = 1; $i <= 12; $i++) {
+                                                $months[$i] = Carbon::createFromDate(null, $i, 1)->translatedFormat('F');
+                                            }
+                                            return $months;
+                                        })
+                                        ->native(false),
 
-                                        DatePicker::make('campaign_date')
-                                            ->label('Tanggal Campaign')
-                                            ->placeholder('Pilih Tanggal Campaign')
-                                            ->native(false)
-                                            ->displayFormat('d M Y'),
-                                    ]),
+                                    // Tipe client badge (ditampilkan saat client sudah dipilih)
+                                    Placeholder::make('client_type_badge')
+                                        ->label('Tipe Client')
+                                        ->content(fn($get) => match ($get('client_type')) {
+                                            'agency' => new \Illuminate\Support\HtmlString('<span style="display:inline-block;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600;background:#dbeafe;color:#1e40af;">Agency</span>'),
+                                            'direct' => new \Illuminate\Support\HtmlString('<span style="display:inline-block;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600;background:#dcfce7;color:#14532d;">Direct Brand</span>'),
+                                            default => new \Illuminate\Support\HtmlString('<span style="color:#9ca3af;font-size:12px;">—</span>'),
+                                        })
+                                        ->hidden(fn($get) => empty($get('client_type'))),
+
 
                                     Grid::make(2)->schema([
                                         DatePicker::make('start_date')
@@ -273,19 +278,14 @@ class BvCampignForm
                                             ->displayFormat('d M Y'),
                                     ]),
 
-                                    // CP-05: Tanggal Dapat Brief & PIC Media Plan Internal
-                                    Grid::make(2)->schema([
-                                        DatePicker::make('brief_received_date')
-                                            ->label('Tanggal Dapat Brief')
-                                            ->placeholder('Pilih Tanggal Dapat Brief')
-                                            ->native(false)
-                                            ->displayFormat('d M Y')
-                                            ->helperText('Tanggal menerima brief dari client'),
+                                    // CP-05: Date of Brief
+                                    DatePicker::make('brief_received_date')
+                                        ->label('Date of Brief')
+                                        ->placeholder('Pilih Date of Brief')
+                                        ->native(false)
+                                        ->displayFormat('d M Y')
+                                        ->helperText('Tanggal menerima brief dari client'),
 
-                                        TextInput::make('pic_media_plan')
-                                            ->label('PIC Media Plan / Internal')
-                                            ->placeholder('Masukkan PIC Media Plan...'),
-                                    ]),
 
                                     FileUpload::make('campaign_image')
                                         ->label('Insert Image/Banner Campaign')
@@ -339,157 +339,180 @@ class BvCampignForm
                     // Step 2: Media Platform
                     Step::make('Media Platform')
                         ->icon('heroicon-o-device-phone-mobile')
-                        ->description('Select platforms and add creators')
+                        ->description('Tambahkan creator dan pilih channel')
                         ->schema([
-                            // Instagram Section
-                            Section::make('Instagram')
-                                ->description('Reels & Feed')
-                                ->collapsible()
+                            Repeater::make('kol_entries')
+                                ->label('Daftar Creator / KOL')
+                                ->addActionLabel('+ Tambah Creator')
+                                ->defaultItems(0)
+                                ->reorderable()
+                                ->columnSpanFull()
+                                ->columns(4)
                                 ->schema([
-                                    Toggle::make('instagram_reels_enabled')
-                                        ->label('Reels')
-                                        ->live()
-                                        ->afterStateUpdated(fn($state, $set) => !$state && $set('instagram_reels_creators', [])),
+                                    TextInput::make('creator_name')
+                                        ->label('Nama Creator')
+                                        ->placeholder('@username atau nama')
+                                        ->required(),
 
-                                    Repeater::make('instagram_reels_creators')
-                                        ->label('')
-                                        ->schema(self::getCreatorFields())
-                                        ->visible(fn($get) => $get('instagram_reels_enabled'))
-                                        ->addActionLabel('Add more creator')
-                                        ->defaultItems(0)
-                                        ->collapsible()
-                                        ->itemLabel(fn(array $state): ?string => $state['creator_name'] ?? 'New Creator'),
+                                    Select::make('channel')
+                                        ->label('Channel')
+                                        ->options([
+                                            'Instagram' => [
+                                                'instagram_reels' => 'Instagram • Reels',
+                                                'instagram_feed' => 'Instagram • Feed',
+                                                'instagram_story' => 'Instagram • Story',
+                                            ],
+                                            'TikTok' => [
+                                                'tiktok_video' => 'TikTok • Video',
+                                                'tiktok_story' => 'TikTok • Story',
+                                                'tiktok_photos' => 'TikTok • Photos',
+                                            ],
+                                            'YouTube' => [
+                                                'youtube_short' => 'YouTube • Short',
+                                                'youtube_video' => 'YouTube • Video',
+                                            ],
+                                            'Threads' => [
+                                                'threads_post' => 'Threads • Post',
+                                            ],
+                                        ])
+                                        ->native(false)
+                                        ->required(),
 
-                                    Toggle::make('instagram_feed_enabled')
-                                        ->label('Feed')
-                                        ->live()
-                                        ->afterStateUpdated(fn($state, $set) => !$state && $set('instagram_feed_creators', [])),
+                                    TextInput::make('url')
+                                        ->label('URL Postingan')
+                                        ->placeholder('https://instagram.com/...')
+                                        ->url(),
 
-                                    Repeater::make('instagram_feed_creators')
-                                        ->label('')
-                                        ->schema(self::getCreatorFields())
-                                        ->visible(fn($get) => $get('instagram_feed_enabled'))
-                                        ->addActionLabel('Add more creator')
-                                        ->defaultItems(0)
-                                        ->collapsible()
-                                        ->itemLabel(fn(array $state): ?string => $state['creator_name'] ?? 'New Creator'),
-
-                                    Toggle::make('instagram_story_enabled')
-                                        ->label('Story')
-                                        ->live()
-                                        ->afterStateUpdated(fn($state, $set) => !$state && $set('instagram_story_creators', [])),
-
-                                    Repeater::make('instagram_story_creators')
-                                        ->label('')
-                                        ->schema(self::getCreatorFields())
-                                        ->visible(fn($get) => $get('instagram_story_enabled'))
-                                        ->addActionLabel('Add more creator')
-                                        ->defaultItems(0)
-                                        ->collapsible()
-                                        ->itemLabel(fn(array $state): ?string => $state['creator_name'] ?? 'New Creator'),
+                                    TextInput::make('price')
+                                        ->label('Harga (Rp)')
+                                        ->prefix('Rp')
+                                        ->default(0)
+                                        ->mask(RawJs::make(<<<'JS'
+                                            $money($input, ',', '.', 0)
+                                        JS))
+                                        ->dehydrateStateUsing(fn($state) => str_replace(['.', ','], '', $state ?? '0')),
                                 ]),
 
-                            // TikTok Section
-                            Section::make('TikTok')
-                                ->description('Video, Photos & Story')
-                                ->collapsible()
-                                ->schema([
-                                    Toggle::make('tiktok_video_enabled')
-                                        ->label('Video')
-                                        ->live()
-                                        ->afterStateUpdated(fn($state, $set) => !$state && $set('tiktok_video_creators', [])),
+                            Actions::make([
+                                Action::make('bulkImportKols')
+                                    ->label('Bulk Import CSV')
+                                    ->icon('heroicon-o-arrow-up-tray')
+                                    ->color('gray')
+                                    ->modalHeading('Bulk Import KOL dari CSV')
+                                    ->modalDescription(new \Illuminate\Support\HtmlString(
+                                        '<p style="font-size:13px;color:#374151;margin-bottom:8px;">Upload file CSV dengan kolom: <strong>creator_name, channel, url, price</strong>.</p>'
+                                        . '<table style="width:100%;border-collapse:collapse;font-size:12px;">'
+                                        . '<thead><tr style="background:#6d28d9;color:#fff;">'
+                                        . '<th style="padding:4px 8px;text-align:left;">nilai_channel</th>'
+                                        . '<th style="padding:4px 8px;text-align:left;">Platform</th>'
+                                        . '<th style="padding:4px 8px;text-align:left;">Tipe</th>'
+                                        . '</tr></thead><tbody>'
+                                        . '<tr style="background:#fce7f3;"><td style="padding:3px 8px;">instagram_reels</td><td style="padding:3px 8px;">Instagram</td><td style="padding:3px 8px;">Reels</td></tr>'
+                                        . '<tr style="background:#fce7f3;"><td style="padding:3px 8px;">instagram_feed</td><td style="padding:3px 8px;">Instagram</td><td style="padding:3px 8px;">Feed</td></tr>'
+                                        . '<tr style="background:#fce7f3;"><td style="padding:3px 8px;">instagram_story</td><td style="padding:3px 8px;">Instagram</td><td style="padding:3px 8px;">Story</td></tr>'
+                                        . '<tr style="background:#f0fdf4;"><td style="padding:3px 8px;">tiktok_video</td><td style="padding:3px 8px;">TikTok</td><td style="padding:3px 8px;">Video</td></tr>'
+                                        . '<tr style="background:#f0fdf4;"><td style="padding:3px 8px;">tiktok_story</td><td style="padding:3px 8px;">TikTok</td><td style="padding:3px 8px;">Story</td></tr>'
+                                        . '<tr style="background:#f0fdf4;"><td style="padding:3px 8px;">tiktok_photos</td><td style="padding:3px 8px;">TikTok</td><td style="padding:3px 8px;">Photo Slide</td></tr>'
+                                        . '<tr style="background:#fef3c7;"><td style="padding:3px 8px;">youtube_short</td><td style="padding:3px 8px;">YouTube</td><td style="padding:3px 8px;">Shorts</td></tr>'
+                                        . '<tr style="background:#fef3c7;"><td style="padding:3px 8px;">youtube_video</td><td style="padding:3px 8px;">YouTube</td><td style="padding:3px 8px;">Video</td></tr>'
+                                        . '<tr style="background:#eff6ff;"><td style="padding:3px 8px;">threads_post</td><td style="padding:3px 8px;">Threads</td><td style="padding:3px 8px;">Post</td></tr>'
+                                        . '</tbody></table>'
+                                    ))
+                                    ->form([
+                                        FileUpload::make('csv_file')
+                                            ->label('Upload File CSV')
+                                            ->disk('local')
+                                            ->directory('temp-kol-imports')
+                                            ->visibility('private')
+                                            ->acceptedFileTypes(['text/csv', 'text/plain', 'application/csv', 'application/octet-stream'])
+                                            ->maxSize(2048)
+                                            ->helperText(new \Illuminate\Support\HtmlString(
+                                                'Baris pertama dianggap sebagai header dan akan dilewati. '
+                                                . '<a href="' . route('kol-import.template') . '" '
+                                                . 'style="color:#7c3aed;font-weight:500;text-decoration:underline;">'
+                                                . '↓ Download Template CSV</a>'
+                                            ))
+                                            ->required(),
+                                    ])
+                                    ->action(function (array $data, $get, $set): void {
+                                        $filePath = $data['csv_file'] ?? null;
 
-                                    Repeater::make('tiktok_video_creators')
-                                        ->label('')
-                                        ->schema(self::getCreatorFields())
-                                        ->visible(fn($get) => $get('tiktok_video_enabled'))
-                                        ->addActionLabel('Add more creator')
-                                        ->defaultItems(0)
-                                        ->collapsible()
-                                        ->itemLabel(fn(array $state): ?string => $state['creator_name'] ?? 'New Creator'),
+                                        if (!$filePath) {
+                                            return;
+                                        }
 
-                                    Toggle::make('tiktok_story_enabled')
-                                        ->label('Story')
-                                        ->live()
-                                        ->afterStateUpdated(fn($state, $set) => !$state && $set('tiktok_story_creators', [])),
+                                        $contents = Storage::disk('local')->get($filePath);
+                                        Storage::disk('local')->delete($filePath);
 
-                                    Repeater::make('tiktok_story_creators')
-                                        ->label('')
-                                        ->schema(self::getCreatorFields())
-                                        ->visible(fn($get) => $get('tiktok_story_enabled'))
-                                        ->addActionLabel('Add more creator')
-                                        ->defaultItems(0)
-                                        ->collapsible()
-                                        ->itemLabel(fn(array $state): ?string => $state['creator_name'] ?? 'New Creator'),
+                                        if (blank($contents)) {
+                                            Notification::make()
+                                                ->title('File CSV kosong')
+                                                ->danger()
+                                                ->send();
+                                            return;
+                                        }
 
-                                    Toggle::make('tiktok_photos_enabled')
-                                        ->label('Photos')
-                                        ->live()
-                                        ->afterStateUpdated(fn($state, $set) => !$state && $set('tiktok_photos_creators', [])),
+                                        $validChannels = [
+                                            'instagram_reels',
+                                            'instagram_feed',
+                                            'instagram_story',
+                                            'tiktok_video',
+                                            'tiktok_story',
+                                            'tiktok_photos',
+                                            'youtube_short',
+                                            'youtube_video',
+                                            'threads_post',
+                                        ];
 
-                                    Repeater::make('tiktok_photos_creators')
-                                        ->label('')
-                                        ->schema(self::getCreatorFields())
-                                        ->visible(fn($get) => $get('tiktok_photos_enabled'))
-                                        ->addActionLabel('Add more creator')
-                                        ->defaultItems(0)
-                                        ->collapsible()
-                                        ->itemLabel(fn(array $state): ?string => $state['creator_name'] ?? 'New Creator'),
-                                ]),
+                                        $newEntries = [];
+                                        $skipped = 0;
 
-                            // YouTube Section
-                            Section::make('YouTube')
-                                ->description('Short & Video')
-                                ->collapsible()
-                                ->schema([
-                                    Toggle::make('youtube_short_enabled')
-                                        ->label('Short')
-                                        ->live()
-                                        ->afterStateUpdated(fn($state, $set) => !$state && $set('youtube_short_creators', [])),
+                                        $lines = array_filter(
+                                            explode("\n", str_replace("\r\n", "\n", trim($contents))),
+                                            fn($line) => trim($line) !== ''
+                                        );
 
-                                    Repeater::make('youtube_short_creators')
-                                        ->label('')
-                                        ->schema(self::getCreatorFields())
-                                        ->visible(fn($get) => $get('youtube_short_enabled'))
-                                        ->addActionLabel('Add more creator')
-                                        ->defaultItems(0)
-                                        ->collapsible()
-                                        ->itemLabel(fn(array $state): ?string => $state['creator_name'] ?? 'New Creator'),
+                                        // Lewati baris header
+                                        array_shift($lines);
 
-                                    Toggle::make('youtube_video_enabled')
-                                        ->label('Video')
-                                        ->live()
-                                        ->afterStateUpdated(fn($state, $set) => !$state && $set('youtube_video_creators', [])),
+                                        foreach ($lines as $line) {
+                                            $row = str_getcsv($line);
 
-                                    Repeater::make('youtube_video_creators')
-                                        ->label('')
-                                        ->schema(self::getCreatorFields())
-                                        ->visible(fn($get) => $get('youtube_video_enabled'))
-                                        ->addActionLabel('Add more creator')
-                                        ->defaultItems(0)
-                                        ->collapsible()
-                                        ->itemLabel(fn(array $state): ?string => $state['creator_name'] ?? 'New Creator'),
-                                ]),
+                                            $creatorName = trim($row[0] ?? '');
+                                            $channel = strtolower(trim($row[1] ?? ''));
 
-                            // Threads Section
-                            Section::make('Threads')
-                                ->description('Post & Thread')
-                                ->collapsible()
-                                ->schema([
-                                    Toggle::make('threads_post_enabled')
-                                        ->label('Post')
-                                        ->live()
-                                        ->afterStateUpdated(fn($state, $set) => !$state && $set('threads_post_creators', [])),
+                                            if (blank($creatorName) || !in_array($channel, $validChannels, true)) {
+                                                $skipped++;
+                                                continue;
+                                            }
 
-                                    Repeater::make('threads_post_creators')
-                                        ->label('')
-                                        ->schema(self::getCreatorFields())
-                                        ->visible(fn($get) => $get('threads_post_enabled'))
-                                        ->addActionLabel('Add more creator')
-                                        ->defaultItems(0)
-                                        ->collapsible()
-                                        ->itemLabel(fn(array $state): ?string => $state['creator_name'] ?? 'New Creator'),
-                                ]),
+                                            $newEntries[] = [
+                                                'creator_name' => $creatorName,
+                                                'channel' => $channel,
+                                                'url' => trim($row[2] ?? ''),
+                                                'price' => preg_replace('/[^0-9]/', '', $row[3] ?? '0') ?: '0',
+                                            ];
+                                        }
+
+                                        $existing = $get('kol_entries') ?? [];
+                                        $set('kol_entries', array_merge($existing, $newEntries));
+
+                                        $total = count($newEntries);
+
+                                        if ($total === 0) {
+                                            Notification::make()
+                                                ->title('Tidak ada data yang valid ditemukan')
+                                                ->warning()
+                                                ->send();
+                                            return;
+                                        }
+
+                                        Notification::make()
+                                            ->title("{$total} creator berhasil diimport" . ($skipped > 0 ? ", {$skipped} baris dilewati" : ''))
+                                            ->success()
+                                            ->send();
+                                    }),
+                            ])->columnSpanFull()->alignment(\Filament\Support\Enums\Alignment::Center),
                         ]),
 
                     // Step 3: Confirmation
@@ -558,10 +581,6 @@ class BvCampignForm
                                         JS))
                                         ->dehydrateStateUsing(fn($state) => (float) str_replace(['.', ','], '', $state ?? '0')),
 
-                                    TextInput::make('pic_internal')
-                                        ->label('PIC Internal')
-                                        ->placeholder('Person in charge'),
-
                                     TextInput::make('report_link')
                                         ->label('Report Link')
                                         ->placeholder('Link to report document')
@@ -570,36 +589,10 @@ class BvCampignForm
                         ]),
                 ])
                     ->columnSpanFull()
-                    ->skippable(),
+                    ->skippable()
+                    ->nextAction(fn(Action $action) => $action->extraAttributes(['style' => 'display:none!important;']))
+                    ->previousAction(fn(Action $action) => $action->extraAttributes(['style' => 'display:none!important;'])),
             ]);
     }
 
-    /**
-     * Get creator fields for repeater
-     */
-    private static function getCreatorFields(): array
-    {
-        return [
-            TextInput::make('creator_name')
-                ->label('Creator Name')
-                ->placeholder('Insert creator name'),
-
-            Grid::make(2)
-                ->schema([
-                    TextInput::make('url')
-                        ->label('URL')
-                        ->placeholder('Insert content/post link')
-                        ->url(),
-
-                    TextInput::make('price')
-                        ->label('Price')
-                        ->prefix('Rp')
-                        ->default(0)
-                        ->mask(\Filament\Support\RawJs::make(<<<'JS'
-                            $money($input, ',', '.', 0)
-                        JS))
-                        ->dehydrateStateUsing(fn($state) => str_replace(['.', ','], '', $state ?? '0')),
-                ]),
-        ];
-    }
 }

@@ -2,10 +2,12 @@
 
 namespace App\Filament\Resources\DataClients\Pages;
 
+use App\Filament\Imports\DataClientImporter;
 use App\Filament\Resources\DataClients\DataClientResource;
 use App\Filament\Resources\DataClients\Widgets\DataClientStatsWidget;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
+use Filament\Actions\ImportAction;
 use Filament\Forms\Components\Select;
 use Filament\Resources\Pages\ListRecords;
 
@@ -37,11 +39,11 @@ class ListDataClients extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            Action::make('kanban_view')
-                ->label('Kanban View')
-                ->icon('heroicon-o-view-columns')
-                ->color('gray')
-                ->url(fn() => DataClientResource::getUrl('kanban')),
+            // Action::make('kanban_view')
+            //     ->label('Kanban View')
+            //     ->icon('heroicon-o-view-columns')
+            //     ->color('gray')
+            //     ->url(fn() => DataClientResource::getUrl('kanban')),
 
             Action::make('dateFilter')
                 ->label(fn() => match ($this->dateFilter) {
@@ -54,7 +56,7 @@ class ListDataClients extends ListRecords
                     default => 'Filter: All Time',
                 })
                 ->icon('heroicon-o-funnel')
-                ->color('primary')
+                ->color('white')
                 ->form([
                     Select::make('filter')
                         ->label('Select Date Range')
@@ -78,7 +80,16 @@ class ListDataClients extends ListRecords
                 ->modalSubmitActionLabel('Apply Filter')
                 ->modalWidth('sm'),
 
-            CreateAction::make(),
+            CreateAction::make()
+                ->label('Tambah Data Client'),
+
+            ImportAction::make()
+                ->label('Import CSV')
+                ->importer(DataClientImporter::class)
+                ->icon('heroicon-o-arrow-up-tray')
+                ->color('gray')
+                ->chunkSize(200)
+                ->maxRows(5000),
         ];
     }
 }
