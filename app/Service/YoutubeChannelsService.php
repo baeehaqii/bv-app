@@ -603,16 +603,17 @@ class YoutubeChannelsService
                 throw new Exception('API returned unsuccessful response');
             }
 
-            // Extract stats from response
-            $videoData = $data['data'] ?? $data;
+            // YouTube video endpoint returns data at root level
+            $videoData = $data;
 
             $result = [
-                'username' => $videoData['channelTitle'] ?? $videoData['channel_title'] ?? null,
+                'username' => $videoData['channel']['title'] ?? $videoData['channelTitle'] ?? null,
+                'followers_count' => $videoData['channel']['subscriberCount'] ?? 0,
                 'views' => $videoData['viewCountInt'] ?? $videoData['view_count'] ?? 0,
                 'likes' => $videoData['likeCountInt'] ?? $videoData['like_count'] ?? 0,
                 'comments' => $videoData['commentCountInt'] ?? $videoData['comment_count'] ?? 0,
-                'saves' => 0, // YouTube doesn't expose saves publicly
-                'shares' => 0, // YouTube doesn't expose shares publicly
+                'saves' => 0, // YouTube tidak menyediakan data saves secara publik
+                'shares' => 0, // YouTube tidak menyediakan data shares secara publik
             ];
 
             // Calculate total engagement

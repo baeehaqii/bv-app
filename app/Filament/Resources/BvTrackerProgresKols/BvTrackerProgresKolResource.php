@@ -19,7 +19,7 @@ class BvTrackerProgresKolResource extends Resource
     protected static ?string $model = BvTrackerProgresKol::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
-    protected static string|\UnitEnum|null $navigationGroup = "Campign Area ";
+    protected static string|\UnitEnum|null $navigationGroup = 'Campaign Area';
     protected static ?int $navigationSort = 2;
     protected static ?string $navigationLabel = 'Tracker Progress KOL';
     protected static bool $shouldRegisterNavigation = false;

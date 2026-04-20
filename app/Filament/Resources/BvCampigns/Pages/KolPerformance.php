@@ -125,16 +125,13 @@ class KolPerformance extends Page implements HasTable
 
                 TextColumn::make('followers_count')
                     ->label('Followers')
-                    ->formatStateUsing(function ($state, $record) {
-                        // For photo content (feed, photos), show followers
-                        $photoTypes = ['feed', 'photos'];
-                        if (in_array($record->content_type, $photoTypes)) {
-                            return number_format($state);
-                        }
-                        // For video content, show dash
-                        return '-';
-                    })
-                    ->color(fn($record) => in_array($record->content_type, ['feed', 'photos']) ? null : 'gray')
+                    ->numeric()
+                    ->sortable(),
+
+                TextColumn::make('total_engagement')
+                    ->label('Engagement')
+                    ->numeric()
+                    ->color('primary')
                     ->sortable(),
 
                 TextColumn::make('likes')
@@ -147,10 +144,14 @@ class KolPerformance extends Page implements HasTable
                     ->numeric()
                     ->sortable(),
 
-                TextColumn::make('total_engagement')
-                    ->label('Engagement')
+                TextColumn::make('shares')
+                    ->label('Shares')
                     ->numeric()
-                    ->color('primary')
+                    ->sortable(),
+
+                TextColumn::make('saves')
+                    ->label('Saves')
+                    ->numeric()
                     ->sortable(),
 
                 TextColumn::make('engagement_rate')

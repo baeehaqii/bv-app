@@ -171,8 +171,8 @@ class BvCampignForm
                                 ->schema([
                                     // Link ke Sales Activity → auto-fill fields
                                     Select::make('bv_sales_id')
-                                        ->label('Pilih Campaign')
-                                        ->placeholder('Pilih dari Sales Activity yang berjalan (opsional)...')
+                                        ->label('Select Campaign')
+                                        ->placeholder('Select from ongoing Sales Activity (optional)...')
                                         ->options(function () {
                                             return BvSales::whereNotIn('status', ['close_lose', 'paid'])
                                                 ->orderBy('created_at', 'desc')
@@ -209,7 +209,7 @@ class BvCampignForm
                                                 }
                                             }
                                         })
-                                        ->helperText('Field di bawah akan otomatis terisi dari data Sales Activity yang dipilih')
+                                        ->helperText('Fields below will be auto-filled from the selected Sales Activity')
                                         ->columnSpanFull(),
 
                                     TextInput::make('campaign_name')
@@ -219,14 +219,14 @@ class BvCampignForm
                                         ->maxLength(255)
                                         ->columnSpanFull(),
 
-                                    // CP-03: Bulan Campaign
+                                    // CP-03: Campaign Month
                                     Select::make('campaign_month')
-                                        ->label('Bulan Campaign')
-                                        ->placeholder('Pilih Bulan Campaign')
+                                        ->label('Campaign Month')
+                                        ->placeholder('Select Campaign Month')
                                         ->options(function () {
                                             $months = [];
                                             for ($i = 1; $i <= 12; $i++) {
-                                                $months[$i] = Carbon::createFromDate(null, $i, 1)->translatedFormat('F');
+                                                $months[$i] = Carbon::createFromDate(null, $i, 1)->format('F');
                                             }
                                             return $months;
                                         })
@@ -246,14 +246,14 @@ class BvCampignForm
                                     Grid::make(2)->schema([
                                         DatePicker::make('start_date')
                                             ->label('Start Date')
-                                            ->placeholder('Pilih Start Date')
+                                            ->placeholder('Select Start Date')
                                             ->native(false)
                                             ->displayFormat('d M Y')
                                             ->required(),
 
                                         DatePicker::make('end_date')
                                             ->label('End Date')
-                                            ->placeholder('Pilih End Date')
+                                            ->placeholder('Select End Date')
                                             ->native(false)
                                             ->displayFormat('d M Y')
                                             ->required()
@@ -342,16 +342,16 @@ class BvCampignForm
                         ->description('Tambahkan creator dan pilih channel')
                         ->schema([
                             Repeater::make('kol_entries')
-                                ->label('Daftar Creator / KOL')
-                                ->addActionLabel('+ Tambah Creator')
+                                ->label('Creator / KOL List')
+                                ->addActionLabel('+ Add Creator')
                                 ->defaultItems(0)
                                 ->reorderable()
                                 ->columnSpanFull()
                                 ->columns(4)
                                 ->schema([
                                     TextInput::make('creator_name')
-                                        ->label('Nama Creator')
-                                        ->placeholder('@username atau nama')
+                                        ->label('Creator Name')
+                                        ->placeholder('@username or name')
                                         ->required(),
 
                                     Select::make('channel')
@@ -379,12 +379,12 @@ class BvCampignForm
                                         ->required(),
 
                                     TextInput::make('url')
-                                        ->label('URL Postingan')
+                                        ->label('Post URL')
                                         ->placeholder('https://instagram.com/...')
                                         ->url(),
 
                                     TextInput::make('price')
-                                        ->label('Harga (Rp)')
+                                        ->label('Price (Rp)')
                                         ->prefix('Rp')
                                         ->default(0)
                                         ->mask(RawJs::make(<<<'JS'
@@ -574,12 +574,9 @@ class BvCampignForm
                                     TextInput::make('total_cost')
                                         ->label('Total Campaign Cost')
                                         ->prefix('Rp')
-                                        ->inputMode('decimal')
                                         ->default(0)
-                                        ->mask(RawJs::make(<<<'JS'
-                                            $money($input, ',', '.', 0)
-                                        JS))
-                                        ->dehydrateStateUsing(fn($state) => (float) str_replace(['.', ','], '', $state ?? '0')),
+                                        ->mask(RawJs::make('$money($input)'))
+                                        ->stripCharacters(','),
 
                                     TextInput::make('report_link')
                                         ->label('Report Link')

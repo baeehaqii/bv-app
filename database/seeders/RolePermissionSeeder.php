@@ -48,7 +48,7 @@ class RolePermissionSeeder extends Seeder
                 'BvCampignUpcoming',
                 'BvTrackerProgresKol',
                 'Spk',
-                // Media plan external/internal
+                // Media plan internal/external
                 'MediaPlan',
                 'InternalBudget',
                 // Invoice to client support

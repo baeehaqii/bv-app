@@ -51,7 +51,7 @@ class OfficePanelProvider extends PanelProvider
             ->navigationGroups([
                 'Sales',
                 'Media Planning',
-                'Campign Area ',
+                'Campaign Area',
                 'Finance',
                 'Human Capital ',
                 'Database',

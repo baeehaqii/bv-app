@@ -77,7 +77,7 @@ class CreateBvCampign extends CreateRecord
             \Illuminate\Support\Facades\Log::warning('[CreateBvCampign] Notifikasi gagal: ' . $e->getMessage());
         }
 
-        // MP-18: Auto Create Media Plan Internal
+        // MP-18: Auto Create Media Plan (Internal)
         try {
             if (!\App\Models\MediaPlan::where('campaign_name', $record->campaign_name)->exists()) {
                 $client = $record->client;

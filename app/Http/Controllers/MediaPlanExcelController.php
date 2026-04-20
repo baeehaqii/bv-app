@@ -107,7 +107,7 @@ class MediaPlanExcelController extends Controller
             return redirect()->away($result['url']);
 
         } catch (Exception $e) {
-            return redirect()->route('filament.office.resources.media-plan-external.edit', ['record' => $mediaPlanId])
+            return redirect()->route('filament.office.resources.media-plan-internal.edit', ['record' => $mediaPlanId])
                 ->with('error', 'Gagal membuat spreadsheet: ' . $e->getMessage());
         }
     }

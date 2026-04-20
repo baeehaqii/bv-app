@@ -163,131 +163,101 @@ class InternalBudget extends Model
     {
         static::updated(function (InternalBudget $budget) {
             // Only proceed if status is approved and was changed
-            if ($budget->status === 'approved' && $budget->wasChanged('status')) {
-
-                // Load MediaPlan relationship if not loaded
-                if (!$budget->relationLoaded('mediaPlan')) {
-                    $budget->load('mediaPlan.selectedKols.dataKol');
-                }
-
-                $mediaPlan = $budget->mediaPlan;
-                if (!$mediaPlan)
-                    return;
-
-                // Find Client
-                $client = \App\Models\DataClient::where('nama_brand', $mediaPlan->brand)->first();
-
-                // Check if campaign already exists to prevent duplicates
-                $exists = \App\Models\BvCampign::where('campaign_name', $mediaPlan->campaign_name)
-                    ->where('client_id', $client?->id)
-                    ->exists();
-
-                if ($exists) {
-                    return;
-                }
-
-                // Parse Dates
-                $startDate = null;
-                $endDate = null;
-                try {
-                    if ($mediaPlan->campaign_period_start) {
-                        $startDate = \Carbon\Carbon::parse($mediaPlan->campaign_period_start);
-                    }
-                    if ($mediaPlan->campaign_period_end) {
-                        $endDate = \Carbon\Carbon::parse($mediaPlan->campaign_period_end);
-                    }
-                } catch (\Exception $e) {
-                    // keep null
-                }
-
-                // Determine Status
-                $campaignStatus = 'upcoming';
-                if ($startDate && $endDate) {
-                    if (now()->between($startDate, $endDate)) {
-                        $campaignStatus = 'ongoing';
-                    } elseif (now()->gt($endDate)) {
-                        $campaignStatus = 'completed';
-                    }
-                }
-
-                // Create Campaign
-                $campaign = \App\Models\BvCampign::create([
-                    'client_id' => $client?->id,
-                    'campaign_name' => $mediaPlan->campaign_name,
-                    'campaign_description' => $mediaPlan->notes ?? 'Auto-generated from Media Plan',
-                    'start_date' => $startDate,
-                    'end_date' => $endDate,
-                    'status' => $campaignStatus,
-                    'total_cost' => $budget->total_mu_pph,
-                    'pic_internal' => auth()->user()?->name ?? 'System',
-                ]);
-
-                // Process KOLs
-                $selectedKols = $mediaPlan->selectedKols;
-                $platforms = [];
-
-                foreach ($selectedKols as $kol) {
-                    $scopes = $kol->scope_items ?? [];
-
-                    if (empty($scopes)) {
-                        continue;
-                    }
-
-                    foreach ($scopes as $scope) {
-                        $platform = 'instagram'; // defaults
-                        $contentType = 'feed';
-
-                        // Instagram
-                        if (stripos($scope, 'IG Reels') !== false || stripos($scope, 'Reels') !== false) {
-                            $platform = 'instagram';
-                            $contentType = 'reels';
-                        } elseif (stripos($scope, 'IG Post') !== false || stripos($scope, 'IG Feed') !== false || stripos($scope, 'Feed') !== false) {
-                            $platform = 'instagram';
-                            $contentType = 'feed';
-                        } elseif (stripos($scope, 'IG Story') !== false || stripos($scope, 'IG Stori') !== false || stripos($scope, 'Story') !== false || stripos($scope, 'Stories') !== false) {
-                            $platform = 'instagram';
-                            $contentType = 'story';
-                        }
-                        // TikTok
-                        elseif (stripos($scope, 'TikTok Video') !== false || stripos($scope, 'VT') !== false) {
-                            $platform = 'tiktok';
-                            $contentType = 'video';
-                        } elseif (stripos($scope, 'TikTok Story') !== false) {
-                            $platform = 'tiktok';
-                            $contentType = 'story';
-                        } elseif (stripos($scope, 'TikTok Post') !== false || stripos($scope, 'TikTok Photo') !== false) {
-                            $platform = 'tiktok';
-                            $contentType = 'photos';
-                        }
-                        // YouTube
-                        elseif (stripos($scope, 'YouTube Video') !== false || stripos($scope, 'YT Video') !== false) {
-                            $platform = 'youtube';
-                            $contentType = 'video';
-                        } elseif (stripos($scope, 'YouTube Shorts') !== false || stripos($scope, 'YT Short') !== false) {
-                            $platform = 'youtube';
-                            $contentType = 'short';
-                        }
-
-                        $platforms[] = $platform;
-
-                        \App\Models\BvCampaignKol::create([
-                            'campaign_id' => $campaign->id,
-                            'creator_name' => $kol->name ?? $kol->dataKol?->username ?? 'Unknown',
-                            'username' => $kol->dataKol?->username,
-                            'post_url' => $kol->links[0] ?? null,
-                            'price' => $kol->rate,
-                            'platform' => $platform,
-                            'content_type' => $contentType,
-                            'status' => 'pending',
-                        ]);
-                    }
-                }
-
-                // Update media_platforms
-                $campaign->update([
-                    'media_platforms' => array_values(array_unique($platforms))
-                ]);
+            if ($budget->status !== 'approved' || !$budget->wasChanged('status')) {
+                return;
             }
+
+            if (!$budget->relationLoaded('mediaPlan')) {
+                $budget->load('mediaPlan');
+            }
+
+            $mediaPlan = $budget->mediaPlan;
+            if (!$mediaPlan) {
+                return;
+            }
+
+            // Jika MediaPlan ini dibuat otomatis dari BvSales (ada bv_sales_id),
+            // gunakan tryActivateCampaign() — akan aktifkan BvCampign jika kedua plan sudah approve
+            if ($mediaPlan->bv_sales_id) {
+                $mediaPlan->tryActivateCampaign();
+                return;
+            }
+
+            // Fallback: MediaPlan dibuat manual (tanpa bv_sales_id)
+            // Buat BvCampign baru dari data MediaPlan (perilaku lama)
+            $client = \App\Models\DataClient::where('nama_brand', $mediaPlan->brand)->first();
+
+            $exists = \App\Models\BvCampign::where('campaign_name', $mediaPlan->campaign_name)
+                ->where('client_id', $client?->id)
+                ->exists();
+
+            if ($exists) {
+                return;
+            }
+
+            $startDate = null;
+            $endDate = null;
+            try {
+                if ($mediaPlan->campaign_period_start) {
+                    $startDate = \Carbon\Carbon::parse($mediaPlan->campaign_period_start);
+                }
+                if ($mediaPlan->campaign_period_end) {
+                    $endDate = \Carbon\Carbon::parse($mediaPlan->campaign_period_end);
+                }
+            } catch (\Exception) {
+                // tetap null
+            }
+
+            $campaignStatus = 'upcoming';
+            if ($startDate && $endDate) {
+                if (now()->between($startDate, $endDate)) {
+                    $campaignStatus = 'ongoing';
+                } elseif (now()->gt($endDate)) {
+                    $campaignStatus = 'completed';
+                }
+            }
+
+            $mediaPlan->loadMissing('selectedKols.dataKol');
+            $selectedKols = $mediaPlan->selectedKols;
+            $platforms = [];
+
+            $campaign = \App\Models\BvCampign::create([
+                'client_id' => $client?->id,
+                'campaign_name' => $mediaPlan->campaign_name,
+                'campaign_description' => $mediaPlan->notes ?? 'Auto-generated from Media Plan',
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+                'status' => $campaignStatus,
+                'total_cost' => $budget->total_mu_pph,
+                'pic_internal' => auth()->user()?->name ?? 'System',
+            ]);
+
+            foreach ($selectedKols as $kol) {
+                $scopes = $kol->scope_items ?? [];
+                if (empty($scopes)) {
+                    continue;
+                }
+
+                foreach ($scopes as $scope) {
+                    [$platform, $contentType] = \App\Models\MediaPlan::detectPlatformFromScope($scope);
+                    $platforms[] = $platform;
+
+                    \App\Models\BvCampaignKol::create([
+                        'campaign_id' => $campaign->id,
+                        'creator_name' => $kol->name ?? $kol->dataKol?->username ?? 'Unknown',
+                        'username' => $kol->dataKol?->username,
+                        'post_url' => $kol->links[0] ?? null,
+                        'price' => $kol->rate,
+                        'platform' => $platform,
+                        'content_type' => $contentType,
+                        'status' => 'pending',
+                    ]);
+                }
+            }
+
+            $campaign->update([
+                'media_platforms' => array_values(array_unique($platforms)),
+            ]);
         });
     }
 }

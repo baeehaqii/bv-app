@@ -42,21 +42,30 @@ class DataClientForm
 
                     TextInput::make('nama_brand')
                         ->label('Nama Brand')->placeholder('Masukan nama brand...')
-                        ->visible(fn(Get $get) => $get('type') === 'agency')
-                        ->required(fn(Get $get) => $get('type') === 'agency'),
+                        ->visible(fn(Get $get) => $get('type') === 'direct')
+                        ->required(fn(Get $get) => $get('type') === 'direct'),
 
                     Select::make('category')
                         ->label('Kategori')->required()
-                        ->options([
-                            'FMCG' => 'FMCG',
-                            'E-Commerce & Tech' => 'E-Commerce & Tech',
-                            'Fintech & Banking' => 'Fintech & Banking',
-                            'Beauty & Skincare' => 'Beauty & Skincare',
-                            'Automotive' => 'Automotive',
-                            'Telecommunication' => 'Telecommunication',
-                            'Pharmaceuticals' => 'Pharmaceuticals',
-                            'Retail & Fashion' => 'Retail & Fashion',
-                        ])
+                        ->options(function () {
+                            $defaults = [
+                                'FMCG' => 'FMCG',
+                                'E-Commerce & Tech' => 'E-Commerce & Tech',
+                                'Fintech & Banking' => 'Fintech & Banking',
+                                'Beauty & Skincare' => 'Beauty & Skincare',
+                                'Automotive' => 'Automotive',
+                                'Telecommunication' => 'Telecommunication',
+                                'Pharmaceuticals' => 'Pharmaceuticals',
+                                'Retail & Fashion' => 'Retail & Fashion',
+                            ];
+
+                            $existing = \App\Models\DataClient::whereNotNull('category')
+                                ->distinct()
+                                ->pluck('category', 'category')
+                                ->toArray();
+
+                            return array_merge($defaults, $existing);
+                        })
                         ->searchable()
                         ->native(false)
                         ->createOptionForm([
@@ -65,7 +74,11 @@ class DataClientForm
                                 ->required(),
                         ])
                         ->createOptionUsing(fn(array $data): string => $data['category'])
-                        ->createOptionAction(fn($action) => $action->label('Tambah Kategori')),
+                        ->createOptionAction(fn($action) => $action
+                            ->label('Tambah Kategori')
+                            ->modalHeading('Tambah Kategori Baru')
+                            ->modalWidth('md')
+                        ),
                     Select::make('priority')
                         ->label('Prioritas')->required()
                         ->options([

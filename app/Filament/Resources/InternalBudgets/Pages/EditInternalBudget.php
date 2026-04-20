@@ -15,12 +15,12 @@ class EditInternalBudget extends EditRecord
     {
         return [
             Actions\Action::make('view_media_plan')
-                ->label('View Media Plan')
+                ->label('View Media Plan Internal')
                 ->icon('heroicon-m-eye')
                 ->color('info')
                 ->url(
                     fn($record) => $record->mediaPlan
-                    ? route('filament.office.resources.media-plan-external.edit', ['record' => $record->mediaPlan->id])
+                    ? route('filament.office.resources.media-plan-internal.edit', ['record' => $record->mediaPlan->id])
                     : null
                 )
                 ->visible(fn($record) => $record->mediaPlan !== null),

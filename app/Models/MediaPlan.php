@@ -3,9 +3,9 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
-
 class MediaPlan extends Model
 {
     protected $guarded = [];
@@ -16,6 +16,149 @@ class MediaPlan extends Model
         'margin_percent' => 'decimal:2',
         'use_global_margin' => 'boolean',
     ];
+
+    /**
+     * Trigger saat MediaPlan (Internal) di-approve (status → Ongoing):
+     * Jika InternalBudget (External) sudah approved → aktifkan BvCampign ke 'ongoing'
+     */
+    protected static function booted(): void
+    {
+        static::updated(function (MediaPlan $mediaPlan) {
+            if ($mediaPlan->wasChanged('status') && $mediaPlan->status === 'Ongoing') {
+                $mediaPlan->tryActivateCampaign();
+            }
+        });
+    }
+
+    /**
+     * Cek apakah kedua media plan (internal & external) sudah approve,
+     * jika ya aktifkan BvCampign menjadi 'ongoing' dan sync KOL dari selected KOLs.
+     */
+    public function tryActivateCampaign(): void
+    {
+        if (!$this->bv_sales_id) {
+            return;
+        }
+
+        $bvCampign = BvCampign::where('bv_sales_id', $this->bv_sales_id)->first();
+        if (!$bvCampign) {
+            return;
+        }
+
+        $internalBudget = $this->internalBudget;
+        if ($internalBudget?->status !== 'approved' || $this->status !== 'Ongoing') {
+            return;
+        }
+
+        // Parse campaign dates
+        $startDate = null;
+        $endDate = null;
+        try {
+            if ($this->campaign_period_start) {
+                $startDate = \Carbon\Carbon::parse($this->campaign_period_start);
+            }
+            if ($this->campaign_period_end) {
+                $endDate = \Carbon\Carbon::parse($this->campaign_period_end);
+            }
+        } catch (\Exception) {
+            // tetap null
+        }
+
+        $campaignStatus = 'upcoming';
+        if ($startDate && $endDate) {
+            if (now()->between($startDate, $endDate)) {
+                $campaignStatus = 'ongoing';
+            } elseif (now()->gt($endDate)) {
+                $campaignStatus = 'completed';
+            }
+        }
+
+        // Sync KOLs dari MediaPlan selected KOLs (hanya jika belum ada KOL di campaign)
+        $platforms = [];
+        if ($bvCampign->kols()->count() === 0) {
+            $this->loadMissing('selectedKols.dataKol');
+
+            foreach ($this->selectedKols as $kol) {
+                $scopes = $kol->scope_items ?? [];
+                if (empty($scopes)) {
+                    continue;
+                }
+
+                foreach ($scopes as $scope) {
+                    [$platform, $contentType] = self::detectPlatformFromScope($scope);
+
+                    $platforms[] = $platform;
+
+                    BvCampaignKol::create([
+                        'campaign_id' => $bvCampign->id,
+                        'creator_name' => $kol->name ?? $kol->dataKol?->username ?? 'Unknown',
+                        'username' => $kol->dataKol?->username,
+                        'post_url' => $kol->links[0] ?? null,
+                        'price' => $kol->rate,
+                        'platform' => $platform,
+                        'content_type' => $contentType,
+                        'status' => 'pending',
+                    ]);
+                }
+            }
+        }
+
+        $bvCampign->update([
+            'status' => $campaignStatus,
+            'total_cost' => $internalBudget->total_mu_pph,
+            'start_date' => $startDate ?? $bvCampign->start_date,
+            'end_date' => $endDate ?? $bvCampign->end_date,
+            'media_platforms' => !empty($platforms)
+                ? array_values(array_unique($platforms))
+                : $bvCampign->media_platforms,
+        ]);
+    }
+
+    /**
+     * Deteksi platform & content_type dari nama scope item
+     */
+    public static function detectPlatformFromScope(string $scope): array
+    {
+        $scope = strtolower($scope);
+
+        if (str_contains($scope, 'reels')) {
+            return ['instagram', 'reels'];
+        }
+        if (str_contains($scope, 'ig story') || str_contains($scope, 'ig stori') || str_contains($scope, 'story') || str_contains($scope, 'stories')) {
+            return ['instagram', 'story'];
+        }
+        if (str_contains($scope, 'ig post') || str_contains($scope, 'ig feed') || str_contains($scope, 'feed')) {
+            return ['instagram', 'feed'];
+        }
+        if (str_contains($scope, 'tiktok video') || str_contains($scope, 'vt')) {
+            return ['tiktok', 'video'];
+        }
+        if (str_contains($scope, 'tiktok story')) {
+            return ['tiktok', 'story'];
+        }
+        if (str_contains($scope, 'tiktok')) {
+            return ['tiktok', 'video'];
+        }
+        if (str_contains($scope, 'youtube short') || str_contains($scope, 'yt short')) {
+            return ['youtube', 'short'];
+        }
+        if (str_contains($scope, 'youtube') || str_contains($scope, 'yt video')) {
+            return ['youtube', 'video'];
+        }
+        if (str_contains($scope, 'threads')) {
+            return ['threads', 'post'];
+        }
+
+        return ['instagram', 'feed'];
+    }
+
+    /**
+     * Linked Sales Activity
+     */
+    public function bvSales(): BelongsTo
+    {
+        return $this->belongsTo(BvSales::class, 'bv_sales_id');
+    }
 
     /**
      * Get PIC Campaign (Tugas Brief Assignee)

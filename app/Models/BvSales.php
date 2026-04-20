@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use App\Models\BvCampign;
+use App\Models\MediaPlan;
 
 class BvSales extends Model
 {
@@ -103,8 +104,8 @@ class BvSales extends Model
             return;
         }
 
-        $isLive            = $this->status === SalesStatus::CAMPAIGN_LIVE;
-        $hasQuotationSign  = !empty($this->quotation_sign);
+        $isLive = $this->status === SalesStatus::CAMPAIGN_LIVE;
+        $hasQuotationSign = !empty($this->quotation_sign);
 
         if ($isLive && $hasQuotationSign) {
             $platforms = $campaign->kols()
@@ -115,14 +116,14 @@ class BvSales extends Model
                 ->toArray();
 
             $campaign->update([
-                'status'          => 'ongoing',
+                'status' => 'ongoing',
                 'media_platforms' => $platforms ?: $campaign->media_platforms,
             ]);
         }
     }
 
     /**
-     * Otomatis membuat data campaign di BvCampaign(Media Plan External)
+     * Otomatis membuat data campaign di BvCampaign(Media Plan Internal)
      */
     public function createCampaignData(): void
     {
@@ -151,6 +152,23 @@ class BvSales extends Model
             'pic_media_plan' => $this->pic_media_plan,
             'status' => 'draft',
         ]);
+
+        // Auto-create MediaPlan (Media Plan Internal) agar langsung muncul di menu Media Plan Internal
+        $year = now()->year;
+        $count = \App\Models\MediaPlan::whereYear('created_at', $year)->count() + 1;
+        $quotationNumber = 'BV-' . $year . '-' . str_pad($count, 4, '0', STR_PAD_LEFT);
+
+        \App\Models\MediaPlan::create([
+            'bv_sales_id' => $this->id,
+            'brand' => $this->company_name,
+            'pic_client' => $this->pic_media_plan ?? $picInternal ?? '-',
+            'quotation_number' => $quotationNumber,
+            'campaign_name' => $this->event_name,
+            'campaign_period_start' => $this->start_date ? \Carbon\Carbon::parse($this->start_date)->format('Y-m-d') : null,
+            'campaign_period_end' => $this->end_date ? \Carbon\Carbon::parse($this->end_date)->format('Y-m-d') : null,
+            'status' => 'Planning',
+            'pic_campaign_id' => $this->bv_sales_list_id,
+        ]);
     }
 
     // -------------------------------------------------------
@@ -178,6 +196,11 @@ class BvSales extends Model
     public function campaign(): HasOne
     {
         return $this->hasOne(BvCampign::class, 'bv_sales_id');
+    }
+
+    public function mediaPlan(): HasOne
+    {
+        return $this->hasOne(MediaPlan::class, 'bv_sales_id');
     }
 
     // -------------------------------------------------------

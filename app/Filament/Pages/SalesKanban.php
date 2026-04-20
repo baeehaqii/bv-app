@@ -143,6 +143,7 @@ class SalesKanban extends BoardPage implements HasTable
                         \Filament\Actions\DeleteAction::make('delete_from_modal')
                             ->model(BvSales::class)
                             ->record(fn() => $action->getRecord())
+                            ->hidden(fn() => $action->getRecord() === null)
                             ->color('danger')
                             ->icon('heroicon-o-trash')
                             ->after(fn() => $action->cancel()),

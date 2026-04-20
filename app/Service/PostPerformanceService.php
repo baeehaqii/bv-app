@@ -8,19 +8,21 @@ use Exception;
 
 /**
  * Unified service to fetch post performance from various platforms
- * Supports: Instagram, TikTok, YouTube (regular videos & shorts)
+ * Supports: Instagram, TikTok, YouTube (regular videos & shorts), Threads
  */
 class PostPerformanceService
 {
     protected InstagramService $instagramService;
     protected TiktokService $tiktokService;
     protected YoutubeChannelsService $youtubeService;
+    protected ThreadsService $threadsService;
 
     public function __construct()
     {
         $this->instagramService = new InstagramService();
         $this->tiktokService = new TiktokService();
         $this->youtubeService = new YoutubeChannelsService();
+        $this->threadsService = new ThreadsService();
     }
 
     /**
@@ -43,6 +45,10 @@ class PostPerformanceService
 
         if (str_contains($url, 'youtube.com') || str_contains($url, 'youtu.be')) {
             return 'youtube';
+        }
+
+        if (str_contains($url, 'threads.com') || str_contains($url, 'threads.net')) {
+            return 'threads';
         }
 
         return null;
@@ -73,6 +79,7 @@ class PostPerformanceService
             'instagram' => $this->instagramService->getPostStats($postUrl),
             'tiktok' => $this->tiktokService->getPostStats($postUrl),
             'youtube' => $this->youtubeService->getVideoStats($postUrl),
+            'threads' => $this->threadsService->getPostStats($postUrl),
             default => throw new Exception("Unsupported platform: {$platform}"),
         };
     }

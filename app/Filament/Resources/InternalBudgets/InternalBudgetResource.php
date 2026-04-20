@@ -23,16 +23,16 @@ class InternalBudgetResource extends Resource
 
     protected static string|\UnitEnum|null $navigationGroup = 'Media Planning';
 
-    protected static ?int $navigationSort = 2;
+    protected static ?int $navigationSort = 1;
 
-    protected static ?string $navigationLabel = 'Media Plan Internal';
+    protected static ?string $navigationLabel = 'Media Plan External';
 
-    protected static ?string $modelLabel = 'Media Plan Internal';
+    protected static ?string $modelLabel = 'Media Plan External';
 
-    protected static ?string $pluralModelLabel = 'Media Plan Internal';
+    protected static ?string $pluralModelLabel = 'Media Plan External';
 
     //route
-    protected static ?string $slug = 'media-plan-internal';
+    protected static ?string $slug = 'media-plan-external';
 
     public static function form(Schema $schema): Schema
     {

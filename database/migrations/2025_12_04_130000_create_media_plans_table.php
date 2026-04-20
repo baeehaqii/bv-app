@@ -13,6 +13,9 @@ return new class extends Migration {
         Schema::create('media_plans', function (Blueprint $table) {
             $table->id();
 
+            // Link to Sales Activity (auto-created when BvSales is saved)
+            $table->foreignId('bv_sales_id')->nullable()->constrained('bv_sales')->nullOnDelete();
+
             // Campaign Information
             $table->string('brand');
             $table->string('pic_client');

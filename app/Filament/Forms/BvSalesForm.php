@@ -62,7 +62,7 @@ class BvSalesForm
                             $dealValue = 'Rp ' . number_format((float) $campaign->deal_value, 0, ',', '.');
                             $progress = $campaign->progress;
                             $campaignStatus = $campaign->status ?? 'draft';
-                            $editUrl = url('/admin/campign-ongoing/' . $campaign->id . '/edit');
+                            $editUrl = url('/admin/campaign-ongoing/' . $campaign->id . '/edit');
 
                             $progressBar = '
                                 <div style="background:#e5e7eb;border-radius:999px;height:6px;overflow:hidden;margin-top:4px;">
@@ -110,7 +110,7 @@ class BvSalesForm
                 ]),
 
             Section::make('Campaign Information')
-                ->description('Informasi campaign yang akan di kerjakan')
+                ->description('Campaign information details')
                 ->schema([
                     Grid::make(2)
                         ->schema([
@@ -246,19 +246,24 @@ class BvSalesForm
                                 ->hint(function ($state): ?\Illuminate\Support\HtmlString {
                                     if (!$state)
                                         return null;
-                                    $type = DataClient::where('nama_brand', $state)->value('type');
-                                    [$label, $bg, $color] = match ($type) {
+                                    $client = DataClient::where('nama_brand', $state)->first();
+                                    if (!$client)
+                                        return null;
+                                    [$label, $bg, $color] = match ($client->type) {
                                         'agency' => ['Agency', '#fef3c7', '#92400e'],
                                         'direct' => ['Direct Brand', '#dbeafe', '#1e40af'],
                                         default => [null, null, null],
                                     };
                                     if (!$label)
                                         return null;
-                                    return new \Illuminate\Support\HtmlString(
-                                        '<span style="display:inline-flex;align-items:center;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600;background:' . $bg . ';color:' . $color . ';">' . $label . '</span>'
-                                    );
+                                    $html = '<span style="display:inline-flex;align-items:center;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600;background:' . $bg . ';color:' . $color . ';">' . $label . '</span>';
+                                    if ($client->type === 'agency' && !empty($client->agency_name)) {
+                                        $agencyNames = is_array($client->agency_name) ? implode(', ', $client->agency_name) : $client->agency_name;
+                                        $html .= ' <span style="font-size:11px;color:#6b7280;margin-left:4px;">(' . e($agencyNames) . ')</span>';
+                                    }
+                                    return new \Illuminate\Support\HtmlString($html);
                                 })
-                                ->placeholder('Pilih atau buat')
+                                ->placeholder('Select or create')
                                 ->required()
                                 ->hidden(fn(string $operation): bool => $operation === 'edit'),
 
@@ -305,7 +310,7 @@ class BvSalesForm
                 ]),
 
             Section::make('Campaign Schedule')
-                ->description('Informasi timeline campaign yang akan di kerjakan')
+                ->description('Campaign timeline information')
                 ->schema([
                     Grid::make(2)
                         ->schema([
@@ -322,12 +327,12 @@ class BvSalesForm
                                 ->default(now()->year),
 
                             Select::make('campaign_month')
-                                ->label('Bulan Campaign')
-                                ->placeholder('Pilih Bulan Campaign')
+                                ->label('Campaign Month')
+                                ->placeholder('Select Campaign Month')
                                 ->options(function () {
                                     $months = [];
                                     for ($i = 1; $i <= 12; $i++) {
-                                        $months[$i] = \Carbon\Carbon::createFromDate(null, $i, 1)->translatedFormat('F');
+                                        $months[$i] = \Carbon\Carbon::createFromDate(null, $i, 1)->format('F');
                                     }
                                     return $months;
                                 })
@@ -335,33 +340,33 @@ class BvSalesForm
 
                             DatePicker::make('start_date')
                                 ->label('Start Date')
-                                ->placeholder('Pilih Start Date')
+                                ->placeholder('Select Start Date')
                                 ->native(false)
                                 ->displayFormat('d M Y'),
 
                             DatePicker::make('end_date')
                                 ->label('End Date')
-                                ->placeholder('Pilih End Date')
+                                ->placeholder('Select End Date')
                                 ->native(false)
                                 ->displayFormat('d M Y')
                                 ->afterOrEqual('start_date'),
 
                             DatePicker::make('close_date')
                                 ->native(false)
-                                ->placeholder('Pilih Close Date')
+                                ->placeholder('Select Close Date')
                                 ->displayFormat('d M Y')
                                 ->label('Close Date'),
 
                             DatePicker::make('brief_submit_date')
                                 ->label('Date of Brief')
-                                ->placeholder('Pilih Date of Brief')
+                                ->placeholder('Select Date of Brief')
                                 ->native(false)
                                 ->displayFormat('d M Y'),
                         ]),
 
                     Select::make('form_brief_id')
                         ->label('Select from Brief')
-                        ->placeholder('Pilih brief dari client...')
+                        ->placeholder('Select brief from client...')
                         ->options(function () {
                             return \App\Models\FormBrief::where('status', 'submitted')
                                 ->orWhere('status', 'reviewed')
@@ -373,10 +378,22 @@ class BvSalesForm
                         })
                         ->searchable()->columnSpanFull()
                         ->preload(),
+
+                    FileUpload::make('brief_files')
+                        ->label('Upload Brief (PDF)')
+                        ->helperText('Upload brief file from client directly (PDF, max 10 MB)')
+                        ->multiple()
+                        ->directory('sales-briefs')
+                        ->acceptedFileTypes(['application/pdf'])
+                        ->maxSize(10240)
+                        ->downloadable()
+                        ->openable()
+                        ->reorderable()
+                        ->columnSpanFull(),
                 ]),
 
             Section::make('Status & Detail Campaign')
-                ->description('Informasi status dan detail campaign')
+                ->description('Campaign status and detail information')
                 ->schema([
                     Grid::make(2)
                         ->schema([
@@ -388,21 +405,21 @@ class BvSalesForm
 
                             Textarea::make('detail')
                                 ->label('Detail')
-                                ->placeholder('Masukan detail jika ada...')
+                                ->placeholder('Enter details if any...')
                                 ->rows(3)
                                 ->columnSpan(2),
                         ]),
                 ]),
 
-            Section::make('Progres Meeting')
-                ->description('Catatan hasil meeting dengan client')
+            Section::make('Meeting Progress')
+                ->description('Notes from client meetings')
                 ->icon('heroicon-o-users')
                 ->collapsible()
                 ->hidden(fn(string $operation): bool => $operation === 'create')
                 ->schema([
                     Textarea::make('meeting_notes')
-                        ->label('Catatan Meeting')
-                        ->placeholder('Tuliskan progres / hasil meeting di sini...')
+                        ->label('Meeting Notes')
+                        ->placeholder('Write meeting progress / results here...')
                         ->rows(4)
                         ->columnSpanFull(),
                 ]),
@@ -430,7 +447,7 @@ class BvSalesForm
                 ]),
 
             Section::make('Brief & History')
-                ->description('Upload brief file dan pencatatan tanggal')
+                ->description('Brief preview and upload history')
                 ->icon('heroicon-o-document-arrow-up')
                 ->collapsible()
                 ->collapsed()
@@ -511,17 +528,6 @@ class BvSalesForm
                                 </div>
                             ');
                         })
-                        ->columnSpanFull(),
-
-                    FileUpload::make('brief_files')
-                        ->label('Brief Files')
-                        ->multiple()
-                        ->directory('sales-briefs')
-                        ->acceptedFileTypes(['application/pdf', 'text/csv', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'image/png', 'image/jpeg'])
-                        ->maxSize(10240)
-                        ->downloadable()
-                        ->openable()
-                        ->reorderable()
                         ->columnSpanFull(),
                 ]),
         ];
