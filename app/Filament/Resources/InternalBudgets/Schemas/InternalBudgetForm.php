@@ -344,16 +344,18 @@ class InternalBudgetForm
                             ->schema([
                                 Select::make('media_plan_kol_id')
                                     ->label('KOL')
+                                    ->placeholder('Search KOL...')
                                     ->options(function ($livewire) {
                                         $mediaPlanId = $livewire->record?->media_plan_id;
                                         if (!$mediaPlanId)
                                             return [];
                                         return MediaPlanKol::where('media_plan_id', $mediaPlanId)
+                                            ->orderBy('name')
                                             ->pluck('name', 'id')
                                             ->toArray();
                                     })
                                     ->searchable()
-                                    ->placeholder('Search KOL...')
+                                    ->preload()
                                     ->live()
                                     ->afterStateUpdated(function ($state, callable $set) {
                                         if ($state) {
@@ -364,6 +366,8 @@ class InternalBudgetForm
                                             if ($kol && $kol->tipe_pajak_kol) {
                                                 $set('master_pph_id', $kol->tipe_pajak_kol);
                                             }
+                                        } else {
+                                            $set('scope_item', null);
                                         }
                                     }),
 
@@ -384,7 +388,8 @@ class InternalBudgetForm
                                             ->toArray();
                                     })
                                     ->required()
-                                    ->searchable(),
+                                    ->searchable()
+                                    ->preload(),
 
                                 TextInput::make('qty')
                                     ->label('Qty')
@@ -407,7 +412,7 @@ class InternalBudgetForm
                                     ->afterStateUpdated(fn($get, $set) => self::calculateItemValues($get, $set)),
 
                                 Select::make('master_pph_id')
-                                    ->label('Tax Type')
+                                    ->label('Tax Type') ->native(false)
                                     ->placeholder('Select tax type')
                                     ->options(\App\Models\MasterPph::getActiveOptions())
                                     ->default(function (callable $get) {
