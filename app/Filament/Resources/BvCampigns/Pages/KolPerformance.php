@@ -204,13 +204,13 @@ class KolPerformance extends Page implements HasTable
                     ->action(function ($record) {
                         try {
                             $service = new PostPerformanceService();
-                            $service->fetchAndUpdateKol($record);
+                            $updated = $service->fetchAndUpdateKol($record);
 
                             Notification::make()
                                 ->title('Performance Fetched')
-                                ->body("Views: " . number_format($record->views) .
-                                    " | Likes: " . number_format($record->likes) .
-                                    " | Comments: " . number_format($record->comments))
+                                ->body("Views: " . number_format($updated->views) .
+                                    " | Likes: " . number_format($updated->likes) .
+                                    " | Comments: " . number_format($updated->comments))
                                 ->success()
                                 ->send();
 

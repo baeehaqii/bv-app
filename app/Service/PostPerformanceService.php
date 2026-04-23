@@ -102,6 +102,7 @@ class PostPerformanceService
             throw new Exception("KOL {$kol->creator_name} has no post URL");
         }
 
+        $platform = $this->detectPlatform($kol->post_url);
         $stats = $this->fetchPerformance($kol->post_url);
 
         // Update KOL record with base metrics
@@ -111,10 +112,16 @@ class PostPerformanceService
             'comments' => $stats['comments'] ?? 0,
             'shares' => $stats['shares'] ?? 0,
             'saves' => $stats['saves'] ?? 0,
+            'total_engagement' => $stats['total_engagement'] ?? (($stats['likes'] ?? 0) + ($stats['comments'] ?? 0) + ($stats['shares'] ?? 0) + ($stats['saves'] ?? 0)),
             'last_fetched_at' => now(),
         ];
 
-        // If service returns followers_count (Instagram), save it
+        // Save platform if detected
+        if ($platform) {
+            $updateData['platform'] = $platform;
+        }
+
+        // If service returns followers_count, save it
         if (isset($stats['followers_count']) && $stats['followers_count'] > 0) {
             $updateData['followers_count'] = $stats['followers_count'];
         }

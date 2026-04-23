@@ -9,11 +9,11 @@ use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 
 /**
- * Widget: Sinkronisasi Target Sales vs Finance
+ * Widget: Sales Target Sync Status vs Finance
  *
- * Ditampilkan di header halaman Target Per Sales.
- * Memperlihatkan apakah total target individual sales sudah sesuai
- * dengan Target Deal Revenue yang diset Finance untuk bulan berjalan.
+ * Displayed in the header of the Sales Target page.
+ * Shows whether the total individual sales targets match
+ * the Finance Deal Revenue Target set for the current month.
  */
 class SalesTargetSyncWidget extends BaseWidget
 {
@@ -29,49 +29,53 @@ class SalesTargetSyncWidget extends BaseWidget
 
         $fmt = fn(float $val): string => 'Rp ' . number_format($val, 0, ',', '.');
 
-        // ── Finance target untuk bulan ini ──────────────────────────────
+        // ── Finance target for current month ──────────────────────────────
         $financeTarget = GrossProfitTarget::dealRevenueForMonth($year, $month);
 
-        // ── Total semua target individual sales untuk bulan ini ─────────
+        // ── Total individual sales targets for current month ──────────────
         $salesTotal = (float) SalesTarget::where('year', $year)
             ->where('month', $month)
             ->sum('target_amount');
 
-        // ── Selisih ─────────────────────────────────────────────────────
+        // ── Difference ───────────────────────────────────────────────────
         $diff      = $financeTarget - $salesTotal;
         $isAligned = $financeTarget > 0 && abs($diff) < 1;
         $isOver    = $diff < 0;
 
         $monthLabel = $now->translatedFormat('F Y');
 
-        // Stat 1: Finance Target Deal Revenue bulan ini
+        // Stat 1: Finance Target Deal Revenue this month
         $financeDesc = $financeTarget > 0
-            ? 'Target omset perusahaan yang diset Finance'
-            : 'Belum diset — input di menu Finance';
+            ? 'Company revenue target set by Finance'
+            : 'Not set — please input via Finance menu';
 
-        // Stat 2: Total target sales individual
+        // Stat 2: Total individual sales targets
         $salesCount = SalesTarget::where('year', $year)->where('month', $month)->count();
         $salesDesc  = $salesCount > 0
-            ? "Dari {$salesCount} sales person"
-            : 'Belum ada target individual yang diset';
+            ? "From {$salesCount} sales person(s)"
+            : 'No individual target has been set';
 
-        // Stat 3: Status sinkronisasi
+        // Stat 3: Sync status
         if ($financeTarget <= 0) {
-            $syncLabel = 'Finance target belum diset';
+            $syncLabel = 'Finance target not set';
             $syncColor = 'warning';
             $syncIcon  = 'heroicon-m-exclamation-circle';
+            $syncDesc  = 'Set Finance target first';
         } elseif ($isAligned) {
-            $syncLabel = 'Terdistribusi sempurna';
+            $syncLabel = 'Perfectly distributed';
             $syncColor = 'success';
             $syncIcon  = 'heroicon-m-check-circle';
+            $syncDesc  = 'All sales targets match Finance target';
         } elseif ($isOver) {
-            $syncLabel = $fmt(abs($diff)) . ' melebihi target';
+            $syncLabel = $fmt(abs($diff)) . ' over target';
             $syncColor = 'danger';
             $syncIcon  = 'heroicon-m-arrow-trending-up';
+            $syncDesc  = 'Individual targets exceed Finance target';
         } else {
-            $syncLabel = $fmt($diff) . ' belum terdistribusi';
+            $syncLabel = $fmt($diff) . ' undistributed';
             $syncColor = 'warning';
             $syncIcon  = 'heroicon-m-arrow-trending-down';
+            $syncDesc  = 'Gap must be adjusted with Finance target';
         }
 
         return [
@@ -80,17 +84,17 @@ class SalesTargetSyncWidget extends BaseWidget
                 ->descriptionIcon($financeTarget > 0 ? 'heroicon-m-building-office' : 'heroicon-m-exclamation-circle')
                 ->color($financeTarget > 0 ? 'info' : 'warning'),
 
-            Stat::make("👥 Total Target Sales Individual", $fmt($salesTotal))
+            Stat::make("👥 Total Individual Sales Target", $fmt($salesTotal))
                 ->description($salesDesc)
                 ->descriptionIcon('heroicon-m-users')
                 ->color('primary'),
 
-            Stat::make("📊 Status Sinkronisasi", $syncLabel)
-                ->description($isAligned
-                    ? 'Semua target sales sudah sesuai dengan Finance'
-                    : ($financeTarget > 0 ? 'Selisih harus disesuaikan' : 'Set Finance target terlebih dahulu'))
+            Stat::make("📊 Sync Status", $syncLabel)
+                ->description($syncDesc)
                 ->descriptionIcon($syncIcon)
-                ->color($syncColor),
+                ->color($syncColor)
+                ->url(route('filament.office.resources.target-finance.index'))
+                ->extraAttributes(['class' => 'cursor-pointer']),
         ];
     }
 }

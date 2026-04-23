@@ -15,7 +15,7 @@ class ListSalesTargets extends ListRecords
     {
         return [
             CreateAction::make()
-                ->label('Tambah Target Sales')
+                ->label('Add Sales Target')
                 ->visible(fn() => auth()->user()?->can('Create:SalesTarget')),
         ];
     }

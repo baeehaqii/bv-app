@@ -20,19 +20,19 @@ class SalesTargetsTable
         return $table
             ->columns([
                 TextColumn::make('salesList.nama_sales')
-                    ->label('Nama Sales')
+                    ->label('Sales Name')
                     ->searchable()
                     ->sortable()
                     ->weight('semibold'),
 
                 TextColumn::make('year')
-                    ->label('Tahun')
+                    ->label('Year')
                     ->sortable()
                     ->alignCenter()
                     ->width(80),
 
                 TextColumn::make('month')
-                    ->label('Bulan')
+                    ->label('Month')
                     ->formatStateUsing(
                         fn(int $state, $record) =>
                         Carbon::createFromDate($record->year, $state, 1)->translatedFormat('F')
@@ -49,7 +49,7 @@ class SalesTargetsTable
                     ->width(80),
 
                 TextInputColumn::make('target_amount')
-                    ->label('Target Bulanan (Rp)')
+                    ->label('Monthly Target (Rp)')
                     ->rules(['numeric', 'min:0'])
                     ->extraInputAttributes(['style' => 'min-width:160px;text-align:right;'])
                     ->afterStateUpdated(function ($record, $state) {
@@ -59,7 +59,7 @@ class SalesTargetsTable
                     ->sortable(),
 
                 TextColumn::make('quarter_target')
-                    ->label('Target Quarter')
+                    ->label('Quarterly Target')
                     ->getStateUsing(
                         fn($record) =>
                         SalesTarget::totalForSalesQuarter(
@@ -73,7 +73,7 @@ class SalesTargetsTable
                     ->alignRight(),
 
                 TextColumn::make('year_target')
-                    ->label('Target Tahunan')
+                    ->label('Annual Target')
                     ->getStateUsing(
                         fn($record) =>
                         SalesTarget::totalForSalesYear($record->bv_sales_list_id, $record->year)
@@ -83,30 +83,30 @@ class SalesTargetsTable
                     ->alignRight(),
 
                 TextInputColumn::make('notes')
-                    ->label('Catatan')
-                    ->placeholder('Tulis catatan...')
+                    ->label('Notes')
+                    ->placeholder('Add notes...')
                     ->extraInputAttributes(['style' => 'min-width:180px;'])
                     ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('updatedBy.name')
-                    ->label('Diupdate Oleh')
+                    ->label('Updated By')
                     ->placeholder('-')
                     ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('updated_at')
-                    ->label('Terakhir Diupdate')
+                    ->label('Last Updated')
                     ->dateTime('d M Y, H:i')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
                 SelectFilter::make('bv_sales_list_id')
-                    ->label('Sales')
+                    ->label('Sales Person')
                     ->options(fn() => BvSalesList::orderBy('nama_sales')->pluck('nama_sales', 'id'))
                     ->searchable(),
 
                 SelectFilter::make('year')
-                    ->label('Tahun')
+                    ->label('Year')
                     ->options(function () {
                         $current = now()->year;
                         $years = [];
@@ -123,7 +123,7 @@ class SalesTargetsTable
                         '1' => 'Q1 (Jan–Mar)',
                         '2' => 'Q2 (Apr–Jun)',
                         '3' => 'Q3 (Jul–Sep)',
-                        '4' => 'Q4 (Okt–Des)',
+                        '4' => 'Q4 (Oct–Dec)',
                     ])
                     ->query(function ($query, array $data) {
                         if (!blank($data['value'])) {

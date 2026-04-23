@@ -41,7 +41,7 @@ class SalesKanban extends BoardPage implements HasTable
     protected static ?string $slug = 'sales-activity';
 
     #[Url]
-    public string $viewMode = 'kanban';
+    public string $viewMode = 'list';
 
     protected function getHeaderWidgets(): array
     {

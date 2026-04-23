@@ -14,3 +14,41 @@ select.fi-select-input,
 textarea.fi-textarea {
     @apply bg-white dark:bg-white/5;
 }
+
+/* Repeater table: horizontal scroll */
+.fi-fo-table-repeater {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.fi-fo-table-repeater table {
+    min-width: max-content;
+    width: 100%;
+}
+
+.fi-fo-table-repeater table th,
+.fi-fo-table-repeater table td {
+    white-space: nowrap;
+    vertical-align: top;
+    padding: 0.5rem 0.4rem;
+}
+
+/* Add Item button: centered */
+.fi-fo-table-repeater-add {
+    display: flex !important;
+    justify-content: center !important;
+    margin-top: 0.5rem;
+}
+
+/* Scope Item select: force single line, no wrapping */
+.fi-fo-table-repeater table td:nth-child(2) .fi-select-input,
+.fi-fo-table-repeater table td:nth-child(2) [data-placeholder],
+.fi-fo-table-repeater table td:nth-child(2) .choices__inner {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.fi-fo-table-repeater table td:nth-child(2) {
+    min-width: 180px;
+}

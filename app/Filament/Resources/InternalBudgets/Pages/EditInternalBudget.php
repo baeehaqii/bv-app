@@ -33,18 +33,18 @@ class EditInternalBudget extends EditRecord
                 ->openUrlInNewTab()
                 ->tooltip('Preview Internal Budget PDF in browser'),
 
-            Actions\Action::make('download_pdf')
-                ->label('Download PDF')
-                ->icon('heroicon-m-arrow-down-tray')
-                ->color('success')
-                ->url(fn($record) => route('internal-budget.pdf', ['internalBudget' => $record->id]))
-                ->openUrlInNewTab()
-                ->tooltip('Download Internal Budget as PDF'),
+            // Actions\Action::make('download_pdf')
+            //     ->label('Download PDF')
+            //     ->icon('heroicon-m-arrow-down-tray')
+            //     ->color('success')
+            //     ->url(fn($record) => route('internal-budget.pdf', ['internalBudget' => $record->id]))
+            //     ->openUrlInNewTab()
+            //     ->tooltip('Download Internal Budget as PDF'),
 
             Actions\Action::make('approve')
                 ->label('Approve Budget')
                 ->icon('heroicon-m-check-circle')
-                ->color('warning')
+                ->color('white')
                 ->visible(fn($record) => $record->status !== 'approved')
                 ->requiresConfirmation()
                 ->action(function ($record) {

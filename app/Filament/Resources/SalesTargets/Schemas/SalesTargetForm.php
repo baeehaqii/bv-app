@@ -16,11 +16,11 @@ class SalesTargetForm
     public static function configure(Schema $schema): Schema
     {
         return $schema->components([
-            Section::make('Target Per Sales')
-                ->description('Set nominal target deal value per bulan untuk setiap sales person. Target Quarter dan Tahunan dihitung otomatis dari akumulasi data bulanan.')
+            Section::make('Sales Target')
+                ->description('Set the monthly deal value target for each sales person. Quarterly and Annual targets are automatically calculated from accumulated monthly data.')
                 ->schema([
                     Select::make('bv_sales_list_id')
-                        ->label('Nama Sales')
+                        ->label('Sales Person')
                         ->options(fn() => BvSalesList::orderBy('nama_sales')->pluck('nama_sales', 'id'))
                         ->searchable()
                         ->required()
@@ -28,7 +28,7 @@ class SalesTargetForm
                         ->columnSpan(2),
 
                     Select::make('year')
-                        ->label('Tahun')
+                        ->label('Year')
                         ->options(function () {
                             $current = now()->year;
                             $years = [];
@@ -43,7 +43,7 @@ class SalesTargetForm
                         ->columnSpan(1),
 
                     Select::make('month')
-                        ->label('Bulan')
+                        ->label('Month')
                         ->options(function () {
                             $months = [];
                             for ($i = 1; $i <= 12; $i++) {
@@ -63,12 +63,12 @@ class SalesTargetForm
                         ->numeric()
                         ->required()
                         ->minValue(0)
-                        ->helperText('Nominal target deal value untuk sales ini di bulan yang dipilih.')
+                        ->helperText('Target deal value nominal for this sales person in the selected month.')
                         ->columnSpan(2),
 
                     Textarea::make('notes')
-                        ->label('Catatan')
-                        ->placeholder('Tulis catatan opsional di sini...')
+                        ->label('Notes')
+                        ->placeholder('Write optional notes here...')
                         ->rows(2)
                         ->columnSpan(2),
                 ])

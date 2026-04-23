@@ -25,11 +25,11 @@ class SalesTargetResource extends Resource
 
     protected static ?int $navigationSort = 10;
 
-    protected static ?string $navigationLabel = 'Target Per Sales';
+    protected static ?string $navigationLabel = 'Sales Targets';
 
-    protected static ?string $modelLabel = 'Target Sales';
+    protected static ?string $modelLabel = 'Sales Target';
 
-    protected static ?string $pluralModelLabel = 'Target Per Sales';
+    protected static ?string $pluralModelLabel = 'Sales Targets';
 
     protected static ?string $slug = 'target-per-sales';
 
@@ -44,19 +44,19 @@ class SalesTargetResource extends Resource
         $query = parent::getEloquentQuery();
         $user  = auth()->user();
 
-        // Super admin & roles dengan full permission: lihat semua
+        // Super admin & roles with full permission: see all
         if ($user?->can('ViewAny:SalesTarget')) {
             return $query;
         }
 
-        // Sales person yang akunnya terhubung: hanya lihat target milik mereka
+        // Linked sales person: only see their own target
         $salesListId = BvSalesList::where('user_id', $user?->id)->value('id');
 
         if ($salesListId) {
             return $query->where('bv_sales_list_id', $salesListId);
         }
 
-        // Tidak ada akses → kembalikan query kosong
+        // No access → return empty query
         return $query->whereRaw('0 = 1');
     }
 

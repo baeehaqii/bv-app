@@ -9,6 +9,7 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Repeater;
+use Filament\Forms\Components\Repeater\TableColumn;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Section;
 use Filament\Support\RawJs;
@@ -289,7 +290,7 @@ class InternalBudgetForm
                             ->label('💰 Quick Summary')
                             ->content(function ($record) {
                                 if (!$record)
-                                    return 'Simpan dulu untuk melihat summary';
+                                    return 'Save first to see the summary';
 
                                 $cost = number_format($record->total_mu_pph ?? 0, 0, ',', '.');
                                 $budget = number_format($record->total_rounded ?? 0, 0, ',', '.');
@@ -298,13 +299,13 @@ class InternalBudgetForm
 
                                 return "Cost: Rp {$cost} | Budget: Rp {$budget} | Profit: Rp {$profit} | Margin: {$margin}%";
                             })
-                            ->columnSpanFull(),
+                            ->columnSpan(1),
 
                         Placeholder::make('margin_setting_info')
                             ->label('🎯 Margin Setting')
                             ->content(function ($record) {
                                 if (!$record || !$record->mediaPlan) {
-                                    return 'Pilih Media Plan terlebih dahulu';
+                                    return 'Please select Media Plan first';
                                 }
 
                                 $mediaPlan = $record->mediaPlan;
@@ -315,28 +316,28 @@ class InternalBudgetForm
                                 if ($marginType === 'custom' && $useGlobal) {
                                     return new \Illuminate\Support\HtmlString(
                                         "<span class='text-warning-600 dark:text-warning-400 font-semibold'>Custom Global: {$marginPercent}%</span> " .
-                                        "<span class='text-gray-500 text-sm'>(dari Media Plan)</span>"
+                                        "<span class='text-gray-500 text-sm'>(from Media Plan)</span>"
                                     );
                                 } elseif ($marginType === 'auto') {
                                     return new \Illuminate\Support\HtmlString(
                                         "<span class='text-info-600 dark:text-info-400 font-semibold'>Auto</span> " .
-                                        "<span class='text-gray-500 text-sm'>(berdasarkan Master Margin)</span>"
+                                        "<span class='text-gray-500 text-sm'>(based on Master Margin)</span>"
                                     );
                                 } else {
                                     return new \Illuminate\Support\HtmlString(
                                         "<span class='text-gray-600 dark:text-gray-400'>Per-item margin</span> " .
-                                        "<span class='text-gray-500 text-sm'>(atur di masing-masing item)</span>"
+                                        "<span class='text-gray-500 text-sm'>(set on each item)</span>"
                                     );
                                 }
                             })
-                            ->columnSpanFull(),
+                            ->columnSpan(1),
                     ])
                     ->columns(2)
                     ->columnSpanFull(),
 
                 // Section 2: BUDGET ITEMS
                 Section::make('💰 Budget Items')
-                    ->description('Input Rate (Base) = harga modal. Kalkulasi otomatis!')
+                    ->description('Input Rate (Base) = capital price. Automatically calculated!')
                     ->schema([
                         Repeater::make('items')
                             ->relationship()
@@ -352,18 +353,14 @@ class InternalBudgetForm
                                             ->toArray();
                                     })
                                     ->searchable()
-                                    ->placeholder('Pilih KOL')
+                                    ->placeholder('Search KOL...')
                                     ->live()
                                     ->afterStateUpdated(function ($state, callable $set) {
-                                        // Auto-fill first scope item when KOL is selected
                                         if ($state) {
                                             $kol = MediaPlanKol::find($state);
                                             if ($kol && !empty($kol->scope_items)) {
-                                                // Set first scope item as default
                                                 $set('scope_item', $kol->scope_items[0] ?? null);
                                             }
-
-                                            // Auto-set tax type from KOL's tipe_pajak_kol
                                             if ($kol && $kol->tipe_pajak_kol) {
                                                 $set('master_pph_id', $kol->tipe_pajak_kol);
                                             }
@@ -372,19 +369,16 @@ class InternalBudgetForm
 
                                 Select::make('scope_item')
                                     ->label('Scope Item')
-                                    ->placeholder('Pilih scope item')
+                                    ->placeholder('Select scope')
                                     ->options(function (callable $get) {
                                         $kolId = $get('media_plan_kol_id');
-                                        if (!$kolId) {
+                                        if (!$kolId)
                                             return [];
-                                        }
 
                                         $kol = MediaPlanKol::find($kolId);
-                                        if (!$kol || empty($kol->scope_items)) {
+                                        if (!$kol || empty($kol->scope_items))
                                             return [];
-                                        }
 
-                                        // Convert scope_items array to options
                                         return collect($kol->scope_items)
                                             ->mapWithKeys(fn($item) => [$item => $item])
                                             ->toArray();
@@ -397,15 +391,14 @@ class InternalBudgetForm
                                     ->numeric()
                                     ->default(1)
                                     ->minValue(1)
+                                    ->placeholder('1')
                                     ->required()
                                     ->live(debounce: 500)
                                     ->afterStateUpdated(fn($get, $set) => self::calculateItemValues($get, $set)),
 
-                                // RATE BASE - with money mask
-                                // Note: Don't use ->numeric() here as it conflicts with $money mask
                                 TextInput::make('rate_base')
-                                    ->label('💵 Rate (Base)')
-                                    ->placeholder('Masukan Nominal')
+                                    ->label('Rate (Base)')
+                                    ->placeholder('Enter capital price')
                                     ->required()
                                     ->prefix('Rp')
                                     ->mask(RawJs::make('$money($input)'))
@@ -413,68 +406,46 @@ class InternalBudgetForm
                                     ->live(debounce: 500)
                                     ->afterStateUpdated(fn($get, $set) => self::calculateItemValues($get, $set)),
 
-                                // PPH Type selector
                                 Select::make('master_pph_id')
                                     ->label('Tax Type')
+                                    ->placeholder('Select tax type')
                                     ->options(\App\Models\MasterPph::getActiveOptions())
                                     ->default(function (callable $get) {
-                                        // Try to get from selected KOL first
                                         $kolId = $get('media_plan_kol_id');
                                         if ($kolId) {
                                             $kol = MediaPlanKol::find($kolId);
-                                            if ($kol && $kol->tipe_pajak_kol) {
+                                            if ($kol && $kol->tipe_pajak_kol)
                                                 return $kol->tipe_pajak_kol;
-                                            }
                                         }
-                                        // Fallback to "Pribadi" if exists
                                         return \App\Models\MasterPph::where('name', 'Pribadi')->value('id');
                                     })
                                     ->required()
                                     ->live()
                                     ->afterStateUpdated(fn($get, $set) => self::calculateItemValues($get, $set))
-                                    ->helperText('Auto dari KOL, bisa diedit manual')
                                     ->dehydrated(),
 
-                                // PPh Coefficient - auto calculated based on selected PPH type
-                                TextInput::make('pph_coefficient')
-                                    ->label('Koefisien PPh')
-                                    ->helperText('Auto from Tax Type')
-                                    ->readOnly()
-                                    ->dehydrated(false), // Don't save to DB
-
-                                // Tax Rate - auto calculated based on MU PPh OR flexible input
-                                TextInput::make('tax_rate')
-                                    ->label('Tax Rate')
-                                    ->suffix('%')
-                                    ->helperText('Auto (5%-35%)')
-                                    ->readOnly()
-                                    ->dehydrated(false), // Don't save to DB
-
-                                // MU PPh - with money mask (read-only output)
                                 TextInput::make('mu_pph')
-                                    ->label('🔴 MU PPh (Cost)')
-                                    ->helperText('Biaya keluar real')
+                                    ->label('🔴 Cost (MU PPh)')
                                     ->prefix('Rp')
+                                    ->placeholder('Auto-calculated')
                                     ->mask(RawJs::make('$money($input)'))
                                     ->dehydrateStateUsing(fn($state) => self::parseNumber($state))
                                     ->readOnly(),
 
-                                // Published Rate - with money mask (can be manually adjusted)
                                 TextInput::make('published_rate')
-                                    ->label('� Published Rate')
-                                    ->helperText('MU PPh / 0.7 (bisa diedit)')
+                                    ->label('Published Rate')
                                     ->prefix('Rp')
+                                    ->placeholder('Auto-calculated')
                                     ->mask(RawJs::make('$money($input)'))
                                     ->dehydrateStateUsing(fn($state) => self::parseNumber($state))
                                     ->live(debounce: 500)
                                     ->afterStateUpdated(function ($state, callable $get, callable $set) {
-                                        // Recalculate rounded and margin when published rate is manually changed
                                         $publishedRate = self::parseNumber($state);
                                         $muPph = self::parseNumber($get('mu_pph'));
 
                                         if ($publishedRate > 0) {
                                             $rounded = ceil($publishedRate / 100000) * 100000;
-                                            $margin = (($rounded - $muPph) / $rounded) * 100;
+                                            $margin  = (($rounded - $muPph) / $rounded) * 100;
 
                                             $formatMoney = fn($value) => number_format(round($value), 0, '.', ',');
                                             $set('rounded', $formatMoney($rounded));
@@ -482,124 +453,90 @@ class InternalBudgetForm
                                         }
                                     }),
 
-                                // Rounded - with money mask (read-only output)
                                 TextInput::make('rounded')
-                                    ->label('🟢 Rounded (Client)')
-                                    ->helperText('Harga ke client')
+                                    ->label('🟢 Client Price')
                                     ->prefix('Rp')
+                                    ->placeholder('Auto-calculated')
                                     ->mask(RawJs::make('$money($input)'))
                                     ->dehydrateStateUsing(fn($state) => self::parseNumber($state))
                                     ->readOnly(),
 
-                                // Margin - percentage
                                 TextInput::make('actual_margin_percent')
                                     ->label('Margin %')
                                     ->suffix('%')
+                                    ->placeholder('0.00')
                                     ->dehydrateStateUsing(fn($state) => self::parseNumber($state))
                                     ->readOnly(),
 
-                                // Flexible Tax Rate Override - Toggle
+                                Textarea::make('notes')
+                                    ->label('Notes')
+                                    ->placeholder('Optional notes...')
+                                    ->rows(1),
+
+                                // ── Hidden computed / meta fields ──────────────────
+                                TextInput::make('pph_coefficient')
+                                    ->hidden()
+                                    ->dehydrated(false),
+
+                                TextInput::make('tax_rate')
+                                    ->hidden()
+                                    ->dehydrated(false),
+
                                 Toggle::make('use_flexible_tax')
-                                    ->label('Use Custom Tax Rate')
-                                    ->helperText('Enable untuk override tax rate otomatis')
+                                    ->hidden()
                                     ->inline()
                                     ->live()
                                     ->afterStateUpdated(fn($get, $set) => self::calculateItemValues($get, $set)),
 
-                                // Flexible Tax Rate Override - Input
                                 TextInput::make('tax_rate_percent')
-                                    ->label('Custom Tax Rate %')
-                                    ->helperText('Tax rate kustom (contoh: 5, 15, 25)')
-                                    ->suffix('%')
+                                    ->hidden()
                                     ->numeric()
-                                    ->step('0.01')
-                                    ->minValue(0)
-                                    ->maxValue(100)
                                     ->nullable()
-                                    ->visible(fn(callable $get) => $get('use_flexible_tax') === true)
                                     ->live(debounce: 300)
-                                    ->afterStateUpdated(function ($state, callable $get, callable $set) {
-                                        self::calculateItemValues($get, $set);
-                                    }),
+                                    ->afterStateUpdated(fn($state, callable $get, callable $set) => self::calculateItemValues($get, $set)),
 
-                                // Flexible Margin Override - Toggle
-                                // Hidden if Media Plan uses global margin
                                 Toggle::make('use_flexible_margin')
-                                    ->label('Use Custom Margin')
-                                    ->helperText('Enable untuk override margin otomatis (tidak berlaku jika Media Plan menggunakan Global Margin)')
+                                    ->hidden()
                                     ->inline()
                                     ->live()
-                                    ->visible(function ($livewire) {
-                                        $mediaPlanId = $livewire->record?->media_plan_id;
-                                        if (!$mediaPlanId)
-                                            return true;
-                                        $mediaPlan = \App\Models\MediaPlan::find($mediaPlanId);
-                                        if (!$mediaPlan)
-                                            return true;
-                                        // Hide if global margin is enabled with custom type
-                                        return !($mediaPlan->use_global_margin && $mediaPlan->margin_type === 'custom');
-                                    })
                                     ->afterStateUpdated(fn($get, $set) => self::calculateItemValues($get, $set)),
 
-                                // Flexible Margin Override - Input
                                 TextInput::make('margin_percent_override')
-                                    ->label('Custom Margin %')
-                                    ->helperText('Margin target (contoh: 30, 40, 80)')
-                                    ->suffix('%')
+                                    ->hidden()
                                     ->numeric()
-                                    ->step('0.01')
                                     ->nullable()
-                                    ->visible(function (callable $get, $livewire) {
-                                        // First check if flexible margin is enabled
-                                        if (!($get('use_flexible_margin') === true)) {
-                                            return false;
-                                        }
-                                        // Then check if Media Plan uses global margin
-                                        $mediaPlanId = $livewire->record?->media_plan_id;
-                                        if (!$mediaPlanId)
-                                            return true;
-                                        $mediaPlan = \App\Models\MediaPlan::find($mediaPlanId);
-                                        if (!$mediaPlan)
-                                            return true;
-                                        return !($mediaPlan->use_global_margin && $mediaPlan->margin_type === 'custom');
-                                    })
                                     ->live(debounce: 300)
-                                    ->afterStateUpdated(function ($state, callable $get, callable $set) {
-                                        self::calculateItemValues($get, $set);
-                                    }),
+                                    ->afterStateUpdated(fn($state, callable $get, callable $set) => self::calculateItemValues($get, $set)),
 
-                                // Hidden fields for database
                                 TextInput::make('subtotal')
                                     ->hidden()
                                     ->numeric()
                                     ->dehydrateStateUsing(fn($state) => self::parseNumber($state)),
+
                                 TextInput::make('mu_target')
                                     ->hidden()
                                     ->numeric()
                                     ->dehydrateStateUsing(fn($state) => self::parseNumber($state)),
+
                                 TextInput::make('sort_order')
                                     ->hidden()
                                     ->numeric()
                                     ->default(0),
-
-                                Textarea::make('notes')
-                                    ->label('Notes')
-                                    ->rows(1)
-                                    ->columnSpanFull(),
                             ])
-                            ->columns(2)
-                            ->collapsible()
-                            ->cloneable()
+                            ->table([
+                                TableColumn::make('KOL')->width('200px'),
+                                TableColumn::make('Scope Item')->width('200px'),
+                                TableColumn::make('Qty')->width('60px'),
+                                TableColumn::make('Rate (Base)')->width('160px'),
+                                TableColumn::make('Tax Type')->width('150px'),
+                                TableColumn::make('🔴 Cost (MU PPh)')->width('170px'),
+                                TableColumn::make('Published Rate')->width('170px'),
+                                TableColumn::make('🟢 Client Price')->width('170px'),
+                                TableColumn::make('Margin %')->width('100px'),
+                                TableColumn::make('Notes')->width('180px'),
+                            ])
                             ->defaultItems(0)
-                            ->itemLabel(function (array $state): ?string {
-                                $item = $state['scope_item'] ?? 'New Item';
-                                $rounded = self::parseNumber($state['rounded'] ?? 0);
-                                if ($rounded > 0) {
-                                    return $item . ' → Rp ' . number_format($rounded, 0, ',', '.');
-                                }
-                                return $item;
-                            })
-                            ->addActionLabel('➕ Tambah Item')
+                            ->addActionLabel('Add Item')
                             ->reorderableWithButtons(),
                     ])
                     ->columnSpanFull(),

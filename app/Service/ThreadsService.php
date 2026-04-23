@@ -163,6 +163,7 @@ class ThreadsService
         $shares = max(0, (int) ($appInfo['repost_count'] ?? 0)) + max(0, (int) ($appInfo['reshare_count'] ?? 0));
         $views = max(0, (int) ($post['view_counts'] ?? 0));
         $username = $owner['username'] ?? null;
+        $followersCount = max(0, (int) ($owner['follower_count'] ?? 0));
 
         // Threads tidak menyediakan saves secara publik
         $saves = 0;
@@ -180,6 +181,7 @@ class ThreadsService
 
         $result = [
             'username' => $username,
+            'followers_count' => $followersCount,
             'views' => $views,
             'likes' => $likes,
             'comments' => $comments,

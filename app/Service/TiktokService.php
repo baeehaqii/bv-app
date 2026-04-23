@@ -616,27 +616,38 @@ class TiktokService
             ]);
 
             // Extract stats from response
-            $stats  = $videoData['statistics'] ?? [];
-            $author = $videoData['author']     ?? [];
+            $stats = $videoData['statistics'] ?? [];
+            $author = $videoData['author'] ?? [];
+
+            Log::info('📦 TikTok v2 author fields', [
+                'author_keys' => array_keys($author),
+                'followerCount' => $author['followerCount'] ?? 'N/A',
+                'follower_count' => $author['follower_count'] ?? 'N/A',
+                'fans' => $author['fans'] ?? 'N/A',
+                'followingCount' => $author['followingCount'] ?? 'N/A',
+            ]);
 
             // Extract values (API may return -1 when data is not publicly available)
-            $views    = $stats['play_count']    ?? 0;
-            $likes    = $stats['digg_count']    ?? 0;
+            $views = $stats['play_count'] ?? 0;
+            $likes = $stats['digg_count'] ?? 0;
             $comments = $stats['comment_count'] ?? 0;
-            $saves    = $stats['collect_count'] ?? 0;
-            $shares   = $stats['share_count']   ?? 0;
+            $saves = $stats['collect_count'] ?? 0;
+            $shares = $stats['share_count'] ?? 0;
 
             Log::info('📊 TikTok v2 raw stats', [
-                'play_count'    => $views,
-                'digg_count'    => $likes,
+                'play_count' => $views,
+                'digg_count' => $likes,
                 'comment_count' => $comments,
                 'collect_count' => $saves,
-                'share_count'   => $shares,
+                'share_count' => $shares,
             ]);
 
             // Handle -1 values (API returns -1 when data is not publicly available)
+            $followersCount = max(0, (int) ($author['followerCount'] ?? $author['follower_count'] ?? 0));
+
             $result = [
                 'username' => $author['unique_id'] ?? $author['uniqueId'] ?? null,
+                'followers_count' => $followersCount,
                 'views' => max(0, $views),
                 'likes' => max(0, $likes),
                 'comments' => max(0, $comments),
