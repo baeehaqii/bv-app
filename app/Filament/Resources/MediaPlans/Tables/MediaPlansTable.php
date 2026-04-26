@@ -155,7 +155,7 @@ class MediaPlansTable
                     ->icon('heroicon-o-play')
                     ->color('success')
                     ->requiresConfirmation()
-                    ->visible(fn($record) => $record->status !== 'Ongoing')
+                    ->visible(fn($record) => $record->status !== 'Ongoing' && $record->internalBudget?->status === 'approved')
                     ->action(fn($record) => $record->update(['status' => 'Ongoing'])),
                 Action::make('markPlanning')
                     ->label('Revert to Planning')

@@ -49,24 +49,26 @@ class DataClientStatsWidget extends StatsOverviewWidget
         // Total Clients
         $totalClients = (clone $query)->count();
 
-        // Clients by Status
-        $activeClients = (clone $query)->where('status', 'Active')->count();
-        $prospectClients = (clone $query)->where('status', 'Prospect')->count();
-        $inactiveClients = (clone $query)->where('status', 'Inactive')->count();
-        $lostClients = (clone $query)->where('status', 'Lost')->count();
+        // Clients by Status (kolom: status_client)
+        $activeClients = (clone $query)->where('status_client', 'Active')->count();
+        $prospectClients = (clone $query)->where('status_client', 'Prospect')->count();
+        $inactiveClients = (clone $query)->where('status_client', 'Inactive')->count();
+        $lostClients = (clone $query)->where('status_client', 'Lost')->count();
 
         // Clients by Priority
-        $highPriority = (clone $query)->where('priority', 'High')->count();
-        $mediumPriority = (clone $query)->where('priority', 'Medium')->count();
-        $lowPriority = (clone $query)->where('priority', 'Low')->count();
+        $highPriority = (clone $query)->where('priority', 'P0')->count() + (clone $query)->where('priority', 'High')->count();
+        $mediumPriority = (clone $query)->where('priority', 'P1')->count() + (clone $query)->where('priority', 'Medium')->count();
+        $lowPriority = (clone $query)->where('priority', 'P2')->count() + (clone $query)->where('priority', 'Low')->count();
 
-        // Recent Outreach (last 30 days)
-        $recentOutreach = DataClient::whereNotNull('date_outreach')
+        // Recent Outreach (filter-aware: date_outreach in range)
+        $recentOutreach = (clone $query)
+            ->whereNotNull('date_outreach')
             ->whereDate('date_outreach', '>=', now()->subDays(30))
             ->count();
 
-        // Pending Follow-ups
-        $pendingFollowUps = DataClient::whereNotNull('date_follow_up')
+        // Pending Follow-ups (filter-aware)
+        $pendingFollowUps = (clone $query)
+            ->whereNotNull('date_follow_up')
             ->whereDate('date_follow_up', '>=', today())
             ->count();
 

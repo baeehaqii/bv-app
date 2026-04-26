@@ -2,186 +2,154 @@
 
 namespace App\Filament\Widgets;
 
+use App\Models\BvCashflow;
 use Carbon\Carbon;
-use Filament\Widgets\Concerns\InteractsWithPageFilters;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
+use Livewire\Attributes\On;
 
 class RevenueStatsWidget extends BaseWidget
 {
-    use InteractsWithPageFilters;
-
     protected static ?int $sort = 1;
     protected int|string|array $columnSpan = 'full';
 
+    public string $dateFilter = 'today';
+
+    #[On('executiveDashboardFilterChanged')]
+    public function handleFilterChanged(string $dateFilter): void
+    {
+        $this->dateFilter = $dateFilter;
+    }
+
     protected function getStats(): array
     {
-        $period = $this->filters['period'] ?? 'monthly';
-        $dateRange = $this->getDateRangeFromPeriod($period);
+        $range = $this->getDateRange($this->dateFilter);
+        $prevRange = $this->getPreviousRange($this->dateFilter);
 
-        // Static demo data - In production, you would query your database here
-        // using $dateRange['start'] and $dateRange['end']
-        $currentData = $this->getDemoDataForPeriod($period, 'current');
-        $previousData = $this->getDemoDataForPeriod($period, 'previous');
+        // ── Revenue (income) ─────────────────────────────────────────────
+        $revenue = (float) BvCashflow::where('type', 'income')->whereBetween('transaction_date', [$range['start'], $range['end']])->sum('amount');
+        $prevRevenue = (float) BvCashflow::where('type', 'income')->whereBetween('transaction_date', [$prevRange['start'], $prevRange['end']])->sum('amount');
 
-        $currentMonthRevenue = $currentData['revenue'];
-        $previousMonthRevenue = $previousData['revenue'];
+        // ── Expense ──────────────────────────────────────────────────────
+        $expense = (float) BvCashflow::where('type', 'expense')->whereBetween('transaction_date', [$range['start'], $range['end']])->sum('amount');
+        $prevExpense = (float) BvCashflow::where('type', 'expense')->whereBetween('transaction_date', [$prevRange['start'], $prevRange['end']])->sum('amount');
 
-        $currentMonthExpense = $currentData['expense'];
-        $previousMonthExpense = $previousData['expense'];
+        // ── Gross Profit & Margin ────────────────────────────────────────
+        $grossProfit = $revenue - $expense;
+        $prevGrossProfit = $prevRevenue - $prevExpense;
+        $profitMargin = $revenue > 0 ? ($grossProfit / $revenue) * 100 : 0;
+        $prevProfitMargin = $prevRevenue > 0 ? ($prevGrossProfit / $prevRevenue) * 100 : 0;
 
-        // Calculate Gross Profit (Revenue - Expense)
-        $currentGrossProfit = $currentMonthRevenue - $currentMonthExpense;
-        $previousGrossProfit = $previousMonthRevenue - $previousMonthExpense;
-
-        // Calculate Profit Margin ((Gross Profit / Revenue) * 100)
-        $currentProfitMargin = $currentMonthRevenue > 0 ? ($currentGrossProfit / $currentMonthRevenue) * 100 : 0;
-        $previousProfitMargin = $previousMonthRevenue > 0 ? ($previousGrossProfit / $previousMonthRevenue) * 100 : 0;
-
-        // Calculate percentage changes
-        $revenueChange = $previousMonthRevenue > 0
-            ? (($currentMonthRevenue - $previousMonthRevenue) / $previousMonthRevenue) * 100
+        // ── % change ────────────────────────────────────────────────────
+        $pct = fn(float $cur, float $prev): float => $prev != 0
+            ? round((($cur - $prev) / abs($prev)) * 100, 1)
             : 0;
 
-        $grossProfitChange = abs($previousGrossProfit) > 0
-            ? (($currentGrossProfit - $previousGrossProfit) / abs($previousGrossProfit)) * 100
-            : 0;
+        $revChange = $pct($revenue, $prevRevenue);
+        $gpChange = $pct($grossProfit, $prevGrossProfit);
+        $marginChange = $pct($profitMargin, $prevProfitMargin);
 
-        $profitMarginChange = abs($previousProfitMargin) > 0
-            ? (($currentProfitMargin - $previousProfitMargin) / abs($previousProfitMargin)) * 100
-            : 0;
+        $desc = fn(float $change, string $suffix): string => ($change >= 0 ? '+' : '') . number_format($change, 1) . "% {$suffix}";
+        $fmt = fn(float $v): string => 'Rp ' . number_format($v, 0, ',', '.');
 
-        // Chart data based on period
-        $revenueChart = $this->getChartData($period, 'revenue');
-        $expenseChart = $this->getChartData($period, 'expense');
+        // ── Sparkline (up to 7 daily points within range) ────────────────
+        $days = (int) $range['start']->diffInDays($range['end']) + 1;
+        $pointCount = min($days, 7);
+        $revenueChart = [];
+        $gpChart = [];
 
-        // Calculate Profit Chart
-        $profitChart = [];
-        foreach ($revenueChart as $key => $revenue) {
-            if (isset($expenseChart[$key])) {
-                $profitChart[] = $revenue - $expenseChart[$key];
-            }
+        for ($i = $pointCount - 1; $i >= 0; $i--) {
+            $dayStart = $range['end']->copy()->subDays($i)->startOfDay();
+            $dayEnd = $range['end']->copy()->subDays($i)->endOfDay();
+            $r = (float) BvCashflow::where('type', 'income')->whereBetween('transaction_date', [$dayStart, $dayEnd])->sum('amount');
+            $e = (float) BvCashflow::where('type', 'expense')->whereBetween('transaction_date', [$dayStart, $dayEnd])->sum('amount');
+            $revenueChart[] = $r / 1_000_000;
+            $gpChart[] = ($r - $e) / 1_000_000;
         }
 
         return [
-            Stat::make("Revenue {$dateRange['label']}", 'Rp ' . number_format($currentMonthRevenue, 0, ',', '.'))
-                ->description($this->getChangeDescription($revenueChange, $dateRange['comparisonText']))
-                ->descriptionIcon($revenueChange >= 0 ? 'heroicon-m-arrow-trending-up' : 'heroicon-m-arrow-trending-down')
-                ->color($revenueChange >= 0 ? 'success' : 'danger')
+            Stat::make("Revenue {$range['label']}", $fmt($revenue))
+                ->description($desc($revChange, $range['comparisonText']))
+                ->descriptionIcon($revChange >= 0 ? 'heroicon-m-arrow-trending-up' : 'heroicon-m-arrow-trending-down')
+                ->color($revChange >= 0 ? 'success' : 'danger')
                 ->chart($revenueChart),
 
-            Stat::make("Gross Profit {$dateRange['label']}", 'Rp ' . number_format($currentGrossProfit, 0, ',', '.'))
-                ->description($this->getChangeDescription($grossProfitChange, $dateRange['comparisonText']))
-                ->descriptionIcon($grossProfitChange >= 0 ? 'heroicon-m-arrow-trending-up' : 'heroicon-m-arrow-trending-down')
-                ->color($grossProfitChange >= 0 ? 'success' : 'danger')
-                ->chart($profitChart),
+            Stat::make("Gross Profit {$range['label']}", $fmt($grossProfit))
+                ->description($desc($gpChange, $range['comparisonText']))
+                ->descriptionIcon($gpChange >= 0 ? 'heroicon-m-arrow-trending-up' : 'heroicon-m-arrow-trending-down')
+                ->color($gpChange >= 0 ? 'success' : 'danger')
+                ->chart($gpChart),
 
-            Stat::make("Profit Margin {$dateRange['label']}", number_format($currentProfitMargin, 2) . '%')
-                ->description($this->getChangeDescription($profitMarginChange, $dateRange['comparisonText']))
-                ->descriptionIcon($profitMarginChange >= 0 ? 'heroicon-m-arrow-trending-up' : 'heroicon-m-arrow-trending-down')
-                ->color($profitMarginChange >= 0 ? 'success' : 'danger'),
+            Stat::make("Profit Margin {$range['label']}", number_format($profitMargin, 2) . '%')
+                ->description($desc($marginChange, $range['comparisonText']))
+                ->descriptionIcon($marginChange >= 0 ? 'heroicon-m-arrow-trending-up' : 'heroicon-m-arrow-trending-down')
+                ->color($marginChange >= 0 ? 'success' : 'danger'),
         ];
     }
 
-    private function getDateRangeFromPeriod(string $period): array
+    private function getDateRange(string $filter): array
     {
         $now = Carbon::now();
 
-        return match ($period) {
-            'daily' => [
-                'start' => $now->copy()->startOfDay(),
+        return match ($filter) {
+            'yesterday' => [
+                'start' => Carbon::yesterday()->startOfDay(),
+                'end' => Carbon::yesterday()->endOfDay(),
+                'label' => Carbon::yesterday()->translatedFormat('d F Y'),
+                'comparisonText' => 'dari 2 hari lalu',
+            ],
+            '7d' => [
+                'start' => $now->copy()->subDays(6)->startOfDay(),
                 'end' => $now->copy()->endOfDay(),
-                'label' => $now->format('d F Y'),
-                'comparisonText' => 'from yesterday',
+                'label' => '7 Hari Terakhir',
+                'comparisonText' => 'dari 7 hari sebelumnya',
             ],
-            'weekly' => [
-                'start' => $now->copy()->startOfWeek(),
-                'end' => $now->copy()->endOfWeek(),
-                'label' => 'Week ' . $now->weekOfYear . ' ' . $now->year,
-                'comparisonText' => 'from last week',
+            '30d' => [
+                'start' => $now->copy()->subDays(29)->startOfDay(),
+                'end' => $now->copy()->endOfDay(),
+                'label' => '30 Hari Terakhir',
+                'comparisonText' => 'dari 30 hari sebelumnya',
             ],
-            'monthly' => [
-                'start' => $now->copy()->startOfMonth(),
-                'end' => $now->copy()->endOfMonth(),
-                'label' => $now->format('F Y'),
-                'comparisonText' => 'from last month',
-            ],
-            'quarterly' => [
-                'start' => $now->copy()->startOfQuarter(),
-                'end' => $now->copy()->endOfQuarter(),
-                'label' => 'Q' . $now->quarter . ' ' . $now->year,
-                'comparisonText' => 'from last quarter',
+            '90d' => [
+                'start' => $now->copy()->subDays(89)->startOfDay(),
+                'end' => $now->copy()->endOfDay(),
+                'label' => '90 Hari Terakhir',
+                'comparisonText' => 'dari 90 hari sebelumnya',
             ],
             default => [
-                'start' => $now->copy()->startOfMonth(),
-                'end' => $now->copy()->endOfMonth(),
-                'label' => $now->format('F Y'),
-                'comparisonText' => 'from last month',
+                'start' => Carbon::today()->startOfDay(),
+                'end' => $now->copy()->endOfDay(),
+                'label' => 'Hari Ini',
+                'comparisonText' => 'dari kemarin',
             ],
         };
     }
 
-    private function getDemoDataForPeriod(string $period, string $type): array
+    private function getPreviousRange(string $filter): array
     {
-        // Demo data scaled by period
-        $baseRevenue = match ($period) {
-            'daily' => 5000000,      // 5 juta/hari
-            'weekly' => 35000000,    // 35 juta/minggu
-            'monthly' => 125000000,  // 125 juta/bulan
-            'quarterly' => 375000000, // 375 juta/kuartal
-            default => 125000000,
+        $now = Carbon::now();
+
+        return match ($filter) {
+            'yesterday' => [
+                'start' => $now->copy()->subDays(2)->startOfDay(),
+                'end' => $now->copy()->subDays(2)->endOfDay(),
+            ],
+            '7d' => [
+                'start' => $now->copy()->subDays(13)->startOfDay(),
+                'end' => $now->copy()->subDays(7)->endOfDay(),
+            ],
+            '30d' => [
+                'start' => $now->copy()->subDays(59)->startOfDay(),
+                'end' => $now->copy()->subDays(30)->endOfDay(),
+            ],
+            '90d' => [
+                'start' => $now->copy()->subDays(179)->startOfDay(),
+                'end' => $now->copy()->subDays(90)->endOfDay(),
+            ],
+            default => [
+                'start' => Carbon::yesterday()->startOfDay(),
+                'end' => Carbon::yesterday()->endOfDay(),
+            ],
         };
-
-        $baseExpense = match ($period) {
-            'daily' => 2000000,      // 2 juta/hari
-            'weekly' => 15000000,    // 15 juta/minggu
-            'monthly' => 45000000,   // 45 juta/bulan
-            'quarterly' => 135000000, // 135 juta/kuartal
-            default => 45000000,
-        };
-
-        // Add variation for previous period
-        if ($type === 'previous') {
-            return [
-                'revenue' => (int) ($baseRevenue * 0.85), // 15% less than current
-                'expense' => (int) ($baseExpense * 1.15), // 15% more than current
-            ];
-        }
-
-        return [
-            'revenue' => $baseRevenue,
-            'expense' => $baseExpense,
-        ];
-    }
-
-    private function getChartData(string $period, string $type): array
-    {
-        // Generate chart data points based on period
-        $points = match ($period) {
-            'daily' => 24,    // hourly for daily
-            'weekly' => 7,    // daily for weekly
-            'monthly' => 30,  // daily for monthly
-            'quarterly' => 12, // weekly for quarterly
-            default => 6,
-        };
-
-        $data = [];
-        $baseValue = $type === 'revenue' ? 5000000 : 2000000;
-
-        for ($i = 0; $i < min($points, 10); $i++) {
-            // Random variation for demo purposes
-            $variation = 0.7 + (($i + 1) / $points) * 0.6; // Growing trend
-            $data[] = (int) ($baseValue * $variation * (0.9 + rand(0, 20) / 100));
-        }
-
-        return $data;
-    }
-
-    private function getChangeDescription(float $change, string $suffix): string
-    {
-        $formattedChange = number_format(abs($change), 1);
-        $direction = $change >= 0 ? '+' : '-';
-        return "{$direction}{$formattedChange}% {$suffix}";
     }
 }
-

@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use App\Models\BvCampign;
+use App\Models\DataClient;
 use App\Models\MediaPlan;
 
 class BvSales extends Model
@@ -174,6 +175,11 @@ class BvSales extends Model
     // -------------------------------------------------------
     // Relationships
     // -------------------------------------------------------
+
+    public function client(): BelongsTo
+    {
+        return $this->belongsTo(DataClient::class, 'company_name', 'nama_brand');
+    }
 
     public function salesList(): BelongsTo
     {

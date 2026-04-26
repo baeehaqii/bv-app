@@ -1,3 +1,18 @@
+/* KOL Source Toggle Buttons */
+/* Tombol aktif: input radio checked -> label setelahnya */
+.kol-source-toggle input:checked + label {
+    @apply bg-primary-600 text-white border-primary-600;
+    box-shadow: 0px 3px 3px 2px rgb(216, 254, 0) !important;
+}
+
+/* Tombol non-aktif */
+.kol-source-toggle input:not(:checked) + label {
+    background-color: #e5e7eb !important;
+    color: #6b7280 !important;
+    border-color: #e5e7eb !important;
+    box-shadow: none !important;
+}
+
 .fi-input-wrp {
     @apply shadow-none bg-white dark:bg-white/5 ring-1 ring-gray-200 dark:ring-white/10;
 
@@ -42,7 +57,9 @@ textarea.fi-textarea {
 /* Select dropdown popup: always on top, drop downward */
 .fi-fo-table-repeater .fi-dropdown-panel,
 .fi-fo-table-repeater .choices__list--dropdown,
-.fi-fo-table-repeater .choices[data-type*="select-one"] .choices__list--dropdown {
+.fi-fo-table-repeater
+    .choices[data-type*="select-one"]
+    .choices__list--dropdown {
     position: absolute;
     top: 100%;
     bottom: auto;
@@ -81,4 +98,115 @@ textarea.fi-textarea {
 .fi-fo-table-repeater table td:nth-child(2) {
     min-width: 180px;
     overflow: visible;
+}
+
+/* ── KOL Details: horizontal scrollable table-like grid ───────────────── */
+.fi-kol-details-table .fi-section-content-ctn,
+.fi-kol-details-table .fi-section-content {
+    overflow-x: auto;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Force the grid to stay in one row and expand as needed */
+.fi-kol-details-grid {
+    min-width: max-content !important;
+    grid-template-columns: repeat(20, minmax(9rem, 1fr)) !important;
+}
+
+/* Labels act as table headers */
+.fi-kol-details-grid .fi-fo-field-wrp-label label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+}
+
+/* Hide helper text & hints to keep rows compact */
+.fi-kol-details-grid .fi-fo-field-wrp-hint-ctn,
+.fi-kol-details-grid .fi-fo-field-wrp-helper-text,
+.fi-kol-details-grid [class*="helper-text"] {
+    display: none !important;
+}
+
+/* ──────────────────────────────────────────────────────────
+   KolDetailsRow — custom blade view, horizontal scroll layout
+   Groups: Detail KOL | Performance | Jadwal Bayar | Select Quotation
+   ────────────────────────────────────────────────────────── */
+
+/* Outer wrapper: block with scroll handled by inner container */
+.fi-kol-details-row {
+    display: block;
+}
+
+/* Scroll container: all groups side-by-side */
+.fi-kol-details-groups-scroll {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    gap: 0;
+    align-items: flex-start;
+    padding-bottom: 0.25rem; /* prevent scrollbar overlap */
+}
+
+/* Each group wrapper: no shrink, natural width */
+.fi-kol-details-group {
+    flex: 0 0 auto;
+}
+
+/* Fieldset inside each group: compact, natural min-width */
+.fi-kol-details-group .fi-fieldset {
+    border-inline-end: 1px solid rgb(229 231 235 / 1); /* gray-200 */
+    border-radius: 0;
+    margin: 0;
+}
+
+.fi-kol-details-group:first-child .fi-fieldset {
+    border-radius: 0.5rem 0 0 0.5rem;
+}
+
+.fi-kol-details-group:last-child .fi-fieldset {
+    border-inline-end: none;
+    border-radius: 0 0.5rem 0.5rem 0;
+}
+
+/* Dark mode border */
+.dark .fi-kol-details-group .fi-fieldset {
+    border-inline-end-color: rgb(55 65 81 / 1); /* gray-700 */
+}
+
+/* Field labels: compact uppercase like the old fi-kol-details-grid */
+.fi-kol-details-group .fi-fo-field-wrp-label label {
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    font-size: 0.7rem;
+    font-weight: 700;
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Hide helper text & hints to keep rows compact */
+.fi-kol-details-group .fi-fo-field-wrp-hint-ctn,
+.fi-kol-details-group .fi-fo-field-wrp-helper-text,
+.fi-kol-details-group [class*="helper-text"] {
+    display: none !important;
+}
+
+/* Each field column inside the group: fixed min-width */
+.fi-kol-details-group .fi-sc-fieldset > .fi-sc-fieldset-content,
+.fi-kol-details-group .fi-fieldset > legend + * {
+    min-width: max-content;
+}
+
+/* Scope of Work field: wider column */
+.fi-kol-details-group [data-field="scope_items"] {
+    min-width: 18rem;
 }

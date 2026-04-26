@@ -8,14 +8,17 @@ use App\Filament\Widgets\ClientStatusChart;
 use App\Filament\Widgets\GrossProfitTargetWidget;
 use App\Filament\Widgets\RevenueStatsWidget;
 use App\Filament\Widgets\TopSpenderWidget;
-use Filament\Forms\Components\Select;
 use Filament\Pages\Dashboard as BaseDashboard;
-use Filament\Pages\Dashboard\Concerns\HasFiltersForm;
-use Filament\Schemas\Schema;
+use Livewire\Attributes\Url;
 
 class Dashboard extends BaseDashboard
 {
-    use HasFiltersForm;
+    protected static ?string $title = 'Dashboard Executive';
+
+    protected string $view = 'filament.pages.executive-dashboard';
+
+    #[Url]
+    public string $dateFilter = 'today';
 
     public static function shouldRegisterNavigation(): bool
     {
@@ -35,26 +38,15 @@ class Dashboard extends BaseDashboard
         }
 
         if ($user->hasRole(['Sales/BD', 'sales', 'bd', 'Sales', 'BD', 'Business Development'])) {
-            return redirect()->to(\App\Filament\Pages\SalesKanban::getUrl());
+            return redirect()->to(\App\Filament\Pages\SalesDashboard::getUrl());
         }
     }
 
-    public function filtersForm(Schema $form): Schema
+    public function updated(string $name): void
     {
-        return $form
-            ->components([
-                Select::make('period')
-                    ->label('Period')
-                    ->options([
-                        'daily' => 'Daily',
-                        'weekly' => 'Weekly',
-                        'monthly' => 'Monthly',
-                        'quarterly' => 'Quarterly',
-                    ])
-                    ->default('monthly')
-                    ->selectablePlaceholder(false)
-                    ->native(false),
-            ]);
+        if ($name === 'dateFilter') {
+            $this->dispatch('executiveDashboardFilterChanged', dateFilter: $this->dateFilter);
+        }
     }
 
     public function getWidgets(): array

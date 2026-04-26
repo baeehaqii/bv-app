@@ -170,6 +170,7 @@ class EditMediaPlan extends EditRecord
             Actions\Action::make('view_internal_budget')
                 ->label('View Media Plan External')
                 ->icon('heroicon-m-eye')
+                ->color('white')
                 ->url(
                     fn($record) => $record->internalBudget
                     ? route('filament.office.resources.media-plan-external.edit', ['record' => $record->internalBudget->id])
@@ -180,7 +181,7 @@ class EditMediaPlan extends EditRecord
             Actions\Action::make('generate_quotation')
                 ->label('Generate Quotation')
                 ->icon('heroicon-m-document-arrow-down')
-                ->color('success')
+                ->color('white')
                 ->requiresConfirmation()
                 ->modalHeading('Generate Quotation PDF')
                 ->modalDescription('This will generate a quotation PDF for selected KOLs only. Make sure you have selected the KOLs you want to include.')

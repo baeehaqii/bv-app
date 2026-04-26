@@ -5,11 +5,15 @@ namespace App\Filament\Pages;
 use App\Enums\SalesStatus;
 use App\Filament\Forms\BvSalesForm;
 use App\Models\BvSales;
+use App\Models\DataClient;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
+use Filament\Infolists\Components\RepeatableEntry;
+use Filament\Infolists\Components\TextEntry;
+use Filament\Schemas\Components\Grid as InfolistGrid;
 use Filament\Schemas\Schema;
 use Filament\Support\Colors\Color;
 use Filament\Support\Enums\FontWeight;
@@ -59,17 +63,19 @@ class SalesKanban extends BoardPage implements HasTable
     protected function getHeaderActions(): array
     {
         return [
-            Action::make('kanban_view')
-                ->label('Kanban')
-                ->icon('heroicon-o-view-columns')
-                ->color('white')
-                ->action(fn() => $this->viewMode = 'kanban'),
-
             Action::make('list_view')
                 ->label('List')
                 ->icon('heroicon-o-list-bullet')
                 ->color('white')
+                ->outlined(fn() => $this->viewMode !== 'list')
                 ->action(fn() => $this->viewMode = 'list'),
+
+            Action::make('kanban_view')
+                ->label('Kanban')
+                ->icon('heroicon-o-view-columns')
+                ->color('white')
+                ->outlined(fn() => $this->viewMode !== 'kanban')
+                ->action(fn() => $this->viewMode = 'kanban'),
 
             CreateAction::make()
                 ->label('Add Campaign')
@@ -156,7 +162,7 @@ class SalesKanban extends BoardPage implements HasTable
     public function table(Table $table): Table
     {
         return $table
-            ->query(BvSales::query()->with('salesList'))
+            ->query(BvSales::query()->with(['salesList', 'client']))
             ->columns([
                 TextColumn::make('event_name')
                     ->label('Event/Campaign')
@@ -173,6 +179,68 @@ class SalesKanban extends BoardPage implements HasTable
                     ->label('Company')
                     ->searchable()
                     ->sortable(),
+
+                TextColumn::make('client.type')
+                    ->label('Client Type')
+                    ->badge()
+                    ->formatStateUsing(fn($state) => match ($state) {
+                        'agency' => 'Agency',
+                        'direct' => 'Direct Brand',
+                        default => null,
+                    })
+                    ->color(fn($state) => match ($state) {
+                        'agency' => 'warning',
+                        'direct' => 'info',
+                        default => 'gray',
+                    })
+                    ->action(
+                        Action::make('viewClientType')
+                            ->modalHeading(fn($record) => $record->client?->nama_brand ?? $record->company_name)
+                            ->modalSubmitAction(false)
+                            ->modalCancelActionLabel('Tutup')
+                            ->modalWidth('lg')
+                            ->infolist(fn($record): array => [
+                                InfolistGrid::make(3)
+                                    ->schema([
+                                        TextEntry::make('type')
+                                            ->label('Client Type')
+                                            ->getStateUsing(fn() => $record->client?->type ? ucfirst($record->client->type) : '-')
+                                            ->badge()
+                                            ->color(fn() => match ($record->client?->type) {
+                                                'agency' => 'warning',
+                                                'direct' => 'info',
+                                                default => 'gray',
+                                            }),
+
+                                        TextEntry::make('nama_brand')
+                                            ->label('Nama Brand')
+                                            ->getStateUsing(fn() => $record->client?->nama_brand ?? '-'),
+
+                                        TextEntry::make('parent_brand')
+                                            ->label('Parent Brand')
+                                            ->getStateUsing(fn() => $record->client?->parent_brand ?: '-'),
+                                    ]),
+
+                                RepeatableEntry::make('pics')
+                                    ->label('List Agency')
+                                    ->getStateUsing(fn() => collect($record->client?->pics ?? [])
+                                        ->filter(fn($p) => !empty($p['agency']))
+                                        ->values()
+                                        ->toArray())
+                                    ->schema([
+                                        TextEntry::make('agency')
+                                            ->label('Nama Agency'),
+                                        TextEntry::make('name')
+                                            ->label('PIC Agency'),
+                                        TextEntry::make('email')
+                                            ->label('Email'),
+                                        TextEntry::make('wa_number')
+                                            ->label('WhatsApp'),
+                                    ])
+                                    ->columns(4)
+                                    ->visible(fn() => collect($record->client?->pics ?? [])->filter(fn($p) => !empty($p['agency']))->isNotEmpty()),
+                            ])
+                    ),
 
                 TextColumn::make('campaign_items')
                     ->label('Campaign')

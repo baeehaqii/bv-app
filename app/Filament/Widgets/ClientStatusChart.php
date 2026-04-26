@@ -4,35 +4,37 @@ namespace App\Filament\Widgets;
 
 use Carbon\Carbon;
 use Filament\Widgets\ChartWidget;
-use Filament\Widgets\Concerns\InteractsWithPageFilters;
+use Livewire\Attributes\On;
 
 class ClientStatusChart extends ChartWidget
 {
-    use InteractsWithPageFilters;
-
     protected static ?int $sort = 2;
     protected int|string|array $columnSpan = 1;
-    protected static bool $isLazy = false; // Disable lazy loading for animation
+    protected static bool $isLazy = false;
+
+    public string $dateFilter = 'today';
+
+    #[On('executiveDashboardFilterChanged')]
+    public function handleFilterChanged(string $dateFilter): void
+    {
+        $this->dateFilter = $dateFilter;
+    }
 
     public function getHeading(): ?string
     {
-        $period = $this->filters['period'] ?? 'monthly';
-        $label = $this->getPeriodLabel($period);
+        $label = $this->getPeriodLabel($this->dateFilter);
 
         return "Client Status Distribution - {$label}";
     }
 
     protected function getData(): array
     {
-        $period = $this->filters['period'] ?? 'monthly';
-
-        // Static demo data - adjusted based on period
-        // In production, you would query your database here
-        $multiplier = match ($period) {
-            'daily' => 0.1,
-            'weekly' => 0.5,
-            'monthly' => 1,
-            'quarterly' => 3,
+        // Static demo data - adjusted based on filter range
+        $multiplier = match ($this->dateFilter) {
+            'today', 'yesterday' => 0.1,
+            '7d' => 0.5,
+            '30d' => 1,
+            '90d' => 3,
             default => 1,
         };
 
@@ -108,16 +110,14 @@ class ClientStatusChart extends ChartWidget
         ];
     }
 
-    private function getPeriodLabel(string $period): string
+    private function getPeriodLabel(string $filter): string
     {
-        $now = Carbon::now();
-
-        return match ($period) {
-            'daily' => $now->translatedFormat('d F Y'),
-            'weekly' => 'Minggu ke-' . $now->weekOfYear . ' ' . $now->year,
-            'monthly' => $now->translatedFormat('F Y'),
-            'quarterly' => 'Q' . $now->quarter . ' ' . $now->year,
-            default => $now->translatedFormat('F Y'),
+        return match ($filter) {
+            'yesterday' => Carbon::yesterday()->translatedFormat('d F Y'),
+            '7d' => '7 Hari Terakhir',
+            '30d' => '30 Hari Terakhir',
+            '90d' => '90 Hari Terakhir',
+            default => 'Hari Ini',
         };
     }
 }

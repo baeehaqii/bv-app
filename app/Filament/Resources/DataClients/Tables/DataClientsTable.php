@@ -22,7 +22,7 @@ class DataClientsTable
                     ->badge()
                     ->color(fn(string $state): string => match ($state) {
                         'agency' => 'warning',
-                        'direct' => 'success',
+                        'direct' => 'info',
                         default => 'gray',
                     })
                     ->formatStateUsing(fn(string $state): string => match ($state) {
@@ -39,14 +39,51 @@ class DataClientsTable
 
                 TextColumn::make('agency_name')
                     ->label('Agency')
-                    ->placeholder('-')
-                    ->formatStateUsing(fn($state) => is_array($state) ? implode(', ', $state) : $state)
-                    ->searchable()
-                    ->toggleable(isToggledHiddenByDefault: false),
+                    ->getStateUsing(fn($record) => collect($record->pics ?? [])
+                        ->filter(fn($p) => !empty($p['agency']))
+                        ->count())
+                    ->badge()
+                    ->color(fn($state) => $state > 0 ? 'primary' : 'gray')
+                    ->action(
+                        Action::make('lihatAgency')
+                            ->modalHeading(fn($record): string => 'Agency — ' . $record->nama_brand)
+                            ->modalSubmitAction(false)
+                            ->modalCancelActionLabel('Tutup')
+                            ->modalContent(function ($record): HtmlString {
+                                $agencies = collect($record->pics ?? [])
+                                    ->filter(fn($p) => !empty($p['agency']));
 
-                TextColumn::make('produk')
-                    ->label('Produk')
-                    ->searchable(),
+                                if ($agencies->isEmpty()) {
+                                    return new HtmlString('<p class="text-sm text-gray-500 py-4 text-center">Tidak ada data agency.</p>');
+                                }
+
+                                $rows = $agencies->map(function ($p) {
+                                    return '<tr class="border-b text-sm">
+                                        <td class="py-2 pr-4 font-medium">' . e($p['agency'] ?? '-') . '</td>
+                                        <td class="py-2 pr-4">' . e($p['name'] ?? '-') . '</td>
+                                        <td class="py-2 pr-4">' . e($p['email'] ?? '-') . '</td>
+                                        <td class="py-2">' . e($p['wa_number'] ?? '-') . '</td>
+                                    </tr>';
+                                })->join('');
+
+                                return new HtmlString('
+                                    <div class="overflow-x-auto">
+                                        <table class="w-full text-left">
+                                            <thead>
+                                                <tr class="border-b text-xs uppercase text-gray-400">
+                                                    <th class="py-2 pr-4">Nama Agency</th>
+                                                    <th class="py-2 pr-4">PIC Agency</th>
+                                                    <th class="py-2 pr-4">Email</th>
+                                                    <th class="py-2">WhatsApp</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>' . $rows . '</tbody>
+                                        </table>
+                                    </div>
+                                ');
+                            })
+                            ->visible(fn($record) => collect($record->pics ?? [])->filter(fn($p) => !empty($p['agency']))->isNotEmpty())
+                    ),
 
                 TextColumn::make('category')
                     ->label('Kategori')
@@ -59,12 +96,6 @@ class DataClientsTable
                     ->searchable()
                     ->badge()
                     ->color('gray'),
-
-                // DC-03: PIC Client (multiple, disimpan di JSON)
-                TextColumn::make('pic_clients')
-                    ->label('PIC Client')
-                    ->placeholder('-')
-                    ->formatStateUsing(fn($state) => collect($state)->pluck('name')->filter()->implode(', ')),
 
                 TextColumn::make('priority')
                     ->label('Prioritas')
@@ -147,20 +178,20 @@ class DataClientsTable
                     ->label('Status Campaign')
                     ->badge()
                     ->color(fn(?string $state): string => match ($state) {
-                        'draft'     => 'gray',
-                        'upcoming'  => 'info',
-                        'ongoing'   => 'warning',
+                        'draft' => 'gray',
+                        'upcoming' => 'info',
+                        'ongoing' => 'warning',
                         'completed' => 'success',
                         'cancelled' => 'danger',
-                        default     => 'gray',
+                        default => 'gray',
                     })
                     ->formatStateUsing(fn(?string $state): string => match ($state) {
-                        'draft'     => 'Draft',
-                        'upcoming'  => 'Upcoming',
-                        'ongoing'   => 'Ongoing',
+                        'draft' => 'Draft',
+                        'upcoming' => 'Upcoming',
+                        'ongoing' => 'Ongoing',
                         'completed' => 'Completed',
                         'cancelled' => 'Cancelled',
-                        default     => $state ?? '-',
+                        default => $state ?? '-',
                     })
                     ->searchable(),
 
@@ -195,9 +226,9 @@ class DataClientsTable
                 SelectFilter::make('status')
                     ->label('Status Campaign')
                     ->options([
-                        'draft'     => 'Draft',
-                        'upcoming'  => 'Upcoming',
-                        'ongoing'   => 'Ongoing',
+                        'draft' => 'Draft',
+                        'upcoming' => 'Upcoming',
+                        'ongoing' => 'Ongoing',
                         'completed' => 'Completed',
                         'cancelled' => 'Cancelled',
                     ]),
@@ -210,6 +241,6 @@ class DataClientsTable
                     DeleteBulkAction::make(),
                 ]),
             ])
-            ->defaultSort('nama_brand', 'asc');
+            ->defaultSort('created_at', 'desc');
     }
 }

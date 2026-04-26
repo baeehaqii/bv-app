@@ -8,8 +8,8 @@ use App\Models\BvBussinesDirector;
 use App\Models\BvSales;
 use App\Models\DataClient;
 use Carbon\Carbon;
-use Filament\Widgets\Concerns\InteractsWithPageFilters;
 use Filament\Widgets\Widget;
+use Livewire\Attributes\On;
 
 /**
  * Widget: BD Manager Report
@@ -25,13 +25,19 @@ use Filament\Widgets\Widget;
  */
 class BdManagerReportWidget extends Widget
 {
-    use InteractsWithPageFilters;
-
     protected string $view = 'filament.widgets.bd-manager-report-widget';
 
     protected int|string|array $columnSpan = 'full';
 
     protected static ?int $sort = 3;
+
+    public string $dateFilter = 'today';
+
+    #[On('executiveDashboardFilterChanged')]
+    public function handleFilterChanged(string $dateFilter): void
+    {
+        $this->dateFilter = $dateFilter;
+    }
 
     public bool $campaignModalOpen = false;
 
@@ -50,8 +56,7 @@ class BdManagerReportWidget extends Widget
      */
     public function getReportData(): array
     {
-        $period = $this->filters['period'] ?? 'monthly';
-        $dateRange = $this->getDateRange($period);
+        $dateRange = $this->getDateRange($this->dateFilter);
 
         $directors = BvBussinesDirector::query()
             ->with(['salesLists:id,bv_bussines_director_id,nama_sales'])
@@ -162,8 +167,7 @@ class BdManagerReportWidget extends Widget
 
     public function openCampaignModal(int $bdId): void
     {
-        $period = $this->filters['period'] ?? 'monthly';
-        $dateRange = $this->getDateRange($period);
+        $dateRange = $this->getDateRange($this->dateFilter);
 
         $director = BvBussinesDirector::query()
             ->with(['salesLists:id,bv_bussines_director_id,nama_sales'])
