@@ -25,14 +25,6 @@ class EditInternalBudget extends EditRecord
                 )
                 ->visible(fn($record) => $record->mediaPlan !== null),
 
-            Actions\Action::make('preview_pdf')
-                ->label('Preview PDF')
-                ->icon('heroicon-m-document-text')
-                ->color('gray')
-                ->url(fn($record) => route('internal-budget.pdf.preview', ['internalBudget' => $record->id]))
-                ->openUrlInNewTab()
-                ->tooltip('Preview Internal Budget PDF in browser'),
-
             // Actions\Action::make('download_pdf')
             //     ->label('Download PDF')
             //     ->icon('heroicon-m-arrow-down-tray')

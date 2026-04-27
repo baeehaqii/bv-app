@@ -199,6 +199,11 @@ class BvSales extends Model
         return $this->hasOne(FormBrief::class, 'bv_sales_id');
     }
 
+    public function briefHistories(): HasMany
+    {
+        return $this->hasMany(BriefHistory::class, 'bv_sales_id')->latest();
+    }
+
     public function campaign(): HasOne
     {
         return $this->hasOne(BvCampign::class, 'bv_sales_id');

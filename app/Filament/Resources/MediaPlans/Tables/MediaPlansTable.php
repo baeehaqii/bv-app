@@ -51,12 +51,22 @@ class MediaPlansTable
                     ->color('success')
                     ->alignCenter(),
 
-                TextColumn::make('kols.name')
+                TextColumn::make('kols_list_count')
                     ->label('KOL(s)')
-                    ->listWithLineBreaks()
-                    ->limitList(3)
-                    ->expandableLimitedList()
-                    ->searchable(),
+                    ->state(fn($record) => $record->kols_count)
+                    ->badge()
+                    ->color('primary')
+                    ->alignCenter()
+                    ->action(
+                        Action::make('view_kols')
+                            ->modalHeading(fn($record) => 'KOL List — ' . $record->campaign_name)
+                            ->modalContent(fn($record) => view('filament.modals.media-plan-kol-list', [
+                                'kols' => $record->kols()->orderByDesc('is_selected')->orderBy('row_number')->get(),
+                            ]))
+                            ->modalSubmitAction(false)
+                            ->modalCancelActionLabel('Tutup')
+                            ->modalWidth('4xl')
+                    ),
 
                 TextColumn::make('kols.channel')
                     ->label('Channel(s)')

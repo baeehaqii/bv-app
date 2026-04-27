@@ -212,6 +212,17 @@ class EditMediaPlan extends EditRecord
             //     ->tooltip('Preview Quotation in browser'),
 
             Actions\Action::make('preview_pdf')
+                ->label('Preview PDF')
+                ->icon('heroicon-m-document-text')
+                ->color('gray')
+                ->url(fn($record) => $record->internalBudget
+                    ? route('internal-budget.pdf.preview', ['internalBudget' => $record->internalBudget->id])
+                    : null)
+                ->openUrlInNewTab()
+                ->visible(fn($record) => $record->internalBudget !== null)
+                ->tooltip('Preview Internal Budget PDF in browser'),
+
+            Actions\Action::make('preview_media_plan_pdf')
                 ->label('Preview Media Plan')
                 ->icon('heroicon-m-document-text')
                 ->color('info')

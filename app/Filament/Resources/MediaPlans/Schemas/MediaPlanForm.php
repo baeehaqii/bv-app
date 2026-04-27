@@ -20,6 +20,7 @@ use Filament\Forms\Components\Toggle;
 use Filament\Forms\Components\Checkbox;
 use Filament\Forms\Components\TagsInput;
 use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\ToggleButtons;
 use App\Filament\Forms\Components\KolDetailsRow;
@@ -284,88 +285,57 @@ class MediaPlanForm
 
                             Repeater::make('kols')
                                 ->label('KOL List')
-                                ->schema([
-                                    // ── Overview Slide-Over ───────────────────────────────
-                                    Actions::make([
-                                        Action::make('kol_overview')
-                                            ->label('Lihat Overview KOL')
-                                            ->icon('heroicon-o-eye')
-                                            ->color('info')
-                                            ->size('sm')
-                                            ->slideOver()
-                                            ->modalWidth('5xl')
-                                            ->modalHeading('Overview KOL')
-                                            ->visible(fn(callable $get) => !empty($get('name')))
-                                            ->modalSubmitAction(false)
-                                            ->modalCancelActionLabel('Tutup')
-                                            ->modalContent(function (callable $get): \Illuminate\Contracts\View\View {
-                                                $schedules = \App\Helpers\PaymentScheduleHelper::getUpcomingSchedules();
-                                                $paymentKey = $get('payment_date');
+                                ->extraItemActions([
+                                    Action::make('kol_overview')
+                                        ->label('Lihat Overview KOL')
+                                        ->tooltip('Lihat Overview KOL')
+                                        ->icon('heroicon-o-eye')
+                                        ->color('info')
+                                        ->slideOver()
+                                        ->modalWidth('5xl')
+                                        ->modalHeading('Overview KOL')
+                                        ->modalSubmitAction(false)
+                                        ->modalCancelActionLabel('Tutup')
+                                        ->visible(fn(array $arguments, Repeater $component): bool => !empty(($component->getRawItemState($arguments['item'])['name'] ?? null)))
+                                        ->modalContent(function (array $arguments, Repeater $component): \Illuminate\Contracts\View\View {
+                                            return view('filament.actions.kol-overview-modal', self::buildKolOverviewData($component->getRawItemState($arguments['item'])));
+                                        }),
 
-                                                return view('filament.actions.kol-overview-modal', [
-                                                    'is_selected' => ($get('is_selected') ?? false) ? 'Ya ✅' : 'Tidak',
-                                                    'status' => $get('status') ?? '—',
-                                                    'pic' => $get('pic') ?? '—',
-                                                    'channel' => $get('channel') ?? '—',
-                                                    'name' => $get('name') ?? '—',
-                                                    'domisili' => $get('domisili') ?? '—',
-                                                    'links' => implode(', ', (array) ($get('links') ?? [])),
-                                                    'tipe_pajak_kol' => MasterPph::find($get('tipe_pajak_kol'))?->name ?? '—',
-                                                    'followers' => $get('followers') ? number_format((int) $get('followers'), 0, ',', '.') : '—',
-                                                    'tier' => $get('tier') ?? '—',
-                                                    'er_percent' => $get('er_percent') ? $get('er_percent') . '%' : '—',
-                                                    'impression' => $get('impression') ? number_format((int) $get('impression'), 0, ',', '.') : '—',
-                                                    'engagement' => $get('engagement') ? number_format((int) $get('engagement'), 0, ',', '.') : '—',
-                                                    'cpi_cpv' => self::parseNumber($get('cpi_cpv') ?? 0) > 0
-                                                        ? 'Rp ' . number_format(round(self::parseNumber($get('cpi_cpv'))), 0, ',', '.')
-                                                        : '—',
-                                                    'cpe' => self::parseNumber($get('cpe') ?? 0) > 0
-                                                        ? 'Rp ' . number_format(round(self::parseNumber($get('cpe'))), 0, ',', '.')
-                                                        : '—',
-                                                    'scope_items' => implode(', ', (array) ($get('scope_items') ?? [])),
-                                                    'rate' => self::parseNumber($get('rate') ?? 0) > 0
-                                                        ? 'Rp ' . number_format(round(self::parseNumber($get('rate'))), 0, ',', '.')
-                                                        : '—',
-                                                    'after_nego' => self::parseNumber($get('after_nego') ?? 0) > 0
-                                                        ? 'Rp ' . number_format(round(self::parseNumber($get('after_nego'))), 0, ',', '.')
-                                                        : '—',
-                                                    'payment_date' => ($paymentKey && isset($schedules[$paymentKey]))
-                                                        ? $schedules[$paymentKey]
-                                                        : ($paymentKey ?? '—'),
-                                                ]);
-                                            }),
-
-                                        Action::make('edit_kol_details')
-                                            ->label('Edit Detail KOL')
-                                            ->icon('heroicon-o-pencil-square')
-                                            ->color('white')
-                                            ->size('sm')
-                                            ->slideOver()
-                                            ->modalWidth('5xl')
-                                            ->visible(fn(callable $get) => !empty($get('name')))
-                                            ->modalHeading(fn(callable $get) => 'Edit KOL: ' . ($get('name') ?: 'New KOL'))
-                                            ->fillForm(function (callable $get): array {
-                                                return [
-                                                    'channel' => $get('channel'),
-                                                    'name' => $get('name'),
-                                                    'domisili' => $get('domisili'),
-                                                    'links' => $get('links') ?? [],
-                                                    'tipe_pajak_kol' => $get('tipe_pajak_kol'),
-                                                    'followers' => $get('followers'),
-                                                    'tier' => $get('tier'),
-                                                    'er_percent' => $get('er_percent'),
-                                                    'impression' => $get('impression'),
-                                                    'engagement' => $get('engagement'),
-                                                    'scope_items' => $get('scope_items') ?? [],
-                                                    'after_nego' => $get('after_nego'),
-                                                    'payment_date' => $get('payment_date'),
-                                                    'is_selected' => $get('is_selected') ?? false,
-                                                    'status' => $get('status') ?? 'New List',
-                                                    'pic' => $get('pic'),
-                                                    'notes' => $get('notes'),
-                                                ];
-                                            })
-                                            ->form([
+                                    Action::make('edit_kol_details')
+                                        ->label('Edit Detail KOL')
+                                        ->tooltip('Edit Detail KOL')
+                                        ->icon('heroicon-o-pencil-square')
+                                        ->color('warning')
+                                        ->slideOver()
+                                        ->modalWidth('5xl')
+                                        ->visible(fn(array $arguments, Repeater $component): bool => !empty(($component->getRawItemState($arguments['item'])['name'] ?? null)))
+                                        ->modalHeading(function (array $arguments, Repeater $component): string {
+                                            $item = $component->getRawItemState($arguments['item']);
+                                            return 'Edit KOL: ' . ($item['name'] ?? 'New KOL');
+                                        })
+                                        ->fillForm(function (array $arguments, Repeater $component): array {
+                                            $item = $component->getRawItemState($arguments['item']);
+                                            return [
+                                                'channel' => $item['channel'] ?? null,
+                                                'name' => $item['name'] ?? null,
+                                                'domisili' => $item['domisili'] ?? null,
+                                                'links' => $item['links'] ?? [],
+                                                'tipe_pajak_kol' => $item['tipe_pajak_kol'] ?? null,
+                                                'followers' => $item['followers'] ?? null,
+                                                'tier' => $item['tier'] ?? null,
+                                                'er_percent' => $item['er_percent'] ?? null,
+                                                'impression' => $item['impression'] ?? null,
+                                                'engagement' => $item['engagement'] ?? null,
+                                                'scope_items' => $item['scope_items'] ?? [],
+                                                'after_nego' => $item['after_nego'] ?? null,
+                                                'payment_date' => $item['payment_date'] ?? null,
+                                                'is_selected' => $item['is_selected'] ?? false,
+                                                'status' => $item['status'] ?? 'New List',
+                                                'pic' => $item['pic'] ?? null,
+                                                'notes' => $item['notes'] ?? null,
+                                            ];
+                                        })
+                                        ->form([
                                                 // ── Detail KOL ──────────────────────────
                                                 Section::make('Detail KOL')
                                                     ->schema([
@@ -538,16 +508,14 @@ class MediaPlanForm
                                                             ->columnSpanFull(),
                                                     ]),
                                             ])
-                                            ->action(function (array $data, callable $set): void {
-                                                foreach ($data as $key => $value) {
-                                                    $set($key, $value);
-                                                }
-                                            }),
-                                    ])->columnSpanFull(),
-
+                                        ->action(function (array $data, array $arguments, Repeater $component): void {
+                                            $component->getChildSchema($arguments['item'])->fill($data);
+                                        }),
+                                ])
+                                ->schema([
                                     Section::make('KOL Information')
                                         ->description(fn(callable $get) => !empty($get('name'))
-                                            ? '✅ KOL sudah dipilih. Gunakan tombol "Edit Detail KOL" di atas untuk mengubah data.'
+                                            ? '✅ KOL sudah dipilih. Gunakan ikon pensil di header untuk mengubah data.'
                                             : 'Pilih apakah akan menggunakan KOL yang sudah ada di database atau menambahkan KOL baru')
                                         ->schema([
                                             ToggleButtons::make('kol_source')
@@ -1213,6 +1181,72 @@ class MediaPlanForm
                                 ->reorderable()
                                 ->columnSpanFull()
                                 ->live(),
+
+                            Actions::make([
+                                Action::make('import_csv_kols')
+                                    ->label('Import dari CSV')
+                                    ->icon('heroicon-o-arrow-up-tray')
+                                    ->color('white')
+                                    ->modalHeading('Import KOL dari CSV')
+                                    ->modalDescription('Upload CSV berisi 3 kolom: channel, link, domisili. Data lain (username, followers, tier, ER, impression, engagement, category) akan di-fetch otomatis dari API per row. Data yang sudah ada tidak terhapus — baris baru di-append.')
+                                    ->modalWidth('2xl')
+                                    ->modalSubmitActionLabel('Import')
+                                    ->modalIcon('heroicon-o-arrow-up-tray')
+                                    ->extraModalFooterActions([
+                                        Action::make('download_template')
+                                            ->label('Download Template CSV')
+                                            ->icon('heroicon-o-arrow-down-tray')
+                                            ->color('gray')
+                                            ->action(fn() => self::downloadKolCsvTemplate()),
+                                    ])
+                                    ->form([
+                                        Placeholder::make('format_info')
+                                            ->label('Format Kolom')
+                                            ->content(new \Illuminate\Support\HtmlString(
+                                                '<div class="text-sm leading-relaxed">
+                                                    Kolom <strong>wajib</strong>: <code>channel</code>, <code>link</code>.<br>
+                                                    Kolom opsional: <code>domisili</code>.<br>
+                                                    Channel yang didukung auto-fetch: <code>Instagram</code>, <code>Tiktok</code>, <code>Youtube Channels</code>, <code>Youtube Shorts</code>.<br>
+                                                    Channel lain (<code>Threads</code>, <code>Facebook</code>, <code>Talent</code>, <code>X</code>) tetap di-import tapi data API tidak terisi otomatis.
+                                                </div>'
+                                            )),
+
+                                        FileUpload::make('csv_file')
+                                            ->label('File CSV')
+                                            ->required()
+                                            ->disk('local')
+                                            ->directory('imports/kols-temp')
+                                            ->visibility('private')
+                                            ->maxSize(2048)
+                                            ->acceptedFileTypes(['application/csv', 'application/vnd.ms-excel'])
+                                            ->helperText('Maks 2 MB. Klik "Download Template CSV" di bawah untuk contoh format. Proses import bisa lambat tergantung jumlah baris (1 API call per baris).'),
+                                    ])
+                                    ->action(function (array $data, callable $get, callable $set): void {
+                                        // Beri ruang waktu eksekusi karena tiap row = 1 API call
+                                        @set_time_limit(300);
+
+                                        $result = self::importKolsFromCsv($data['csv_file'], $get('kols') ?? []);
+                                        $set('kols', array_values($result['kols']));
+
+                                        $body = "Auto-fetch sukses: {$result['fetched']} / {$result['count']} baris.";
+                                        if (!empty($result['errors'])) {
+                                            $body .= ' Issue: ' . implode(' | ', array_slice($result['errors'], 0, 3));
+                                            if (count($result['errors']) > 3) {
+                                                $body .= ' (+' . (count($result['errors']) - 3) . ' lainnya)';
+                                            }
+                                        }
+
+                                        Notification::make()
+                                            ->title($result['count'] > 0
+                                                ? "✅ Berhasil import {$result['count']} KOL"
+                                                : '⚠️ Tidak ada baris valid yang diimport')
+                                            ->{$result['count'] > 0 ? 'success' : 'warning'}()
+                                            ->body($body)
+                                            ->send();
+                                    }),
+                            ])
+                                ->alignment('center')
+                                ->columnSpanFull(),
                         ])
                         ->afterStateUpdated(function (callable $get, callable $set) {
                             $kols = $get('kols') ?? [];
@@ -1237,6 +1271,16 @@ class MediaPlanForm
 
                             $set('kol_margins', $newMargins);
                         }),
+
+                    Step::make('Brief')
+                        ->icon('heroicon-m-document-text')
+                        ->description('Lihat brief & lampiran dari client')
+                        ->schema([
+                            ViewField::make('brief_view')
+                                ->view('filament.forms.components.media-plan-brief')
+                                ->dehydrated(false)
+                                ->columnSpanFull(),
+                        ]),
 
                     Step::make('Margin Setting')
                         ->icon('heroicon-m-calculator')
@@ -1371,5 +1415,213 @@ class MediaPlanForm
         return collect($kols)
             ->filter(fn($kol) => $kol['is_selected'] ?? false)
             ->sum(fn($kol) => (int) ($kol['engagement'] ?? 0));
+    }
+
+    /**
+     * Helper: Build view data for the KOL overview modal from a repeater item state.
+     */
+    private static function buildKolOverviewData(array $item): array
+    {
+        $schedules = \App\Helpers\PaymentScheduleHelper::getUpcomingSchedules();
+        $paymentKey = $item['payment_date'] ?? null;
+
+        return [
+            'is_selected' => ($item['is_selected'] ?? false) ? 'Ya ✅' : 'Tidak',
+            'status' => $item['status'] ?? '—',
+            'pic' => $item['pic'] ?? '—',
+            'channel' => $item['channel'] ?? '—',
+            'name' => $item['name'] ?? '—',
+            'domisili' => $item['domisili'] ?? '—',
+            'links' => implode(', ', (array) ($item['links'] ?? [])),
+            'tipe_pajak_kol' => MasterPph::find($item['tipe_pajak_kol'] ?? null)?->name ?? '—',
+            'followers' => !empty($item['followers']) ? number_format((int) $item['followers'], 0, ',', '.') : '—',
+            'tier' => $item['tier'] ?? '—',
+            'er_percent' => !empty($item['er_percent']) ? $item['er_percent'] . '%' : '—',
+            'impression' => !empty($item['impression']) ? number_format((int) $item['impression'], 0, ',', '.') : '—',
+            'engagement' => !empty($item['engagement']) ? number_format((int) $item['engagement'], 0, ',', '.') : '—',
+            'cpi_cpv' => self::parseNumber($item['cpi_cpv'] ?? 0) > 0
+                ? 'Rp ' . number_format(round(self::parseNumber($item['cpi_cpv'])), 0, ',', '.')
+                : '—',
+            'cpe' => self::parseNumber($item['cpe'] ?? 0) > 0
+                ? 'Rp ' . number_format(round(self::parseNumber($item['cpe'])), 0, ',', '.')
+                : '—',
+            'scope_items' => implode(', ', (array) ($item['scope_items'] ?? [])),
+            'rate' => self::parseNumber($item['rate'] ?? 0) > 0
+                ? 'Rp ' . number_format(round(self::parseNumber($item['rate'])), 0, ',', '.')
+                : '—',
+            'after_nego' => self::parseNumber($item['after_nego'] ?? 0) > 0
+                ? 'Rp ' . number_format(round(self::parseNumber($item['after_nego'])), 0, ',', '.')
+                : '—',
+            'payment_date' => ($paymentKey && isset($schedules[$paymentKey]))
+                ? $schedules[$paymentKey]
+                : ($paymentKey ?? '—'),
+        ];
+    }
+
+    /**
+     * Whitelist of CSV columns supported by the bulk importer.
+     * Sisanya (username, followers, tier, dll) di-fetch dari API per row.
+     */
+    private const KOL_CSV_HEADERS = ['channel', 'link', 'domisili'];
+
+    /**
+     * Stream a CSV template (header + sample rows) for the bulk importer.
+     */
+    private static function downloadKolCsvTemplate(): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $samples = [
+            ['Instagram', 'https://www.instagram.com/mpl.id.official/', 'Jakarta'],
+            ['Tiktok', 'https://www.tiktok.com/@findydigitalkreatif', 'Bandung'],
+        ];
+
+        return response()->streamDownload(function () use ($samples) {
+            $h = fopen('php://output', 'w');
+            fputcsv($h, self::KOL_CSV_HEADERS);
+            foreach ($samples as $sample) {
+                fputcsv($h, $sample);
+            }
+            fclose($h);
+        }, 'kol-import-template.csv', ['Content-Type' => 'text/csv']);
+    }
+
+    /**
+     * Channels yang men-support API auto-fetch.
+     */
+    private const SCRAPABLE_CHANNELS = ['Instagram', 'Tiktok', 'Youtube Channels', 'Youtube Shorts'];
+
+    /**
+     * Parse uploaded CSV (channel, link, domisili) dan untuk tiap baris fetch profile dari API.
+     * Untuk channel yang tidak supported, baris tetap di-import tanpa auto-fill.
+     *
+     * @return array{kols: array, count: int, fetched: int, errors: array<string>}
+     */
+    private static function importKolsFromCsv(string $csvPath, array $existingKols): array
+    {
+        $disk = \Illuminate\Support\Facades\Storage::disk('local');
+
+        if (!$disk->exists($csvPath)) {
+            return ['kols' => $existingKols, 'count' => 0, 'fetched' => 0, 'errors' => ['File CSV tidak ditemukan']];
+        }
+
+        $content = $disk->get($csvPath);
+        $disk->delete($csvPath); // cleanup tmp file regardless of outcome
+
+        $lines = preg_split('/\r\n|\n|\r/', trim((string) $content)) ?: [];
+        if (count($lines) < 2) {
+            return ['kols' => $existingKols, 'count' => 0, 'fetched' => 0, 'errors' => ['CSV kosong atau hanya header']];
+        }
+
+        $headers = array_map(fn($h) => strtolower(trim($h)), str_getcsv((string) array_shift($lines)));
+
+        if (!in_array('channel', $headers, true) || !in_array('link', $headers, true)) {
+            return ['kols' => $existingKols, 'count' => 0, 'fetched' => 0, 'errors' => ['Header CSV harus memuat kolom: channel, link']];
+        }
+
+        $defaultPph = MasterPph::active()->ordered()->first()?->id;
+        $startRowNum = (int) (collect($existingKols)->max('row_number') ?? 0) + 1;
+        $newKols = $existingKols;
+        $count = 0;
+        $fetched = 0;
+        $errors = [];
+
+        foreach ($lines as $idx => $line) {
+            $lineNo = $idx + 2; // +1 header, +1 1-based
+            if (trim($line) === '') {
+                continue;
+            }
+
+            $cells = str_getcsv($line);
+            if (count($cells) !== count($headers)) {
+                $errors[] = "Baris {$lineNo}: jumlah kolom tidak match header";
+                continue;
+            }
+
+            $row = array_combine($headers, array_map(fn($v) => is_string($v) ? trim($v) : $v, $cells));
+            $channel = $row['channel'] ?? '';
+            $link = $row['link'] ?? '';
+            $domisili = $row['domisili'] ?? null;
+
+            if ($channel === '' || $link === '') {
+                $errors[] = "Baris {$lineNo}: channel/link kosong";
+                continue;
+            }
+
+            // Default fallback values jika API gagal atau channel tidak supported
+            $kolEntry = [
+                'row_number' => $startRowNum++,
+                'data_kol_id' => null,
+                'channel' => $channel,
+                'name' => $link, // fallback ke link kalau username gagal di-fetch
+                'domisili' => $domisili,
+                'links' => [$link],
+                'tipe_pajak_kol' => $defaultPph,
+                'followers' => 0,
+                'tier' => null,
+                'er_percent' => 0,
+                'impression' => 0,
+                'engagement' => 0,
+                'scope_items' => [],
+                'after_nego' => null,
+                'payment_date' => null,
+                'pic' => null,
+                'status' => 'New List',
+                'notes' => null,
+                'categories' => null,
+                'is_selected' => true,
+            ];
+
+            // Auto-fetch dari API hanya untuk scrapable channels
+            if (in_array($channel, self::SCRAPABLE_CHANNELS, true)) {
+                try {
+                    $profile = match ($channel) {
+                        'Instagram' => (new InstagramService())->getProfile($link),
+                        'Tiktok' => (new TiktokService())->getProfile($link),
+                        'Youtube Channels' => (new YoutubeChannelsService())->getProfile($link),
+                        'Youtube Shorts' => (new YoutubeShortsService())->getProfile($link),
+                    };
+
+                    if ($profile) {
+                        $followers = (int) ($profile['followers_count'] ?? 0);
+                        $erPercent = (float) ($profile['engagement_rate'] ?? 0);
+
+                        // Find or create DataKol biar terhubung ke database
+                        $dataKol = DataKol::firstOrCreate(
+                            ['channel' => $channel, 'username' => $profile['username']],
+                            [
+                                'link_userprofile' => $link,
+                                'followers' => $followers,
+                                'tier' => $profile['tier'] ?? \App\Models\MediaPlanKol::calculateTier($followers),
+                                'engagement_rate' => $erPercent,
+                                'engagements' => $profile['total_engagements'] ?? 0,
+                                'impressions' => $profile['average_impressions'] ?? 0,
+                                'category' => $profile['category_name'] ?? null,
+                                'status' => 'New List',
+                                'terakhir_update' => now(),
+                            ]
+                        );
+
+                        $kolEntry['data_kol_id'] = $dataKol->id;
+                        $kolEntry['name'] = $profile['username'];
+                        $kolEntry['followers'] = $followers;
+                        $kolEntry['tier'] = $profile['tier'] ?? \App\Models\MediaPlanKol::calculateTier($followers);
+                        $kolEntry['er_percent'] = $erPercent;
+                        $kolEntry['impression'] = (int) ($profile['average_impressions'] ?? 0);
+                        $kolEntry['engagement'] = intval($followers * ($erPercent / 100));
+                        $kolEntry['categories'] = $profile['category_name'] ?? null;
+                        $fetched++;
+                    } else {
+                        $errors[] = "Baris {$lineNo} ({$channel}): API tidak return profile";
+                    }
+                } catch (\Throwable $e) {
+                    $errors[] = "Baris {$lineNo} ({$channel}): " . $e->getMessage();
+                    // Tetap include di kols dengan data minimal — user bisa edit manual
+                }
+            }
+
+            $newKols[] = $kolEntry;
+            $count++;
+        }
+
+        return ['kols' => $newKols, 'count' => $count, 'fetched' => $fetched, 'errors' => $errors];
     }
 }

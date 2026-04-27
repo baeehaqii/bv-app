@@ -23,6 +23,24 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/kol-import/template', [KolImportTemplateController::class, 'download'])
         ->name('kol-import.template');
 
+    // Brief file viewer (serves files from sales-briefs/ and form-briefs/ on local disk)
+    Route::get('/brief-file', function (\Illuminate\Http\Request $request) {
+        $path = $request->query('path');
+        abort_unless($path, 404);
+
+        $allowedPrefixes = ['sales-briefs/', 'form-briefs/'];
+        $isAllowed = collect($allowedPrefixes)->contains(fn($p) => str_starts_with($path, $p));
+        abort_unless($isAllowed, 403);
+        abort_if(str_contains($path, '..'), 403);
+
+        $disk = \Illuminate\Support\Facades\Storage::disk('local');
+        abort_unless($disk->exists($path), 404);
+
+        return response()->file($disk->path($path), [
+            'Content-Disposition' => 'inline; filename="' . basename($path) . '"',
+        ]);
+    })->name('brief-file.view');
+
     Route::get('/media-plan/{mediaPlan}/pdf', [MediaPlanPdfController::class, 'generate'])
         ->name('media-plan.pdf');
     Route::get('/media-plan/{mediaPlan}/pdf/preview', [MediaPlanPdfController::class, 'preview'])

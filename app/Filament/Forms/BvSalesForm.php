@@ -10,6 +10,7 @@ use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -380,8 +381,8 @@ class BvSalesForm
                         ->preload(),
 
                     FileUpload::make('brief_files')
-                        ->label('Upload Brief (PDF)')
-                        ->helperText('Upload brief file from client directly (PDF, max 10 MB)')
+                        ->label('Upload Brief (PDF) — Legacy / Archive')
+                        ->helperText('Field lama. Upload brief baru via "Brief History" di bawah supaya tercatat dengan tanggal & catatan.')
                         ->multiple()
                         ->directory('sales-briefs')
                         ->acceptedFileTypes(['application/pdf'])
@@ -389,6 +390,69 @@ class BvSalesForm
                         ->downloadable()
                         ->openable()
                         ->reorderable()
+                        ->columnSpanFull(),
+
+                    Repeater::make('briefHistories')
+                        ->relationship()
+                        ->label('Brief History')
+                        ->helperText('Setiap revisi brief dari client (file atau link) — append, tidak overwrite.')
+                        ->addActionLabel('+ Tambah Brief Baru')
+                        ->orderColumn(false)
+                        ->defaultItems(0)
+                        ->collapsible()
+                        ->collapsed()
+                        ->itemLabel(function (array $state): ?string {
+                            $type = $state['type'] ?? 'file';
+                            $hint = $type === 'link'
+                                ? ($state['link_url'] ?? 'Link brief')
+                                : (isset($state['file_path']) ? basename(is_array($state['file_path']) ? reset($state['file_path']) : $state['file_path']) : 'File brief');
+                            return ucfirst($type) . ' — ' . \Illuminate\Support\Str::limit($hint, 60);
+                        })
+                        ->schema([
+                            Select::make('type')
+                                ->label('Tipe')
+                                ->options([
+                                    'file' => 'Upload File',
+                                    'link' => 'Link Brief',
+                                ])
+                                ->default('file')
+                                ->required()
+                                ->live(),
+
+                            FileUpload::make('file_path')
+                                ->label('File Brief')
+                                ->directory('sales-briefs')
+                                ->acceptedFileTypes(['application/pdf', 'image/png', 'image/jpeg', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'])
+                                ->maxSize(10240)
+                                ->downloadable()
+                                ->openable()
+                                ->visible(fn(callable $get) => $get('type') === 'file')
+                                ->required(fn(callable $get) => $get('type') === 'file')
+                                ->columnSpanFull(),
+
+                            TextInput::make('link_url')
+                                ->label('Link Brief')
+                                ->url()
+                                ->placeholder('https://...')
+                                ->visible(fn(callable $get) => $get('type') === 'link')
+                                ->required(fn(callable $get) => $get('type') === 'link')
+                                ->columnSpanFull(),
+
+                            Textarea::make('notes')
+                                ->label('Catatan')
+                                ->placeholder('Misal: revisi pertama, sudah include budget breakdown...')
+                                ->rows(2)
+                                ->columnSpanFull(),
+
+                            Placeholder::make('created_at_display')
+                                ->label('Tanggal Upload')
+                                ->content(fn($record) => $record?->created_at?->format('d M Y H:i') ?? 'Akan otomatis terisi saat disimpan')
+                                ->visible(fn($record) => $record !== null),
+                        ])
+                        ->mutateRelationshipDataBeforeCreateUsing(function (array $data): array {
+                            $data['uploaded_by'] = auth()->id();
+                            return $data;
+                        })
                         ->columnSpanFull(),
                 ]),
 

@@ -90,8 +90,8 @@
 
         /* Main Title */
         .main-title {
-            background-color: #ef4444;
-            color: #ffffff;
+            background-color: #49009F;
+            color: #DAFF01;
             font-weight: bold;
             text-align: center;
             padding: 8px;
@@ -102,8 +102,8 @@
         }
 
         .subtitle {
-            background-color: #fef2f2;
-            color: #991b1b;
+            background-color: #f5e6ff;
+            color: #49009F;
             font-weight: bold;
             text-align: center;
             padding: 4px;
@@ -258,8 +258,8 @@
         }
 
         .summary-title {
-            background-color: #ef4444;
-            color: #ffffff;
+            background-color: #49009F;
+            color: #DAFF01;
             padding: 6px;
             font-weight: bold;
             text-align: center;
@@ -322,7 +322,7 @@
                     <div class="details-table">
                         <table class="info-table">
                             <tr>
-                                <th colspan="2" style="background-color: #ef4444; color: white; text-align: center;">
+                                <th colspan="2" style="background-color: #49009F; color: #DAFF01; text-align: center;">
                                     CAMPAIGN INFORMATION
                                 </th>
                             </tr>
@@ -347,7 +347,7 @@
                     <div class="details-table">
                         <table class="info-table">
                             <tr>
-                                <th colspan="2" style="background-color: #ef4444; color: white; text-align: center;">
+                                <th colspan="2" style="background-color: #49009F; color: #DAFF01; text-align: center;">
                                     BUDGET INFORMATION
                                 </th>
                             </tr>

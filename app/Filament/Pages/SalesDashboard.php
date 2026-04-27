@@ -2,10 +2,10 @@
 
 namespace App\Filament\Pages;
 
-use App\Filament\Widgets\Sales\SalesActivityFeedWidget;
-use App\Filament\Widgets\Sales\SalesPersonalStatsWidget;
-use App\Filament\Widgets\Sales\SalesPersonalTargetWidget;
+use App\Enums\SalesStatus;
+use App\Models\BvSales;
 use App\Models\BvSalesList;
+use App\Models\SalesTarget;
 use Carbon\Carbon;
 use Filament\Pages\Page;
 use Livewire\Attributes\Url;
@@ -28,30 +28,298 @@ class SalesDashboard extends Page
         return auth()->check() && auth()->user()->hasRole(['Sales/BD', 'sales', 'bd', 'Sales', 'BD', 'Business Development']);
     }
 
-    public function updated(string $name): void
+    public function getSalesList(): ?BvSalesList
     {
-        if ($name === 'dateFilter') {
-            $this->dispatch('salesDashboardFilterChanged', dateFilter: $this->dateFilter);
+        return BvSalesList::where('user_id', auth()->id())->first();
+    }
+
+    public function getDisplayName(): string
+    {
+        $sales = $this->getSalesList();
+        return $sales?->nama_sales ?? auth()->user()->name;
+    }
+
+    public function getCurrentDateLabel(): string
+    {
+        return Carbon::now()->translatedFormat('l, d M Y');
+    }
+
+    public function getQuickStats(): array
+    {
+        $sales = $this->getSalesList();
+        if (!$sales) {
+            return [
+                ['label' => 'My Deals', 'value' => 0, 'color' => 'primary', 'icon' => 'heroicon-m-funnel'],
+                ['label' => 'Critical', 'value' => 0, 'color' => 'danger', 'icon' => 'heroicon-m-exclamation-triangle'],
+                ['label' => 'In Progress', 'value' => 0, 'color' => 'warning', 'icon' => 'heroicon-m-bolt'],
+                ['label' => 'Overdue', 'value' => 0, 'color' => 'danger', 'icon' => 'heroicon-m-clock'],
+            ];
         }
+
+        $base = BvSales::where('bv_sales_list_id', $sales->id);
+        $now = Carbon::now();
+
+        $closedStatuses = [SalesStatus::PAID->value, SalesStatus::CLOSE_LOSE->value];
+        $inProgressStatuses = [
+            SalesStatus::PROPOSAL_BUILDING->value,
+            SalesStatus::NEGOTIATION->value,
+            SalesStatus::CAMPAIGN_LIVE->value,
+            SalesStatus::REPORTING->value,
+            SalesStatus::INVOICING->value,
+        ];
+
+        $myDeals = (clone $base)->whereNotIn('status', $closedStatuses)->count();
+
+        $critical = (clone $base)
+            ->whereNotIn('status', $closedStatuses)
+            ->whereNotNull('close_date')
+            ->whereBetween('close_date', [$now->copy()->toDateString(), $now->copy()->addDays(3)->toDateString()])
+            ->count();
+
+        $inProgress = (clone $base)->whereIn('status', $inProgressStatuses)->count();
+
+        $overdue = (clone $base)
+            ->whereNotIn('status', $closedStatuses)
+            ->whereNotNull('close_date')
+            ->whereDate('close_date', '<', $now->toDateString())
+            ->count();
+
+        return [
+            ['label' => 'My Deals', 'value' => $myDeals, 'color' => 'primary', 'icon' => 'heroicon-m-funnel'],
+            ['label' => 'Critical', 'value' => $critical, 'color' => 'danger', 'icon' => 'heroicon-m-exclamation-triangle'],
+            ['label' => 'In Progress', 'value' => $inProgress, 'color' => 'warning', 'icon' => 'heroicon-m-bolt'],
+            ['label' => 'Overdue', 'value' => $overdue, 'color' => 'danger', 'icon' => 'heroicon-m-clock'],
+        ];
     }
 
-    public function getSubheading(): ?string
+    public function getMyTarget(): array
     {
-        return null; // rendered manually in blade
+        $sales = $this->getSalesList();
+        $now = Carbon::now();
+        $year = $now->year;
+        $month = $now->month;
+
+        if (!$sales) {
+            return [
+                'month' => ['target' => 0, 'achieved' => 0, 'percent' => 0],
+                'year'  => ['target' => 0, 'achieved' => 0, 'percent' => 0],
+            ];
+        }
+
+        $wonStatuses = $this->wonStatuses();
+        $base = BvSales::where('bv_sales_list_id', $sales->id);
+
+        $monthTarget = (float) SalesTarget::forSales($sales->id)->forMonth($year, $month)->value('target_amount') ?? 0;
+        $monthAchieved = (float) (clone $base)
+            ->whereIn('status', $wonStatuses)
+            ->whereYear('close_date', $year)
+            ->whereMonth('close_date', $month)
+            ->sum('deal_value');
+
+        $yearTarget = SalesTarget::totalForSalesYear($sales->id, $year);
+        $yearAchieved = (float) (clone $base)
+            ->whereIn('status', $wonStatuses)
+            ->whereYear('close_date', $year)
+            ->sum('deal_value');
+
+        return [
+            'month' => [
+                'target'   => $monthTarget,
+                'achieved' => $monthAchieved,
+                'percent'  => $monthTarget > 0 ? min(round(($monthAchieved / $monthTarget) * 100), 100) : 0,
+            ],
+            'year' => [
+                'target'   => $yearTarget,
+                'achieved' => $yearAchieved,
+                'percent'  => $yearTarget > 0 ? min(round(($yearAchieved / $yearTarget) * 100), 100) : 0,
+            ],
+        ];
     }
 
-    public function getGreeting(): string
+    public function getClientCategoryStats(): array
     {
-        $user = auth()->user();
-        $salesList = BvSalesList::where('user_id', $user->id)->first();
-        $name = $salesList?->nama_sales ?? $user->name;
-        $greeting = match (true) {
-            Carbon::now()->hour < 12 => 'Selamat pagi',
-            Carbon::now()->hour < 17 => 'Selamat siang',
-            default => 'Selamat sore',
-        };
+        $sales = $this->getSalesList();
+        if (!$sales) {
+            return [];
+        }
 
-        return "{$greeting}, {$name}! Berikut ringkasan aktivitas sales kamu hari ini.";
+        $rows = \App\Models\DataClient::where('pic_internal_sales_id', $sales->id)
+            ->whereNotNull('category')
+            ->selectRaw('category, count(*) as total')
+            ->groupBy('category')
+            ->orderByDesc('total')
+            ->limit(4)
+            ->get();
+
+        if ($rows->isEmpty()) {
+            return [];
+        }
+
+        $max = $rows->max('total');
+        $colors = ['bg-primary-500', 'bg-emerald-500', 'bg-amber-500', 'bg-rose-500'];
+        $maxBarPx = 96;
+
+        return $rows->values()->map(fn($row, $i) => [
+            'category'  => $row->category,
+            'total'     => $row->total,
+            'percent'   => $max > 0 ? round(($row->total / $max) * 100) : 0,
+            'height_px' => $max > 0 ? max((int) round(($row->total / $max) * $maxBarPx), 4) : 4,
+            'color'     => $colors[$i] ?? 'bg-gray-400',
+        ])->toArray();
+    }
+
+    public function getActivePipelineForCard(): array
+    {
+        $sales = $this->getSalesList();
+        if (!$sales) {
+            return [];
+        }
+
+        $excludedStatuses = [SalesStatus::PAID->value, SalesStatus::CLOSE_LOSE->value];
+
+        $statusOrder = [
+            SalesStatus::NOT_STARTED->value,
+            SalesStatus::PITCHING->value,
+            SalesStatus::BRIEFING->value,
+            SalesStatus::PROPOSAL_BUILDING->value,
+            SalesStatus::NEGOTIATION->value,
+            SalesStatus::CAMPAIGN_LIVE->value,
+            SalesStatus::REPORTING->value,
+            SalesStatus::INVOICING->value,
+            SalesStatus::PAID->value,
+        ];
+
+        $statusTimeline = collect(SalesStatus::cases())
+            ->filter(fn($s) => $s !== SalesStatus::CLOSE_LOSE)
+            ->map(fn($s) => [
+                'value' => $s->value,
+                'label' => $s->getLabel(),
+                'icon'  => $s->getIcon(),
+            ])
+            ->values()
+            ->toArray();
+
+        return BvSales::where('bv_sales_list_id', $sales->id)
+            ->whereNotIn('status', $excludedStatuses)
+            ->orderByRaw("FIELD(status, '" . implode("','", array_reverse($statusOrder)) . "')")
+            ->limit(6)
+            ->get(['id', 'event_name', 'company_name', 'status', 'close_date', 'deal_value'])
+            ->map(function (BvSales $deal) use ($statusTimeline, $statusOrder) {
+                $currentStatus = $deal->status?->value ?? SalesStatus::NOT_STARTED->value;
+                $currentIndex = array_search($currentStatus, $statusOrder);
+
+                $timeline = array_map(function ($step, $i) use ($currentIndex) {
+                    return [
+                        'value'  => $step['value'],
+                        'label'  => $step['label'],
+                        'icon'   => $step['icon'],
+                        'done'   => $i < $currentIndex,
+                        'active' => $i === $currentIndex,
+                    ];
+                }, $statusTimeline, array_keys($statusTimeline));
+
+                return [
+                    'id'           => $deal->id,
+                    'title'        => $deal->event_name ?? 'Untitled',
+                    'company'      => $deal->company_name ?? '',
+                    'status'       => $currentStatus,
+                    'status_label' => $deal->status?->getLabel() ?? 'New Leads',
+                    'close_date'   => $deal->close_date?->translatedFormat('d M Y'),
+                    'is_overdue'   => $deal->close_date && $deal->close_date->isPast(),
+                    'deal_value'   => $deal->deal_value ? 'Rp ' . number_format((float)$deal->deal_value, 0, ',', '.') : null,
+                    'timeline'     => $timeline,
+                    'current_step' => $currentIndex !== false ? $currentIndex : 0,
+                ];
+            })
+            ->toArray();
+    }
+
+    public function getMyPipeline(): array
+    {
+        $sales = $this->getSalesList();
+        if (!$sales) {
+            return [];
+        }
+
+        $closedStatuses = [SalesStatus::PAID->value, SalesStatus::CLOSE_LOSE->value];
+
+        return BvSales::where('bv_sales_list_id', $sales->id)
+            ->whereNotIn('status', $closedStatuses)
+            ->orderBy('close_date')
+            ->limit(6)
+            ->get(['id', 'event_name', 'company_name', 'close_date', 'status', 'updated_at'])
+            ->map(fn(BvSales $deal) => [
+                'id'         => $deal->id,
+                'title'      => $deal->event_name ?? 'Untitled',
+                'company'    => $deal->company_name ?? '',
+                'close_date' => $deal->close_date?->translatedFormat('d M Y'),
+                'status'     => $deal->status?->value ?? 'not_started',
+                'status_label' => $deal->status?->getLabel() ?? 'Not Started',
+                'is_overdue' => $deal->close_date && $deal->close_date->isPast(),
+            ])
+            ->toArray();
+    }
+
+    public function getMyClients(): array
+    {
+        $sales = $this->getSalesList();
+        if (!$sales) {
+            return [];
+        }
+
+        return \App\Models\DataClient::where('pic_internal_sales_id', $sales->id)
+            ->orderBy('nama_brand')
+            ->limit(8)
+            ->get(['id', 'nama_brand', 'type', 'category', 'status_client', 'date_follow_up', 'priority'])
+            ->map(fn($client) => [
+                'id'          => $client->id,
+                'name'        => $client->nama_brand,
+                'type'        => $client->type,
+                'category'    => $client->category ?? '—',
+                'status'      => $client->status_client ?? '—',
+                'follow_up'   => $client->date_follow_up ? Carbon::parse($client->date_follow_up)->translatedFormat('d M Y') : null,
+                'priority'    => $client->priority,
+            ])
+            ->toArray();
+    }
+
+    public function getNotifications(): array
+    {
+        $sales = $this->getSalesList();
+        if (!$sales) {
+            return [];
+        }
+
+        return BvSales::where('bv_sales_list_id', $sales->id)
+            ->orderByDesc('updated_at')
+            ->limit(8)
+            ->get(['id', 'event_name', 'company_name', 'status', 'updated_at'])
+            ->map(function (BvSales $deal) use ($sales) {
+                $statusLabel = $deal->status?->getLabel() ?? 'Updated';
+                return [
+                    'actor' => $sales->nama_sales ?? 'You',
+                    'avatar' => $sales->user?->avatar_url,
+                    'message' => "Deal \"" . ($deal->event_name ?? 'Untitled') . "\" status berubah ke {$statusLabel}",
+                    'time' => $deal->updated_at?->diffForHumans(),
+                    'is_new' => $deal->updated_at && $deal->updated_at->gt(Carbon::now()->subDay()),
+                ];
+            })
+            ->toArray();
+    }
+
+    private function wonStatuses(): array
+    {
+        return [
+            SalesStatus::CAMPAIGN_LIVE->value,
+            SalesStatus::REPORTING->value,
+            SalesStatus::INVOICING->value,
+            SalesStatus::PAID->value,
+        ];
+    }
+
+    public function getWidgets(): array
+    {
+        return [];
     }
 
     protected function getHeaderWidgets(): array
@@ -62,14 +330,5 @@ class SalesDashboard extends Page
     protected function getFooterWidgets(): array
     {
         return [];
-    }
-
-    public function getWidgets(): array
-    {
-        return [
-            SalesPersonalTargetWidget::class,
-            SalesPersonalStatsWidget::class,
-            SalesActivityFeedWidget::class,
-        ];
     }
 }
