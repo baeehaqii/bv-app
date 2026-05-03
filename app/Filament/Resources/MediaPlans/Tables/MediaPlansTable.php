@@ -103,6 +103,7 @@ class MediaPlansTable
                     ->badge()
                     ->color(fn(string $state): string => match ($state) {
                         'Planning' => 'warning',
+                        'To Client' => 'info',
                         'Ongoing' => 'success',
                         default => 'gray',
                     }),
@@ -126,6 +127,14 @@ class MediaPlansTable
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
+                SelectFilter::make('status')
+                    ->label('Plan Status')
+                    ->options([
+                        'Planning' => 'Planning',
+                        'To Client' => 'To Client',
+                        'Ongoing' => 'Ongoing',
+                    ]),
+
                 SelectFilter::make('channel')
                     ->label('Filter by Channel')
                     ->options([
@@ -160,19 +169,26 @@ class MediaPlansTable
             ])
             ->recordActions([
                 EditAction::make(),
+                Action::make('markToClient')
+                    ->label('Send to Client')
+                    ->icon('heroicon-o-paper-airplane')
+                    ->color('info')
+                    ->requiresConfirmation()
+                    ->visible(fn($record) => $record->status === 'Planning')
+                    ->action(fn($record) => $record->update(['status' => 'To Client'])),
                 Action::make('markOngoing')
                     ->label('Mark as Ongoing')
                     ->icon('heroicon-o-play')
                     ->color('success')
                     ->requiresConfirmation()
-                    ->visible(fn($record) => $record->status !== 'Ongoing' && $record->internalBudget?->status === 'approved')
+                    ->visible(fn($record) => in_array($record->status, ['Planning', 'To Client']) && $record->internalBudget?->status === 'approved')
                     ->action(fn($record) => $record->update(['status' => 'Ongoing'])),
                 Action::make('markPlanning')
                     ->label('Revert to Planning')
                     ->icon('heroicon-o-arrow-uturn-left')
                     ->color('warning')
                     ->requiresConfirmation()
-                    ->visible(fn($record) => $record->status === 'Ongoing')
+                    ->visible(fn($record) => in_array($record->status, ['To Client', 'Ongoing']))
                     ->action(fn($record) => $record->update(['status' => 'Planning'])),
                 Action::make('quotation')
                     ->label('Quotation')

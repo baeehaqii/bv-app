@@ -52,6 +52,7 @@ class EditMediaPlan extends EditRecord
         // Store kols data temporarily and remove from main data
         $this->kolsData = $data['kols'] ?? [];
         unset($data['kols']);
+        unset($data['kol_margins']);
 
         return $data;
     }

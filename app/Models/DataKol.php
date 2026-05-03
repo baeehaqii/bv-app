@@ -7,4 +7,8 @@ use Illuminate\Database\Eloquent\Model;
 class DataKol extends Model
 {
     protected $guarded = [];
+
+    protected $casts = [
+        'category' => 'array',
+    ];
 }

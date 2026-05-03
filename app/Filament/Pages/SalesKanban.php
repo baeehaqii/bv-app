@@ -5,6 +5,7 @@ namespace App\Filament\Pages;
 use App\Enums\SalesStatus;
 use App\Filament\Forms\BvSalesForm;
 use App\Models\BvSales;
+use App\Models\BvSalesList;
 use App\Models\DataClient;
 use BackedEnum;
 use Filament\Actions\Action;
@@ -20,8 +21,10 @@ use Filament\Support\Enums\FontWeight;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
+use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Livewire\Attributes\Url;
 use Relaticle\Flowforge\Board;
 use Relaticle\Flowforge\BoardPage;
@@ -105,7 +108,6 @@ class SalesKanban extends BoardPage implements HasTable
             ->columns($this->getKanbanColumns())
             // Notion-style: card hanya tampil judul, metadata di-render langsung di card template
             ->cardSchema(fn(Schema $schema) => $schema->components([]))
-            /*
             ->searchable(['event_name', 'company_name', 'detail'])
             ->filters([
                 SelectFilter::make('campaign_year')
@@ -117,8 +119,18 @@ class SalesKanban extends BoardPage implements HasTable
                             ->pluck('campaign_year', 'campaign_year')
                             ->toArray()
                     ),
+
+                SelectFilter::make('campaign_month')
+                    ->label('Campaign Month')
+                    ->options(fn() => collect(range(1, 12))
+                        ->mapWithKeys(fn($m) => [
+                            $m => \Carbon\Carbon::createFromDate(null, $m, 1)->translatedFormat('F'),
+                        ])->toArray()),
+
+                SelectFilter::make('bv_sales_list_id')
+                    ->label('Sales')
+                    ->relationship('salesList', 'nama_sales'),
             ])
-            */
             /*
             ->columnActions([
                 CreateAction::make()
@@ -313,9 +325,59 @@ class SalesKanban extends BoardPage implements HasTable
                             ->toArray()
                     ),
 
+                SelectFilter::make('campaign_month')
+                    ->label('Campaign Month')
+                    ->options(fn() => collect(range(1, 12))
+                        ->mapWithKeys(fn($m) => [
+                            $m => \Carbon\Carbon::createFromDate(null, $m, 1)->translatedFormat('F'),
+                        ])->toArray()),
+
                 SelectFilter::make('bv_sales_list_id')
                     ->label('Sales')
                     ->relationship('salesList', 'nama_sales'),
+
+                SelectFilter::make('company_name')
+                    ->label('Company / Client')
+                    ->searchable()
+                    ->options(
+                        fn() => BvSales::query()
+                            ->whereNotNull('company_name')
+                            ->distinct()
+                            ->orderBy('company_name')
+                            ->pluck('company_name', 'company_name')
+                            ->toArray()
+                    ),
+
+                Filter::make('client_type')
+                    ->label('Client Type')
+                    ->form([
+                        \Filament\Forms\Components\Select::make('client_type')
+                            ->label('Client Type')
+                            ->options([
+                                'direct' => 'Direct Brand',
+                                'agency' => 'Agency',
+                            ])
+                            ->native(false),
+                    ])
+                    ->query(function (Builder $query, array $data): Builder {
+                        return $query->when(
+                            $data['client_type'] ?? null,
+                            fn(Builder $q, string $type) => $q->whereHas(
+                                'client',
+                                fn(Builder $cq) => $cq->where('type', $type)
+                            )
+                        );
+                    })
+                    ->indicateUsing(function (array $data): ?string {
+                        if (! ($data['client_type'] ?? null)) {
+                            return null;
+                        }
+                        return 'Client Type: ' . match ($data['client_type']) {
+                            'direct' => 'Direct Brand',
+                            'agency' => 'Agency',
+                            default => $data['client_type'],
+                        };
+                    }),
             ])
             ->actions([
                 EditAction::make()

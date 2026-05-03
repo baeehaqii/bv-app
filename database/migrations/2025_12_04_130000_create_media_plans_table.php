@@ -27,7 +27,7 @@ return new class extends Migration {
             $table->string('platform')->nullable();
             $table->string('domisili')->nullable();
             $table->foreignId('pic_campaign_id')->nullable()->constrained('bv_sales_lists')->nullOnDelete()->comment('PIC Brief dari Campaign');
-            $table->enum('status', ['Planning', 'Ongoing'])->default('Planning')->comment('Status Media Plan');
+            $table->string('status')->default('Planning')->comment('Status Media Plan: Planning, To Client, Ongoing');
 
             // Metadata
             $table->text('notes')->nullable();

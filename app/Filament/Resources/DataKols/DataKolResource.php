@@ -41,7 +41,7 @@ class DataKolResource extends Resource
     {
         return [
             'Channel' => $record->channel ?? 'N/A',
-            'Category' => $record->category ?? 'N/A',
+            'Category' => is_array($record->category) ? implode(', ', $record->category) : ($record->category ?? 'N/A'),
         ];
     }
 

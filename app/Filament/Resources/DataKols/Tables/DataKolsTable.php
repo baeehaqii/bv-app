@@ -97,6 +97,8 @@ class DataKolsTable
 
                 TextColumn::make('category')
                     ->label('Category')
+                    ->badge()
+                    ->formatStateUsing(fn($state) => is_array($state) ? implode(', ', $state) : ($state ?? '-'))
                     ->searchable()
                     ->sortable()
                     ->toggleable(),

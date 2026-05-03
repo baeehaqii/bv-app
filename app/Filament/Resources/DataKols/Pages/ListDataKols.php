@@ -160,25 +160,30 @@ class ListDataKols extends ListRecords
                             'terakhir_update' => now()->format('Y-m-d'),
                         ];
 
-                        // Set category
+                        // Set category (as array for JSON column)
                         if (!empty($profile['business_category_name']) && $profile['business_category_name'] !== 'None') {
-                            $finalData['category'] = $profile['category_name'] ?? $profile['business_category_name'];
+                            $finalData['category'] = [$profile['category_name'] ?? $profile['business_category_name']];
                         } elseif (!empty($profile['category_name'])) {
-                            $finalData['category'] = $profile['category_name'];
+                            $finalData['category'] = [$profile['category_name']];
                         }
 
-                        // Set contact
+                        // Set contact fields
+                        if (!empty($profile['full_name'])) {
+                            $finalData['full_name'] = $profile['full_name'];
+                        }
                         if (!empty($profile['business_email'])) {
+                            $finalData['email'] = $profile['business_email'];
                             $finalData['contact'] = $profile['business_email'];
-                        } elseif (!empty($profile['business_phone_number'])) {
-                            $finalData['contact'] = $profile['business_phone_number'];
+                        }
+                        if (!empty($profile['business_phone_number'])) {
+                            $finalData['wa_number'] = $profile['business_phone_number'];
+                            if (empty($profile['business_email'])) {
+                                $finalData['contact'] = $profile['business_phone_number'];
+                            }
                         }
 
                         // Set notes
                         $notes = [];
-                        if (!empty($profile['full_name'])) {
-                            $notes[] = "Nama: {$profile['full_name']}";
-                        }
                         if (!empty($profile['biography'])) {
                             $notes[] = "Bio: {$profile['biography']}";
                         }

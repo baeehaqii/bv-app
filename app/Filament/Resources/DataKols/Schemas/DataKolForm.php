@@ -119,21 +119,27 @@ class DataKolForm
                                     $set('impressions', $profile['average_impressions']);
 
                                     if (!empty($profile['business_category_name']) && $profile['business_category_name'] !== 'None') {
-                                        $set('category', $profile['category_name'] ?? $profile['business_category_name']);
+                                        $set('category', [$profile['category_name'] ?? $profile['business_category_name']]);
                                     } elseif (!empty($profile['category_name'])) {
-                                        $set('category', $profile['category_name']);
+                                        $set('category', [$profile['category_name']]);
                                     }
 
+                                    // Auto-fill contact fields
+                                    if (!empty($profile['full_name'])) {
+                                        $set('full_name', $profile['full_name']);
+                                    }
                                     if (!empty($profile['business_email'])) {
+                                        $set('email', $profile['business_email']);
                                         $set('contact', $profile['business_email']);
-                                    } elseif (!empty($profile['business_phone_number'])) {
-                                        $set('contact', $profile['business_phone_number']);
+                                    }
+                                    if (!empty($profile['business_phone_number'])) {
+                                        $set('wa_number', $profile['business_phone_number']);
+                                        if (empty($profile['business_email'])) {
+                                            $set('contact', $profile['business_phone_number']);
+                                        }
                                     }
 
                                     $notes = [];
-                                    if (!empty($profile['full_name'])) {
-                                        $notes[] = "Nama: {$profile['full_name']}";
-                                    }
                                     if (!empty($profile['biography'])) {
                                         $notes[] = "Bio: {$profile['biography']}";
                                     }
@@ -229,6 +235,7 @@ class DataKolForm
                                 'Couple' => 'Couple',
                                 'Foodies' => 'Foodies',
                             ])
+                            ->multiple()
                             ->label('Category')
                             ->searchable(),
 
@@ -294,9 +301,29 @@ class DataKolForm
                 Section::make('Additional Info')
                     ->columnSpanFull()
                     ->schema([
+                        TextInput::make('full_name')
+                            ->label('Nama Lengkap KOL')
+                            ->placeholder('Nama asli / nama lengkap')
+                            ->prefixIcon('heroicon-o-user'),
+
+                        TextInput::make('email')
+                            ->label('Email')
+                            ->email()
+                            ->placeholder('email@example.com')
+                            ->prefixIcon('heroicon-o-envelope'),
+
+                        TextInput::make('wa_number')
+                            ->label('No WhatsApp')
+                            ->tel()
+                            ->placeholder('08xxxxxxxxxx')
+                            ->prefixIcon('heroicon-o-phone'),
+
                         TextInput::make('contact')
-                            ->label('Contact')
-                            ->email(),
+                            ->label('Contact (Legacy)')
+                            ->helperText('Field lama — gunakan Email & WA di atas')
+                            ->disabled()
+                            ->dehydrated()
+                            ->visible(fn($state) => !empty($state)),
 
                         DatePicker::make('terakhir_update')
                             ->label('Terakhir Update')

@@ -16,13 +16,16 @@ return new class extends Migration {
             $table->string('status')->nullable();
             $table->string('link_userprofile');
             $table->string('channel')->nullable();
-            $table->string('category')->nullable();
+            $table->json('category')->nullable();
             $table->bigInteger('followers')->nullable();
             $table->string('tier')->nullable();
             $table->decimal('engagement_rate', 8, 2)->nullable();
             $table->bigInteger('impressions')->nullable();
             $table->bigInteger('engagements')->nullable();
             $table->string('contact')->nullable();
+            $table->string('full_name')->nullable()->comment('Nama lengkap / nama asli KOL');
+            $table->string('email')->nullable()->comment('Email KOL');
+            $table->string('wa_number')->nullable()->comment('Nomor WhatsApp KOL');
             $table->text('notes')->nullable();
             $table->date('terakhir_update')->nullable();
             $table->decimal('rate_card', 15, 2)->nullable()->comment('Published rate card per channel');

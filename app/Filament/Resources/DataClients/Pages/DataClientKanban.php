@@ -12,6 +12,7 @@ use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Support\Colors\Color;
 use Relaticle\Flowforge\Board;
@@ -116,6 +117,7 @@ class DataClientKanban extends BoardResourcePage
                     'agency' => 'Agency',
                 ])
                 ->default('direct')
+                ->live()
                 ->native(false)
                 ->required(),
 
@@ -149,6 +151,7 @@ class DataClientKanban extends BoardResourcePage
 
             Select::make('category')
                 ->label('Kategori')
+                ->visible(fn(Get $get) => $get('type') !== 'agency')
                 ->options([
                     'FMCG' => 'FMCG',
                     'E-Commerce & Tech' => 'E-Commerce & Tech',

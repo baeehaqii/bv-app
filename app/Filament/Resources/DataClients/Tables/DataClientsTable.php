@@ -89,6 +89,55 @@ class DataClientsTable
                     ->label('Kategori')
                     ->searchable(),
 
+                TextColumn::make('agency_brands_count')
+                    ->label('Brand Di-handle')
+                    ->getStateUsing(fn($record) => count($record->agency_brands ?? []))
+                    ->badge()
+                    ->color(fn($state) => $state > 0 ? 'success' : 'gray')
+                    ->suffix(fn($state) => $state > 0 ? ' brand' : '')
+                    ->visible(fn() => true)
+                    ->action(
+                        Action::make('lihatBrands')
+                            ->modalHeading(fn($record): string => 'Brand yang Di-handle — ' . ($record->nama_brand ?: 'Agency'))
+                            ->modalSubmitAction(false)
+                            ->modalCancelActionLabel('Tutup')
+                            ->modalContent(function ($record): HtmlString {
+                                $brands = collect($record->agency_brands ?? []);
+
+                                if ($brands->isEmpty()) {
+                                    return new HtmlString('<p class="text-sm text-gray-500 py-4 text-center">Tidak ada data brand.</p>');
+                                }
+
+                                $rows = $brands->map(function ($b) {
+                                    return '<tr class="border-b text-sm">
+                                        <td class="py-2 pr-4 font-medium">' . e($b['nama_brand'] ?? '-') . '</td>
+                                        <td class="py-2 pr-4">' . e($b['category'] ?? '-') . '</td>
+                                        <td class="py-2 pr-4">' . e($b['nama_pic'] ?? '-') . '</td>
+                                        <td class="py-2 pr-4">' . e($b['email'] ?? '-') . '</td>
+                                        <td class="py-2">' . e($b['wa_number'] ?? '-') . '</td>
+                                    </tr>';
+                                })->join('');
+
+                                return new HtmlString('
+                                    <div class="overflow-x-auto">
+                                        <table class="w-full text-left">
+                                            <thead>
+                                                <tr class="border-b text-xs uppercase text-gray-400">
+                                                    <th class="py-2 pr-4">Nama Brand</th>
+                                                    <th class="py-2 pr-4">Kategori</th>
+                                                    <th class="py-2 pr-4">PIC Brand</th>
+                                                    <th class="py-2 pr-4">Email</th>
+                                                    <th class="py-2">WhatsApp</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>' . $rows . '</tbody>
+                                        </table>
+                                    </div>
+                                ');
+                            })
+                            ->visible(fn($record) => $record->type === 'agency' && !empty($record->agency_brands))
+                    ),
+
                 // DC-03: PIC Internal (Sales)
                 TextColumn::make('picInternalSales.nama_sales')
                     ->label('PIC Internal (Sales)')

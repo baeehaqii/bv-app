@@ -577,8 +577,13 @@ class MediaPlanForm
 
                                                     return DataKol::where('channel', $channel)
                                                         ->whereNotNull('category')
-                                                        ->distinct()
-                                                        ->pluck('category', 'category')
+                                                        ->get()
+                                                        ->pluck('category')
+                                                        ->flatten()
+                                                        ->filter()
+                                                        ->unique()
+                                                        ->sort()
+                                                        ->mapWithKeys(fn($cat) => [$cat => $cat])
                                                         ->toArray();
                                                 })
                                                 ->live(onBlur: true)
@@ -600,7 +605,7 @@ class MediaPlanForm
                                                     $query = DataKol::where('channel', $channel);
 
                                                     if ($category) {
-                                                        $query->where('category', $category);
+                                                        $query->whereJsonContains('category', $category);
                                                     }
 
                                                     return $query->pluck('username', 'id')->toArray();
@@ -747,9 +752,20 @@ class MediaPlanForm
                                                                             $set('impressions', $profile['average_impressions']);
 
                                                                             if (!empty($profile['category_name'])) {
-                                                                                $set('category', $profile['category_name']);
+                                                                                $set('category', [$profile['category_name']]);
                                                                             }
 
+                                                                            // Auto-fill contact fields
+                                                                            if (!empty($profile['full_name'])) {
+                                                                                $set('full_name', $profile['full_name']);
+                                                                            }
+                                                                            if (!empty($profile['business_email'])) {
+                                                                                $set('email', $profile['business_email']);
+                                                                                $set('contact', $profile['business_email']);
+                                                                            }
+                                                                            if (!empty($profile['business_phone_number'])) {
+                                                                                $set('wa_number', $profile['business_phone_number']);
+                                                                            }
                                                                             Notification::make()
                                                                                 ->title("✅ Data {$channel} berhasil diambil!")
                                                                                 ->success()
@@ -829,6 +845,7 @@ class MediaPlanForm
                                                                         'Couple' => 'Couple',
                                                                         'Foodies' => 'Foodies',
                                                                     ])
+                                                                    ->multiple()
                                                                     ->label('Category')
                                                                     ->searchable(),
 
@@ -846,9 +863,29 @@ class MediaPlanForm
                                                         Section::make('Additional Info')
                                                             ->columnSpanFull()
                                                             ->schema([
+                                                                TextInput::make('full_name')
+                                                                    ->label('Nama Lengkap KOL')
+                                                                    ->placeholder('Nama asli / nama lengkap')
+                                                                    ->prefixIcon('heroicon-o-user'),
+
+                                                                TextInput::make('email')
+                                                                    ->label('Email')
+                                                                    ->email()
+                                                                    ->placeholder('email@example.com')
+                                                                    ->prefixIcon('heroicon-o-envelope'),
+
+                                                                TextInput::make('wa_number')
+                                                                    ->label('No WhatsApp')
+                                                                    ->tel()
+                                                                    ->placeholder('08xxxxxxxxxx')
+                                                                    ->prefixIcon('heroicon-o-phone'),
+
                                                                 TextInput::make('contact')
-                                                                    ->label('Contact')
-                                                                    ->email(),
+                                                                    ->label('Contact (Legacy)')
+                                                                    ->helperText('Otomatis terisi dari API')
+                                                                    ->disabled()
+                                                                    ->dehydrated()
+                                                                    ->visible(fn($state) => !empty($state)),
 
                                                                 DatePicker::make('terakhir_update')
                                                                     ->label('Terakhir Update')
@@ -893,7 +930,10 @@ class MediaPlanForm
                                                             'impressions' => $data['impressions'] ?? 0,
                                                             'category' => $data['category'] ?? null,
                                                             'status' => $data['status'] ?? 'New List',
-                                                            'contact' => $data['contact'] ?? null,
+                                                            'full_name' => $data['full_name'] ?? null,
+                                                            'email' => $data['email'] ?? null,
+                                                            'wa_number' => $data['wa_number'] ?? null,
+                                                            'contact' => $data['contact'] ?? $data['email'] ?? null,
                                                             'terakhir_update' => $data['terakhir_update'] ?? now(),
                                                             'notes' => $data['notes'] ?? null,
                                                             'rate_card' => isset($data['rate_card']) ? (float) str_replace(['.', ','], ['', '.'], preg_replace('/[^\d,.]/', '', $data['rate_card'])) : null,
