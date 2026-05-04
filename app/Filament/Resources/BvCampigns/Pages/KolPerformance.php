@@ -123,10 +123,10 @@ class KolPerformance extends Page implements HasTable
                     ->color(fn($record) => in_array($record->content_type, ['reels', 'video', 'short']) ? null : 'gray')
                     ->sortable(),
 
-                TextColumn::make('followers_count')
-                    ->label('Followers')
-                    ->numeric()
-                    ->sortable(),
+                // TextColumn::make('followers_count')
+                //     ->label('Followers')
+                //     ->numeric()
+                //     ->sortable(),
 
                 TextColumn::make('total_engagement')
                     ->label('Engagement')

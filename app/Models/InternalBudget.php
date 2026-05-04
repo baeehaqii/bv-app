@@ -26,6 +26,22 @@ class InternalBudget extends Model
     ];
 
     /**
+     * Approve budget dan trigger aktivasi campaign
+     */
+    public function approve(): void
+    {
+        $this->update(['status' => 'approved', 'rejection_notes' => null]);
+    }
+
+    /**
+     * Reject budget dengan alasan penolakan
+     */
+    public function reject(string $rejectionNotes): void
+    {
+        $this->update(['status' => 'rejected', 'rejection_notes' => $rejectionNotes]);
+    }
+
+    /**
      * Parse formatted number to float
      * Indonesian format: titik = ribuan, koma = desimal
      * "2.000.000" → 2000000

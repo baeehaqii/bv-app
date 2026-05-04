@@ -4,6 +4,7 @@ namespace App\Filament\Resources\InternalBudgets\Pages;
 
 use App\Filament\Resources\InternalBudgets\InternalBudgetResource;
 use Filament\Actions;
+use Filament\Forms\Components\Textarea;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 
@@ -36,16 +37,49 @@ class EditInternalBudget extends EditRecord
             Actions\Action::make('approve')
                 ->label('Approve Budget')
                 ->icon('heroicon-m-check-circle')
-                ->color('white')
-                ->visible(fn($record) => $record->status !== 'approved')
+                ->color('success')
+                ->visible(fn($record) => !in_array($record->status, ['approved']))
                 ->requiresConfirmation()
+                ->modalHeading('Approve Budget')
+                ->modalDescription('Apakah Anda yakin ingin meng-approve budget ini? Campaign akan diaktifkan jika Media Plan sudah berstatus Ongoing.')
+                ->modalSubmitActionLabel('Ya, Approve')
                 ->action(function ($record) {
-                    $record->update(['status' => 'approved']);
+                    $record->approve();
 
                     Notification::make()
                         ->title('Budget Approved')
+                        ->body('Internal Budget berhasil di-approve.')
                         ->success()
                         ->send();
+
+                    $this->refreshFormData(['status', 'rejection_notes']);
+                }),
+
+            Actions\Action::make('reject')
+                ->label('Reject Budget')
+                ->icon('heroicon-m-x-circle')
+                ->color('danger')
+                ->visible(fn($record) => !in_array($record->status, ['rejected']))
+                ->form([
+                    Textarea::make('rejection_notes')
+                        ->label('Alasan Penolakan')
+                        ->placeholder('Tuliskan alasan penolakan budget ini...')
+                        ->required()
+                        ->rows(4)
+                        ->minLength(10),
+                ])
+                ->modalHeading('Reject Budget')
+                ->modalSubmitActionLabel('Reject')
+                ->action(function ($record, array $data) {
+                    $record->reject($data['rejection_notes']);
+
+                    Notification::make()
+                        ->title('Budget Rejected')
+                        ->body('Internal Budget ditolak dengan catatan: ' . $data['rejection_notes'])
+                        ->warning()
+                        ->send();
+
+                    $this->refreshFormData(['status', 'rejection_notes']);
                 }),
 
             // Actions\DeleteAction::make(),

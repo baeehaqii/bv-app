@@ -253,6 +253,16 @@ class MediaPlanForm
                                 ])->columns(3),
                         ]),
 
+                    Step::make('Brief')
+                        ->icon('heroicon-m-document-text')
+                        ->description('Lihat brief & lampiran dari client')
+                        ->schema([
+                            ViewField::make('brief_view')
+                                ->view('filament.forms.components.media-plan-brief')
+                                ->dehydrated(false)
+                                ->columnSpanFull(),
+                        ]),
+
                     Step::make('Select KOL')
                         ->icon('heroicon-m-user-group')
                         ->description('Choose or search for multiple KOLs')
@@ -336,178 +346,178 @@ class MediaPlanForm
                                             ];
                                         })
                                         ->form([
-                                                // ── Detail KOL ──────────────────────────
-                                                Section::make('Detail KOL')
-                                                    ->schema([
-                                                        Select::make('channel')
-                                                            ->label('Channel')
-                                                            ->options([
-                                                                'Instagram' => 'Instagram',
-                                                                'Tiktok' => 'TikTok',
-                                                                'Threads' => 'Threads',
-                                                                'Youtube Channels' => 'YouTube Channels',
-                                                                'Youtube Shorts' => 'YouTube Shorts',
-                                                                'Facebook' => 'Facebook',
-                                                                'Talent' => 'Talent',
-                                                                'X' => 'X (Twitter)',
-                                                            ])
-                                                            ->required(),
+                                            // ── Detail KOL ──────────────────────────
+                                            Section::make('Detail KOL')
+                                                ->schema([
+                                                    Select::make('channel')
+                                                        ->label('Channel')
+                                                        ->options([
+                                                            'Instagram' => 'Instagram',
+                                                            'Tiktok' => 'TikTok',
+                                                            'Threads' => 'Threads',
+                                                            'Youtube Channels' => 'YouTube Channels',
+                                                            'Youtube Shorts' => 'YouTube Shorts',
+                                                            'Facebook' => 'Facebook',
+                                                            'Talent' => 'Talent',
+                                                            'X' => 'X (Twitter)',
+                                                        ])
+                                                        ->required(),
 
-                                                        TextInput::make('name')
-                                                            ->label('KOL Name')
-                                                            ->placeholder('Username / Nama')
-                                                            ->required(),
+                                                    TextInput::make('name')
+                                                        ->label('KOL Name')
+                                                        ->placeholder('Username / Nama')
+                                                        ->required(),
 
-                                                        TextInput::make('domisili')
-                                                            ->label('Domisili')
-                                                            ->placeholder('Jakarta'),
+                                                    TextInput::make('domisili')
+                                                        ->label('Domisili')
+                                                        ->placeholder('Jakarta'),
 
-                                                        TagsInput::make('links')
-                                                            ->label('Links')
-                                                            ->placeholder('URL'),
+                                                    TagsInput::make('links')
+                                                        ->label('Links')
+                                                        ->placeholder('URL'),
 
-                                                        Select::make('tipe_pajak_kol')
-                                                            ->label('Golongan Pajak')
-                                                            ->options(function () {
-                                                                return MasterPph::active()
-                                                                    ->ordered()
-                                                                    ->get()
-                                                                    ->mapWithKeys(function ($pph) {
-                                                                        $label = $pph->name;
-                                                                        if ($pph->include_ppn) {
-                                                                            $label .= " ({$pph->coefficient} + PPN {$pph->ppn_percent}%)";
-                                                                        } else {
-                                                                            $label .= " ({$pph->coefficient})";
-                                                                        }
-                                                                        return [$pph->id => $label];
-                                                                    })
-                                                                    ->toArray();
-                                                            })
-                                                            ->required(),
-                                                    ])
-                                                    ->columns(3),
+                                                    Select::make('tipe_pajak_kol')
+                                                        ->label('Golongan Pajak')
+                                                        ->options(function () {
+                                                            return MasterPph::active()
+                                                                ->ordered()
+                                                                ->get()
+                                                                ->mapWithKeys(function ($pph) {
+                                                                    $label = $pph->name;
+                                                                    if ($pph->include_ppn) {
+                                                                        $label .= " ({$pph->coefficient} + PPN {$pph->ppn_percent}%)";
+                                                                    } else {
+                                                                        $label .= " ({$pph->coefficient})";
+                                                                    }
+                                                                    return [$pph->id => $label];
+                                                                })
+                                                                ->toArray();
+                                                        })
+                                                        ->required(),
+                                                ])
+                                                ->columns(3),
 
-                                                // ── Performance ─────────────────────────
-                                                Section::make('Performance')
-                                                    ->schema([
-                                                        TextInput::make('followers')
-                                                            ->label('Followers')
-                                                            ->numeric()
-                                                            ->live(onBlur: true)
-                                                            ->afterStateUpdated(function ($state, callable $set, callable $get) {
-                                                                $followers = (int) $state;
-                                                                $tier = \App\Models\MediaPlanKol::calculateTier($followers);
-                                                                $set('tier', $tier);
-                                                                $er = (float) $get('er_percent');
-                                                                $set('engagement', intval($followers * ($er / 100)));
-                                                            }),
+                                            // ── Performance ─────────────────────────
+                                            Section::make('Performance')
+                                                ->schema([
+                                                    TextInput::make('followers')
+                                                        ->label('Followers')
+                                                        ->numeric()
+                                                        ->live(onBlur: true)
+                                                        ->afterStateUpdated(function ($state, callable $set, callable $get) {
+                                                            $followers = (int) $state;
+                                                            $tier = \App\Models\MediaPlanKol::calculateTier($followers);
+                                                            $set('tier', $tier);
+                                                            $er = (float) $get('er_percent');
+                                                            $set('engagement', intval($followers * ($er / 100)));
+                                                        }),
 
-                                                        TextInput::make('tier')
-                                                            ->label('Tier')
-                                                            ->readOnly()
-                                                            ->dehydrated(),
+                                                    TextInput::make('tier')
+                                                        ->label('Tier')
+                                                        ->readOnly()
+                                                        ->dehydrated(),
 
-                                                        TextInput::make('er_percent')
-                                                            ->label('ER %')
-                                                            ->numeric()
-                                                            ->suffix('%')
-                                                            ->live(onBlur: true)
-                                                            ->afterStateUpdated(function ($state, callable $set, callable $get) {
-                                                                $followers = (int) $get('followers');
-                                                                $set('engagement', intval($followers * ((float) $state / 100)));
-                                                            }),
+                                                    TextInput::make('er_percent')
+                                                        ->label('ER %')
+                                                        ->numeric()
+                                                        ->suffix('%')
+                                                        ->live(onBlur: true)
+                                                        ->afterStateUpdated(function ($state, callable $set, callable $get) {
+                                                            $followers = (int) $get('followers');
+                                                            $set('engagement', intval($followers * ((float) $state / 100)));
+                                                        }),
 
-                                                        TextInput::make('impression')
-                                                            ->label('Impression')
-                                                            ->numeric(),
+                                                    TextInput::make('impression')
+                                                        ->label('Impression')
+                                                        ->numeric(),
 
-                                                        TextInput::make('engagement')
-                                                            ->label('Engagement')
-                                                            ->numeric()
-                                                            ->readOnly()
-                                                            ->dehydrated(),
+                                                    TextInput::make('engagement')
+                                                        ->label('Engagement')
+                                                        ->numeric()
+                                                        ->readOnly()
+                                                        ->dehydrated(),
 
-                                                        Select::make('scope_items')
-                                                            ->label('Scope of Work')
-                                                            ->multiple()
-                                                            ->options([
-                                                                'IG Post' => 'IG Post',
-                                                                'IG Reels' => 'IG Reels',
-                                                                'IG Story' => 'IG Story',
-                                                                'TikTok Post' => 'TikTok Post',
-                                                                'TikTok Video' => 'TikTok Video',
-                                                                'TikTok Story' => 'TikTok Story',
-                                                                'Threads Post' => 'Threads Post',
-                                                                'YouTube Video' => 'YouTube Video',
-                                                                'YouTube Shorts' => 'YouTube Shorts',
-                                                                'Facebook Post' => 'Facebook Post',
-                                                                'Facebook Reels' => 'Facebook Reels',
-                                                                'Talent Appearance' => 'Talent Appearance',
-                                                                'X Post' => 'X Post',
-                                                            ])
-                                                            ->searchable()
-                                                            ->required()
-                                                            ->columnSpan(2),
-                                                    ])
-                                                    ->columns(3),
+                                                    Select::make('scope_items')
+                                                        ->label('Scope of Work')
+                                                        ->multiple()
+                                                        ->options([
+                                                            'IG Post' => 'IG Post',
+                                                            'IG Reels' => 'IG Reels',
+                                                            'IG Story' => 'IG Story',
+                                                            'TikTok Post' => 'TikTok Post',
+                                                            'TikTok Video' => 'TikTok Video',
+                                                            'TikTok Story' => 'TikTok Story',
+                                                            'Threads Post' => 'Threads Post',
+                                                            'YouTube Video' => 'YouTube Video',
+                                                            'YouTube Shorts' => 'YouTube Shorts',
+                                                            'Facebook Post' => 'Facebook Post',
+                                                            'Facebook Reels' => 'Facebook Reels',
+                                                            'Talent Appearance' => 'Talent Appearance',
+                                                            'X Post' => 'X Post',
+                                                        ])
+                                                        ->searchable()
+                                                        ->required()
+                                                        ->columnSpan(2),
+                                                ])
+                                                ->columns(3),
 
-                                                // ── Jadwal Bayar ────────────────────────
-                                                Section::make('Jadwal Bayar')
-                                                    ->schema([
-                                                        TextInput::make('after_nego')
-                                                            ->label('After Nego')
-                                                            ->prefix('Rp')
-                                                            ->mask(RawJs::make('$money($input)'))
-                                                            ->formatStateUsing(fn($state) => $state ? number_format(round($state), 0, '.', ',') : null)
-                                                            ->dehydrateStateUsing(fn($state) => $state ? round(self::parseNumber($state)) : null)
-                                                            ->placeholder('0')
-                                                            ->nullable(),
+                                            // ── Jadwal Bayar ────────────────────────
+                                            Section::make('Jadwal Bayar')
+                                                ->schema([
+                                                    TextInput::make('after_nego')
+                                                        ->label('After Nego')
+                                                        ->prefix('Rp')
+                                                        ->mask(RawJs::make('$money($input)'))
+                                                        ->formatStateUsing(fn($state) => $state ? number_format(round($state), 0, '.', ',') : null)
+                                                        ->dehydrateStateUsing(fn($state) => $state ? round(self::parseNumber($state)) : null)
+                                                        ->placeholder('0')
+                                                        ->nullable(),
 
-                                                        Select::make('payment_date')
-                                                            ->label('Jadwal Payment')
-                                                            ->options(fn() => \App\Helpers\PaymentScheduleHelper::getUpcomingSchedules())
-                                                            ->placeholder('Pilih jadwal')
-                                                            ->nullable()
-                                                            ->searchable(),
-                                                    ])
-                                                    ->columns(2),
+                                                    Select::make('payment_date')
+                                                        ->label('Jadwal Payment')
+                                                        ->options(fn() => \App\Helpers\PaymentScheduleHelper::getUpcomingSchedules())
+                                                        ->placeholder('Pilih jadwal')
+                                                        ->nullable()
+                                                        ->searchable(),
+                                                ])
+                                                ->columns(2),
 
-                                                // ── Select Quotation ────────────────────
-                                                Section::make('Select Quotation')
-                                                    ->schema([
-                                                        Checkbox::make('is_selected')
-                                                            ->label('Select for Quotation')
-                                                            ->default(false),
+                                            // ── Select Quotation ────────────────────
+                                            Section::make('Select Quotation')
+                                                ->schema([
+                                                    Checkbox::make('is_selected')
+                                                        ->label('Select for Quotation')
+                                                        ->default(false),
 
-                                                        Select::make('status')
-                                                            ->label('Status')
-                                                            ->options([
-                                                                'New List' => 'New List',
-                                                                'Approaching' => 'Approaching',
-                                                                'Locked' => 'Locked',
-                                                                'Canceled' => 'Canceled',
-                                                            ])
-                                                            ->default('New List'),
+                                                    Select::make('status')
+                                                        ->label('Status')
+                                                        ->options([
+                                                            'New List' => 'New List',
+                                                            'Approaching' => 'Approaching',
+                                                            'Locked' => 'Locked',
+                                                            'Canceled' => 'Canceled',
+                                                        ])
+                                                        ->default('New List'),
 
-                                                        Select::make('pic')
-                                                            ->label('PIC')
-                                                            ->options([
-                                                                'ROHMAH' => 'ROHMAH',
-                                                                'NABILLA' => 'NABILLA',
-                                                            ]),
-                                                    ])
-                                                    ->columns(3),
+                                                    Select::make('pic')
+                                                        ->label('PIC')
+                                                        ->options([
+                                                            'ROHMAH' => 'ROHMAH',
+                                                            'NABILLA' => 'NABILLA',
+                                                        ]),
+                                                ])
+                                                ->columns(3),
 
-                                                // ── Notes ───────────────────────────────
-                                                Section::make('Notes')
-                                                    ->schema([
-                                                        Textarea::make('notes')
-                                                            ->label('Notes')
-                                                            ->placeholder('Special instructions or notes')
-                                                            ->rows(3)
-                                                            ->columnSpanFull(),
-                                                    ]),
-                                            ])
+                                            // ── Notes ───────────────────────────────
+                                            Section::make('Notes')
+                                                ->schema([
+                                                    Textarea::make('notes')
+                                                        ->label('Notes')
+                                                        ->placeholder('Special instructions or notes')
+                                                        ->rows(3)
+                                                        ->columnSpanFull(),
+                                                ]),
+                                        ])
                                         ->action(function (array $data, array $arguments, Repeater $component): void {
                                             $component->getChildSchema($arguments['item'])->fill($data);
                                         }),
@@ -1277,12 +1287,12 @@ class MediaPlanForm
                                         }
 
                                         Notification::make()
-                                            ->title($result['count'] > 0
-                                                ? "✅ Berhasil import {$result['count']} KOL"
-                                                : '⚠️ Tidak ada baris valid yang diimport')
+                                                    ->title($result['count'] > 0
+                                                        ? "✅ Berhasil import {$result['count']} KOL"
+                                                        : '⚠️ Tidak ada baris valid yang diimport')
                                             ->{$result['count'] > 0 ? 'success' : 'warning'}()
-                                            ->body($body)
-                                            ->send();
+                                                ->body($body)
+                                                ->send();
                                     }),
                             ])
                                 ->alignment('center')
@@ -1312,16 +1322,6 @@ class MediaPlanForm
                             $set('kol_margins', $newMargins);
                         }),
 
-                    Step::make('Brief')
-                        ->icon('heroicon-m-document-text')
-                        ->description('Lihat brief & lampiran dari client')
-                        ->schema([
-                            ViewField::make('brief_view')
-                                ->view('filament.forms.components.media-plan-brief')
-                                ->dehydrated(false)
-                                ->columnSpanFull(),
-                        ]),
-
                     Step::make('Margin Setting')
                         ->icon('heroicon-m-calculator')
                         ->description('Configure margin settings for this campaign')
@@ -1329,26 +1329,6 @@ class MediaPlanForm
                             Section::make('🎯 Margin Configuration')
                                 ->description('Setting margin akan diaplikasikan ke semua KOL dalam campaign ini saat kalkulasi Internal Budget')
                                 ->schema([
-                                    ToggleButtons::make('margin_type')
-                                        ->label('Margin Type')
-                                        ->options([
-                                            'auto' => 'Auto (Based on Budget Range)',
-                                            'custom' => 'Custom Margin',
-                                        ])
-                                        ->icons([
-                                            'auto' => 'heroicon-m-cpu-chip',
-                                            'custom' => 'heroicon-m-pencil-square',
-                                        ])
-                                        ->colors([
-                                            'auto' => 'info',
-                                            'custom' => 'warning',
-                                        ])
-                                        ->inline()
-                                        ->default('auto')
-                                        ->live()
-                                        ->columnSpanFull()
-                                        ->helperText('Auto: Margin dihitung otomatis berdasarkan Master Margin. Custom: Anda tentukan sendiri.'),
-
                                     TextInput::make('margin_percent')
                                         ->label('Custom Margin %')
                                         ->suffix('%')
@@ -1357,8 +1337,7 @@ class MediaPlanForm
                                         ->minValue(0)
                                         ->maxValue(100)
                                         ->default(30)
-                                        ->visible(fn(callable $get) => $get('margin_type') === 'custom')
-                                        ->required(fn(callable $get) => $get('margin_type') === 'custom')
+                                        ->required()
                                         ->helperText('Contoh: 30 untuk 30%, 40 untuk 40%, dll'),
 
                                     Toggle::make('use_global_margin')
@@ -1661,6 +1640,9 @@ class MediaPlanForm
             $newKols[] = $kolEntry;
             $count++;
         }
+
+        // Pastikan urutan sesuai row_number (A-Z sesuai urutan di CSV)
+        usort($newKols, fn($a, $b) => ($a['row_number'] ?? 0) <=> ($b['row_number'] ?? 0));
 
         return ['kols' => $newKols, 'count' => $count, 'fetched' => $fetched, 'errors' => $errors];
     }

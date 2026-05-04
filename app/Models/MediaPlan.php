@@ -20,14 +20,82 @@ class MediaPlan extends Model
     /**
      * Trigger saat MediaPlan (Internal) di-approve (status → Ongoing):
      * Jika InternalBudget (External) sudah approved → aktifkan BvCampign ke 'ongoing'
+     *
+     * Trigger saat status → "To Client":
+     * Auto-generate InternalBudget + items dari selected KOLs jika belum ada.
      */
     protected static function booted(): void
     {
         static::updated(function (MediaPlan $mediaPlan) {
-            if ($mediaPlan->wasChanged('status') && $mediaPlan->status === 'Ongoing') {
+            if (!$mediaPlan->wasChanged('status')) {
+                return;
+            }
+
+            if ($mediaPlan->status === 'Ongoing') {
                 $mediaPlan->tryActivateCampaign();
             }
+
+            if ($mediaPlan->status === 'To Client') {
+                $mediaPlan->autoGenerateInternalBudget();
+            }
         });
+    }
+
+    /**
+     * Auto-generate InternalBudget + InternalBudgetItems dari selected KOLs.
+     * Hanya dibuat jika belum ada. Setiap scope_item per KOL menjadi 1 item budget.
+     */
+    public function autoGenerateInternalBudget(): void
+    {
+        // Sudah ada → skip
+        if ($this->internalBudget()->exists()) {
+            return;
+        }
+
+        $selectedKols = $this->selectedKols()->with('dataKol')->get();
+        if ($selectedKols->isEmpty()) {
+            return;
+        }
+
+        $budget = InternalBudget::create([
+            'media_plan_id' => $this->id,
+            'status' => 'draft',
+        ]);
+
+        $sortOrder = 0;
+        foreach ($selectedKols as $kol) {
+            $scopes = $kol->scope_items ?? [];
+            $rate = (float) ($kol->after_nego ?? $kol->rate ?? 0);
+            $scopeCount = max(1, count($scopes));
+            $ratePerScope = $scopeCount > 0 ? $rate / $scopeCount : $rate;
+
+            foreach ($scopes as $scope) {
+                InternalBudgetItem::create([
+                    'internal_budget_id' => $budget->id,
+                    'media_plan_kol_id' => $kol->id,
+                    'master_pph_id' => $kol->tipe_pajak_kol ?? null,
+                    'qty' => 1,
+                    'scope_item' => $scope,
+                    'rate_base' => $ratePerScope,
+                    'sort_order' => $sortOrder++,
+                ]);
+            }
+
+            // Jika KOL tidak punya scope, tetap buat 1 item placeholder
+            if (empty($scopes)) {
+                InternalBudgetItem::create([
+                    'internal_budget_id' => $budget->id,
+                    'media_plan_kol_id' => $kol->id,
+                    'master_pph_id' => $kol->tipe_pajak_kol ?? null,
+                    'qty' => 1,
+                    'scope_item' => $kol->name ?? 'KOL',
+                    'rate_base' => $rate,
+                    'sort_order' => $sortOrder++,
+                ]);
+            }
+        }
+
+        $budget->recalculateTotals();
     }
 
     /**

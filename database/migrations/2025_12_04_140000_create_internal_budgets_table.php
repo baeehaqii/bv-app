@@ -30,6 +30,7 @@ return new class extends Migration {
 
             // Status
             $table->enum('status', ['draft', 'pending', 'approved', 'rejected'])->default('draft');
+            $table->text('rejection_notes')->nullable()->comment('Alasan penolakan jika status rejected');
 
             $table->timestamps();
         });

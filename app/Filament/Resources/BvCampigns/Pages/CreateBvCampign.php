@@ -94,7 +94,7 @@ class CreateBvCampign extends CreateRecord
                     'platform' => implode(', ', $record->media_platforms ?? ['Digital']),
                     'domisili' => '-',
                     'pic_campaign_id' => $salesActivity?->bv_sales_list_id ?? null,
-                    'margin_type' => 'auto',
+                    'margin_type' => 'custom',
                     'use_global_margin' => true,
                 ]);
 

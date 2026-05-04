@@ -286,6 +286,14 @@ class InternalBudgetForm
                             ->default('draft')
                             ->required(),
 
+                        Textarea::make('rejection_notes')
+                            ->label('Alasan Penolakan')
+                            ->placeholder('Alasan penolakan budget...')
+                            ->rows(3)
+                            ->disabled()
+                            ->visible(fn($record) => $record?->status === 'rejected')
+                            ->columnSpanFull(),
+
                         Placeholder::make('summary_info')
                             ->label('💰 Quick Summary')
                             ->content(function ($record) {
@@ -309,7 +317,7 @@ class InternalBudgetForm
                                 }
 
                                 $mediaPlan = $record->mediaPlan;
-                                $marginType = $mediaPlan->margin_type ?? 'auto';
+                                $marginType = $mediaPlan->margin_type ?? 'custom';
                                 $marginPercent = $mediaPlan->margin_percent ?? null;
                                 $useGlobal = $mediaPlan->use_global_margin ?? true;
 
@@ -317,11 +325,6 @@ class InternalBudgetForm
                                     return new \Illuminate\Support\HtmlString(
                                         "<span class='text-warning-600 dark:text-warning-400 font-semibold'>Custom Global: {$marginPercent}%</span> " .
                                         "<span class='text-gray-500 text-sm'>(from Media Plan)</span>"
-                                    );
-                                } elseif ($marginType === 'auto') {
-                                    return new \Illuminate\Support\HtmlString(
-                                        "<span class='text-info-600 dark:text-info-400 font-semibold'>Auto</span> " .
-                                        "<span class='text-gray-500 text-sm'>(based on Master Margin)</span>"
                                     );
                                 } else {
                                     return new \Illuminate\Support\HtmlString(
@@ -412,7 +415,7 @@ class InternalBudgetForm
                                     ->afterStateUpdated(fn($get, $set) => self::calculateItemValues($get, $set)),
 
                                 Select::make('master_pph_id')
-                                    ->label('Tax Type') ->native(false)
+                                    ->label('Tax Type')->native(false)
                                     ->placeholder('Select tax type')
                                     ->options(\App\Models\MasterPph::getActiveOptions())
                                     ->default(function (callable $get) {
@@ -450,7 +453,7 @@ class InternalBudgetForm
 
                                         if ($publishedRate > 0) {
                                             $rounded = ceil($publishedRate / 100000) * 100000;
-                                            $margin  = (($rounded - $muPph) / $rounded) * 100;
+                                            $margin = (($rounded - $muPph) / $rounded) * 100;
 
                                             $formatMoney = fn($value) => number_format(round($value), 0, '.', ',');
                                             $set('rounded', $formatMoney($rounded));
