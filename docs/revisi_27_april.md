@@ -290,7 +290,7 @@ SQLSTATE[42S22]: Column not found: 1054 Unknown column 'kol_margins' in 'field l
 ### 3.6 Tambah Note Ketika Rate / Harga Berubah
 
 **Status:** 🔴 Belum dikerjakan  
-**Prioritas:** Mediummmmm
+**Prioritas:** Mediummmmmm
 
 **Kondisi saat ini:**
 
