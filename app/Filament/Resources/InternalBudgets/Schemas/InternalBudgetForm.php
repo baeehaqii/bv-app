@@ -3,16 +3,21 @@
 namespace App\Filament\Resources\InternalBudgets\Schemas;
 
 use App\Models\MediaPlanKol;
+use App\Models\InternalBudgetItem;
+use App\Filament\Resources\BvQuotations\BvQuotationResource;
+use App\Models\BvQuotation;
 use Filament\Schemas\Schema;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Repeater\TableColumn;
-use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Section;
 use Filament\Support\RawJs;
+use Filament\Actions\Action;
+use Filament\Notifications\Notification;
 
 class InternalBudgetForm
 {
@@ -338,16 +343,55 @@ class InternalBudgetForm
                     ->columns(2)
                     ->columnSpanFull(),
 
-                // Section 2: BUDGET ITEMS
+                // Section 2: BUDGET ITEMS (Read-only — dikonfigurasi dari Media Plan Internal)
                 Section::make('💰 Budget Items')
-                    ->description('Input Rate (Base) = capital price. Automatically calculated!')
+                    ->description('Items otomatis dari Media Plan Internal. Gunakan tombol "Sync from Media Plan" untuk memperbarui.')
                     ->schema([
+                        Placeholder::make('budget_items_sticky_css')
+                            ->label('')
+                            ->content(new \Illuminate\Support\HtmlString('
+                                <style>
+                                    #ib-budget-items .fi-fo-repeater-table-wrapper { overflow-x: auto; }
+                                    /* Freeze KOL column */
+                                    #ib-budget-items table th:nth-child(1),
+                                    #ib-budget-items table td:nth-child(1) {
+                                        position: sticky;
+                                        left: 0;
+                                        z-index: 3;
+                                        background-color: #ffffff;
+                                    }
+                                    /* Freeze Scope Item column */
+                                    #ib-budget-items table th:nth-child(2),
+                                    #ib-budget-items table td:nth-child(2) {
+                                        position: sticky;
+                                        left: 200px;
+                                        z-index: 3;
+                                        background-color: #ffffff;
+                                        box-shadow: 3px 0 6px -2px rgba(0,0,0,0.10);
+                                    }
+                                    /* Header darker shade */
+                                    #ib-budget-items table thead th:nth-child(1) { background-color: #f9fafb; }
+                                    #ib-budget-items table thead th:nth-child(2) { background-color: #f9fafb; }
+                                    /* Dark mode */
+                                    .dark #ib-budget-items table th:nth-child(1),
+                                    .dark #ib-budget-items table td:nth-child(1) { background-color: #111827; }
+                                    .dark #ib-budget-items table th:nth-child(2),
+                                    .dark #ib-budget-items table td:nth-child(2) {
+                                        background-color: #111827;
+                                        box-shadow: 3px 0 6px -2px rgba(0,0,0,0.4);
+                                    }
+                                    .dark #ib-budget-items table thead th:nth-child(1),
+                                    .dark #ib-budget-items table thead th:nth-child(2) { background-color: #1f2937; }
+                                </style>
+                            '))
+                            ->columnSpanFull(),
+
                         Repeater::make('items')
                             ->relationship()
+                            ->extraAttributes(['id' => 'ib-budget-items'])
                             ->schema([
                                 Select::make('media_plan_kol_id')
                                     ->label('KOL')
-                                    ->placeholder('Search KOL...')
                                     ->options(function ($livewire) {
                                         $mediaPlanId = $livewire->record?->media_plan_id;
                                         if (!$mediaPlanId)
@@ -357,179 +401,78 @@ class InternalBudgetForm
                                             ->pluck('name', 'id')
                                             ->toArray();
                                     })
-                                    ->searchable()
-                                    ->preload()
-                                    ->live()
-                                    ->afterStateUpdated(function ($state, callable $set) {
-                                        if ($state) {
-                                            $kol = MediaPlanKol::find($state);
-                                            if ($kol && !empty($kol->scope_items)) {
-                                                $set('scope_item', $kol->scope_items[0] ?? null);
-                                            }
-                                            if ($kol && $kol->tipe_pajak_kol) {
-                                                $set('master_pph_id', $kol->tipe_pajak_kol);
-                                            }
-                                        } else {
-                                            $set('scope_item', null);
-                                        }
-                                    }),
+                                    ->disabled(),
 
-                                Select::make('scope_item')
+                                TextInput::make('scope_item')
                                     ->label('Scope Item')
-                                    ->placeholder('Select scope')
-                                    ->options(function (callable $get) {
-                                        $kolId = $get('media_plan_kol_id');
-                                        if (!$kolId)
-                                            return [];
-
-                                        $kol = MediaPlanKol::find($kolId);
-                                        if (!$kol || empty($kol->scope_items))
-                                            return [];
-
-                                        return collect($kol->scope_items)
-                                            ->mapWithKeys(fn($item) => [$item => $item])
-                                            ->toArray();
-                                    })
-                                    ->required()
-                                    ->searchable()
-                                    ->preload(),
+                                    ->disabled(),
 
                                 TextInput::make('qty')
                                     ->label('Qty')
-                                    ->numeric()
-                                    ->default(1)
-                                    ->minValue(1)
-                                    ->placeholder('1')
-                                    ->required()
-                                    ->live(debounce: 500)
-                                    ->afterStateUpdated(fn($get, $set) => self::calculateItemValues($get, $set)),
+                                    ->disabled(),
 
                                 TextInput::make('rate_base')
                                     ->label('Rate (Base)')
-                                    ->placeholder('Enter capital price')
-                                    ->required()
                                     ->prefix('Rp')
                                     ->mask(RawJs::make('$money($input)'))
-                                    ->dehydrateStateUsing(fn($state) => self::parseNumber($state))
-                                    ->live(debounce: 500)
-                                    ->afterStateUpdated(fn($get, $set) => self::calculateItemValues($get, $set)),
+                                    ->disabled(),
 
                                 Select::make('master_pph_id')
-                                    ->label('Tax Type')->native(false)
-                                    ->placeholder('Select tax type')
+                                    ->label('Tax Type')
                                     ->options(\App\Models\MasterPph::getActiveOptions())
-                                    ->default(function (callable $get) {
-                                        $kolId = $get('media_plan_kol_id');
-                                        if ($kolId) {
-                                            $kol = MediaPlanKol::find($kolId);
-                                            if ($kol && $kol->tipe_pajak_kol)
-                                                return $kol->tipe_pajak_kol;
-                                        }
-                                        return \App\Models\MasterPph::where('name', 'Pribadi')->value('id');
-                                    })
-                                    ->required()
-                                    ->live()
-                                    ->afterStateUpdated(fn($get, $set) => self::calculateItemValues($get, $set))
-                                    ->dehydrated(),
+                                    ->disabled(),
 
                                 TextInput::make('mu_pph')
                                     ->label('🔴 Cost (MU PPh)')
                                     ->prefix('Rp')
-                                    ->placeholder('Auto-calculated')
                                     ->mask(RawJs::make('$money($input)'))
-                                    ->dehydrateStateUsing(fn($state) => self::parseNumber($state))
-                                    ->readOnly(),
+                                    ->disabled(),
 
                                 TextInput::make('published_rate')
                                     ->label('Published Rate')
                                     ->prefix('Rp')
-                                    ->placeholder('Auto-calculated')
                                     ->mask(RawJs::make('$money($input)'))
-                                    ->dehydrateStateUsing(fn($state) => self::parseNumber($state))
-                                    ->live(debounce: 500)
-                                    ->afterStateUpdated(function ($state, callable $get, callable $set) {
-                                        $publishedRate = self::parseNumber($state);
-                                        $muPph = self::parseNumber($get('mu_pph'));
-
-                                        if ($publishedRate > 0) {
-                                            $rounded = ceil($publishedRate / 100000) * 100000;
-                                            $margin = (($rounded - $muPph) / $rounded) * 100;
-
-                                            $formatMoney = fn($value) => number_format(round($value), 0, '.', ',');
-                                            $set('rounded', $formatMoney($rounded));
-                                            $set('actual_margin_percent', round($margin, 2));
-                                        }
-                                    }),
+                                    ->disabled(),
 
                                 TextInput::make('rounded')
                                     ->label('🟢 Client Price')
                                     ->prefix('Rp')
-                                    ->placeholder('Auto-calculated')
                                     ->mask(RawJs::make('$money($input)'))
-                                    ->dehydrateStateUsing(fn($state) => self::parseNumber($state))
-                                    ->readOnly(),
+                                    ->disabled(),
 
                                 TextInput::make('actual_margin_percent')
                                     ->label('Margin %')
                                     ->suffix('%')
-                                    ->placeholder('0.00')
-                                    ->dehydrateStateUsing(fn($state) => self::parseNumber($state))
-                                    ->readOnly(),
+                                    ->disabled(),
 
                                 Textarea::make('notes')
                                     ->label('Notes')
-                                    ->placeholder('Optional notes...')
-                                    ->rows(1),
+                                    ->rows(1)
+                                    ->disabled(),
 
-                                // ── Hidden computed / meta fields ──────────────────
-                                TextInput::make('pph_coefficient')
-                                    ->hidden()
-                                    ->dehydrated(false),
+                                Hidden::make('status')->default('pending'),
+                                Hidden::make('rejection_notes'),
 
-                                TextInput::make('tax_rate')
-                                    ->hidden()
-                                    ->dehydrated(false),
-
-                                Toggle::make('use_flexible_tax')
-                                    ->hidden()
-                                    ->inline()
-                                    ->live()
-                                    ->afterStateUpdated(fn($get, $set) => self::calculateItemValues($get, $set)),
-
-                                TextInput::make('tax_rate_percent')
-                                    ->hidden()
-                                    ->numeric()
-                                    ->nullable()
-                                    ->live(debounce: 300)
-                                    ->afterStateUpdated(fn($state, callable $get, callable $set) => self::calculateItemValues($get, $set)),
-
-                                Toggle::make('use_flexible_margin')
-                                    ->hidden()
-                                    ->inline()
-                                    ->live()
-                                    ->afterStateUpdated(fn($get, $set) => self::calculateItemValues($get, $set)),
-
-                                TextInput::make('margin_percent_override')
-                                    ->hidden()
-                                    ->numeric()
-                                    ->nullable()
-                                    ->live(debounce: 300)
-                                    ->afterStateUpdated(fn($state, callable $get, callable $set) => self::calculateItemValues($get, $set)),
-
-                                TextInput::make('subtotal')
-                                    ->hidden()
-                                    ->numeric()
-                                    ->dehydrateStateUsing(fn($state) => self::parseNumber($state)),
-
-                                TextInput::make('mu_target')
-                                    ->hidden()
-                                    ->numeric()
-                                    ->dehydrateStateUsing(fn($state) => self::parseNumber($state)),
-
-                                TextInput::make('sort_order')
-                                    ->hidden()
-                                    ->numeric()
-                                    ->default(0),
+                                Placeholder::make('status_badge')
+                                    ->label('Status')
+                                    ->content(function ($get): \Illuminate\Support\HtmlString {
+                                        $status = $get('status') ?? 'pending';
+                                        $colors = [
+                                            'approved' => 'bg-green-100 text-green-800',
+                                            'rejected' => 'bg-red-100 text-red-800',
+                                            'pending' => 'bg-gray-100 text-gray-800',
+                                        ];
+                                        $labels = [
+                                            'approved' => 'Approved',
+                                            'rejected' => 'Rejected',
+                                            'pending' => 'Pending',
+                                        ];
+                                        $colorClass = $colors[$status] ?? $colors['pending'];
+                                        $label = $labels[$status] ?? ucfirst($status);
+                                        return new \Illuminate\Support\HtmlString(
+                                            "<span class=\"inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {$colorClass}\">{$label}</span>"
+                                        );
+                                    }),
                             ])
                             ->table([
                                 TableColumn::make('KOL')->width('200px'),
@@ -540,12 +483,108 @@ class InternalBudgetForm
                                 TableColumn::make('🔴 Cost (MU PPh)')->width('170px'),
                                 TableColumn::make('Published Rate')->width('170px'),
                                 TableColumn::make('🟢 Client Price')->width('170px'),
-                                TableColumn::make('Margin %')->width('100px'),
+                                TableColumn::make('Margin %')->width('130px'),
                                 TableColumn::make('Notes')->width('180px'),
+                                TableColumn::make('Status')->width('110px'),
                             ])
-                            ->defaultItems(0)
-                            ->addActionLabel('Add Item')
-                            ->reorderableWithButtons(),
+                            ->extraItemActions([
+                                Action::make('approve_item')
+                                    ->label('Approve')
+                                    ->icon('heroicon-m-check-circle')
+                                    ->color('success')
+                                    ->iconButton()
+                                    ->tooltip('Approve item ini')
+                                    ->action(function (array $arguments, Repeater $component, $livewire) {
+                                        $itemUuid = $arguments['item'] ?? null;
+                                        if (!$itemUuid)
+                                            return;
+
+                                        // Get the actual database ID from form state
+                                        $itemState = $component->getItemState($itemUuid);
+                                        $itemId = $itemState['id'] ?? null;
+                                        if (!$itemId)
+                                            return;
+
+                                        $item = InternalBudgetItem::find($itemId);
+                                        if (!$item)
+                                            return;
+
+                                        $item->approve();
+
+                                        Notification::make()
+                                            ->title('Item Approved')
+                                            ->body("Item {$item->scope_item} berhasil di-approve.")
+                                            ->success()
+                                            ->send();
+
+                                        // Cek apakah semua item sudah approved
+                                        $budget = $item->internalBudget;
+                                        if ($budget) {
+                                            $allApproved = $budget->items()->where('status', '!=', 'approved')->doesntExist();
+                                            if ($allApproved) {
+                                                $budget->approve();
+
+                                                // Auto-generate quotation dari budget yang sudah approved
+                                                $quotation = $budget->generateQuotation();
+
+                                                Notification::make()
+                                                    ->title('Budget Fully Approved')
+                                                    ->body("Semua item telah di-approve. Quotation #{$quotation->quotation_number} berhasil dibuat.")
+                                                    ->success()
+                                                    ->send();
+
+                                                $livewire->redirect(BvQuotationResource::getUrl('edit', ['record' => $quotation->id]));
+                                                return;
+                                            }
+                                        }
+
+                                        $livewire->refreshFormData(['items']);
+                                    }),
+
+                                Action::make('reject_item')
+                                    ->label('Reject')
+                                    ->icon('heroicon-m-x-circle')
+                                    ->color('danger')
+                                    ->iconButton()
+                                    ->tooltip('Reject item ini')
+                                    ->form([
+                                        Textarea::make('rejection_notes')
+                                            ->label('Alasan Penolakan')
+                                            ->placeholder('Tuliskan alasan penolakan...')
+                                            ->required()
+                                            ->rows(3),
+                                    ])
+                                    ->modalHeading('Reject Item')
+                                    ->modalSubmitActionLabel('Reject')
+                                    ->action(function (array $arguments, array $data, Repeater $component, $livewire) {
+                                        $itemUuid = $arguments['item'] ?? null;
+                                        if (!$itemUuid)
+                                            return;
+
+                                        $itemState = $component->getItemState($itemUuid);
+                                        $itemId = $itemState['id'] ?? null;
+                                        if (!$itemId)
+                                            return;
+
+                                        $item = InternalBudgetItem::find($itemId);
+                                        if (!$item)
+                                            return;
+
+                                        $item->reject($data['rejection_notes']);
+
+                                        Notification::make()
+                                            ->title('Item Rejected')
+                                            ->body("Item {$item->scope_item} ditolak.")
+                                            ->warning()
+                                            ->send();
+
+                                        $livewire->refreshFormData(['items']);
+                                    }),
+                            ])
+                            ->addable(false)
+                            ->deletable(false)
+                            ->reorderable(false)
+                            ->defaultItems(0),
                     ])
                     ->columnSpanFull(),
 

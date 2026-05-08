@@ -7,6 +7,8 @@ use App\Service\InstagramService;
 use App\Service\TiktokService;
 use App\Service\YoutubeChannelsService;
 use App\Service\YoutubeShortsService;
+use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -34,20 +36,76 @@ class DataKolForm
     {
         return $schema
             ->components([
-                Section::make('Rate Card & SOW')
-                    ->description('Isi rate card dan scope of work sebelum data sosial media')
+                Section::make('Rate Card Per Channel')
+                    ->description('Input rate card untuk setiap channel dan SOW. Setiap perubahan rate otomatis tersimpan sebagai histori.')
                     ->columnSpanFull()
                     ->schema([
-                        TextInput::make('rate_card')
-                            ->label('Rate Card')
-                            ->prefix('Rp')
-                            ->numeric()
-                            ->mask(RawJs::make('$money($input)'))
-                            ->dehydrateStateUsing(fn($state) => $state ? (float) str_replace(['.', ','], ['', '.'], preg_replace('/[^\d,.]/', '', $state)) : null)
-                            ->formatStateUsing(fn($state) => $state ? number_format((float) $state, 0, ',', '.') : null)
-                            ->placeholder('0')
-                            ->helperText('Published rate card untuk channel ini'),
-                    ])->columns(1),
+                        Repeater::make('rateCards')
+                            ->label('')
+                            ->relationship('rateCards')
+                            ->schema([
+                                Select::make('channel')
+                                    ->label('Channel')
+                                    ->options([
+                                        'Instagram' => 'Instagram',
+                                        'Tiktok' => 'TikTok',
+                                        'Threads' => 'Threads',
+                                        'Youtube Channels' => 'YouTube Channels',
+                                        'Youtube Shorts' => 'YouTube Shorts',
+                                        'Facebook' => 'Facebook',
+                                        'Talent' => 'Talent',
+                                        'X' => 'X (Twitter)',
+                                    ])
+                                    ->required()
+                                    ->columnSpan(1),
+
+                                TextInput::make('sow')
+                                    ->label('SOW (Scope of Work)')
+                                    ->placeholder('Contoh: 1 Feed + 3 Stories')
+                                    ->columnSpan(1),
+
+                                TextInput::make('rate')
+                                    ->label('Rate Card')
+                                    ->prefix('Rp')
+                                    ->numeric()
+                                    ->mask(RawJs::make('$money($input)'))
+                                    ->dehydrateStateUsing(fn($state) => $state ? (float) str_replace(['.', ','], ['', '.'], preg_replace('/[^\d,.]/', '', $state)) : null)
+                                    ->formatStateUsing(fn($state) => $state ? number_format((float) $state, 0, ',', '.') : null)
+                                    ->placeholder('0')
+                                    ->columnSpan(1),
+
+                                DatePicker::make('valid_from')
+                                    ->label('Berlaku Dari')
+                                    ->default(now())
+                                    ->columnSpan(1),
+
+                                FileUpload::make('file_path')
+                                    ->label('Upload File Rate Card')
+                                    ->helperText('PDF atau gambar (maks. 5MB)')
+                                    ->acceptedFileTypes(['application/pdf', 'image/jpeg', 'image/png', 'image/webp'])
+                                    ->maxSize(5120)
+                                    ->directory('kol-rate-cards')
+                                    ->downloadable()
+                                    ->openable()
+                                    ->columnSpan(2),
+
+                                Textarea::make('notes')
+                                    ->label('Catatan')
+                                    ->rows(2)
+                                    ->placeholder('Catatan tambahan tentang rate ini...')
+                                    ->columnSpan(2),
+                            ])
+                            ->columns(4)
+                            ->addActionLabel('+ Tambah Rate Card')
+                            ->defaultItems(0)
+                            ->reorderable(false)
+                            ->collapsible()
+                            ->itemLabel(fn(array $state): ?string => collect([
+                                $state['channel'] ?? null,
+                                $state['sow'] ?? null,
+                                $state['rate'] ? 'Rp ' . number_format((float) $state['rate'], 0, ',', '.') : null,
+                            ])->filter()->implode(' — ') ?: 'Rate Card Baru'),
+                    ]),
 
                 Section::make('Social Media Data')
                     ->columnSpanFull()

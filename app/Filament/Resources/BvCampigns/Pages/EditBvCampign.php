@@ -4,7 +4,9 @@ namespace App\Filament\Resources\BvCampigns\Pages;
 
 use App\Filament\Resources\BvCampigns\BvCampignResource;
 use App\Jobs\ScrapeKolMetricsJob;
+use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 
 class EditBvCampign extends EditRecord
@@ -84,6 +86,51 @@ class EditBvCampign extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('share_external')
+                ->label(fn() => $this->record->is_public ? 'External Link Aktif' : 'Bagikan ke External')
+                ->icon(fn() => $this->record->is_public ? 'heroicon-o-link' : 'heroicon-o-share')
+                ->color(fn() => $this->record->is_public ? 'success' : 'info')
+                ->requiresConfirmation(fn() => !$this->record->is_public)
+                ->modalHeading('Buat Link External')
+                ->modalDescription('Link publik akan dibuat untuk campaign ini. Client dapat melihat progress tanpa login.')
+                ->modalSubmitActionLabel('Buat Link')
+                ->action(function () {
+                    if ($this->record->is_public) {
+                        $url = $this->record->public_url;
+                        Notification::make()
+                            ->title('Link External Campaign')
+                            ->body($url)
+                            ->info()
+                            ->persistent()
+                            ->send();
+                    } else {
+                        $this->record->generatePublicToken();
+                        $url = $this->record->fresh()->public_url;
+                        Notification::make()
+                            ->title('Link external berhasil dibuat!')
+                            ->body($url)
+                            ->success()
+                            ->persistent()
+                            ->send();
+                    }
+                }),
+
+            Action::make('revoke_external')
+                ->label('Cabut Akses External')
+                ->icon('heroicon-o-lock-closed')
+                ->color('danger')
+                ->visible(fn() => $this->record->is_public)
+                ->requiresConfirmation()
+                ->modalHeading('Cabut Akses External?')
+                ->modalDescription('Link publik akan dinonaktifkan. Client tidak bisa lagi mengakses halaman ini.')
+                ->action(function () {
+                    $this->record->revokePublicToken();
+                    Notification::make()
+                        ->title('Akses external dicabut')
+                        ->success()
+                        ->send();
+                }),
+
             DeleteAction::make(),
         ];
     }

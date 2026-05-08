@@ -13,6 +13,7 @@ class EditMediaPlan extends EditRecord
     protected static string $resource = MediaPlanResource::class;
 
     protected array $kolsData = [];
+    protected array $budgetItemsData = [];
 
     protected function mutateFormDataBeforeFill(array $data): array
     {
@@ -44,6 +45,32 @@ class EditMediaPlan extends EditRecord
             ];
         })->toArray();
 
+        // Load budget items dari InternalBudget untuk tab Budget Items
+        if ($this->record->internalBudget) {
+            $data['budget_items'] = $this->record->internalBudget
+                ->items()
+                ->with('mediaPlanKol')
+                ->orderBy('sort_order')
+                ->get()
+                ->map(fn($item) => [
+                    'id' => $item->id,
+                    'kol_name' => $item->mediaPlanKol?->name ?? '—',
+                    'scope_item' => $item->scope_item,
+                    'qty' => $item->qty,
+                    'rate_base' => $item->rate_base,
+                    'master_pph_id' => $item->master_pph_id,
+                    'mu_pph' => $item->mu_pph ? number_format(round($item->mu_pph), 0, '.', ',') : null,
+                    'published_rate' => $item->published_rate,
+                    'rounded' => $item->rounded ? number_format(round($item->rounded), 0, '.', ',') : null,
+                    'actual_margin_percent' => $item->actual_margin_percent,
+                    'notes' => $item->notes,
+                    'sort_order' => $item->sort_order,
+                    'subtotal' => $item->subtotal,
+                    'mu_target' => $item->mu_target,
+                ])
+                ->toArray();
+        }
+
         return $data;
     }
 
@@ -51,8 +78,10 @@ class EditMediaPlan extends EditRecord
     {
         // Store kols data temporarily and remove from main data
         $this->kolsData = $data['kols'] ?? [];
+        $this->budgetItemsData = $data['budget_items'] ?? [];
         unset($data['kols']);
         unset($data['kol_margins']);
+        unset($data['budget_items']); // handled in afterSave
 
         return $data;
     }
@@ -160,6 +189,34 @@ class EditMediaPlan extends EditRecord
             $kol->syncRateFromBudget();
         }
 
+        // Simpan perubahan budget items dari tab Budget Items (rate, qty, notes, pph)
+        if (!empty($this->budgetItemsData)) {
+            foreach ($this->budgetItemsData as $itemData) {
+                $itemId = $itemData['id'] ?? null;
+                if (!$itemId) {
+                    continue;
+                }
+
+                $item = InternalBudgetItem::find($itemId);
+                if (!$item || $item->internalBudget?->media_plan_id !== $this->record->id) {
+                    continue;
+                }
+
+                $item->update([
+                    'qty' => (int) ($itemData['qty'] ?? 1),
+                    'rate_base' => is_numeric($itemData['rate_base']) ? $itemData['rate_base'] : 0,
+                    'master_pph_id' => $itemData['master_pph_id'] ?? $item->master_pph_id,
+                    'mu_pph' => is_numeric($itemData['mu_pph']) ? $itemData['mu_pph'] : (float) str_replace(',', '', $itemData['mu_pph'] ?? '0'),
+                    'published_rate' => is_numeric($itemData['published_rate']) ? $itemData['published_rate'] : (float) str_replace(',', '', $itemData['published_rate'] ?? '0'),
+                    'rounded' => is_numeric($itemData['rounded']) ? $itemData['rounded'] : (float) str_replace(',', '', $itemData['rounded'] ?? '0'),
+                    'actual_margin_percent' => (float) ($itemData['actual_margin_percent'] ?? 0),
+                    'subtotal' => (float) ($itemData['subtotal'] ?? 0),
+                    'mu_target' => (float) ($itemData['mu_target'] ?? 0),
+                    'notes' => $itemData['notes'] ?? null,
+                ]);
+            }
+        }
+
         // Recalculate budget totals
         $internalBudget->refresh();
         $internalBudget->recalculateTotals();
@@ -179,29 +236,29 @@ class EditMediaPlan extends EditRecord
                 )
                 ->visible(fn($record) => $record->internalBudget !== null),
 
-            Actions\Action::make('generate_quotation')
-                ->label('Generate Quotation')
-                ->icon('heroicon-m-document-arrow-down')
-                ->color('white')
-                ->requiresConfirmation()
-                ->modalHeading('Generate Quotation PDF')
-                ->modalDescription('This will generate a quotation PDF for selected KOLs only. Make sure you have selected the KOLs you want to include.')
-                ->modalSubmitActionLabel('Generate PDF')
-                ->action(function ($record) {
-                    $selectedKols = $record->selectedKols()->get();
-
-                    if ($selectedKols->isEmpty()) {
-                        Notification::make()
-                            ->title('No KOLs Selected')
-                            ->body('Please select at least one KOL before generating quotation.')
-                            ->danger()
-                            ->send();
-                        return;
-                    }
-
-                    // Redirect to quotation download route
-                    return redirect()->route('quotation.download', ['mediaPlan' => $record->id]);
-                }),
+            // Actions\Action::make('generate_quotation')
+            //     ->label('Generate Quotation')
+            //     ->icon('heroicon-m-document-arrow-down')
+            //     ->color('white')
+            //     ->requiresConfirmation()
+            //     ->modalHeading('Generate Quotation PDF')
+            //     ->modalDescription('This will generate a quotation PDF for selected KOLs only. Make sure you have selected the KOLs you want to include.')
+            //     ->modalSubmitActionLabel('Generate PDF')
+            //     ->action(function ($record) {
+            //         $selectedKols = $record->selectedKols()->get();
+            //
+            //         if ($selectedKols->isEmpty()) {
+            //             Notification::make()
+            //                 ->title('No KOLs Selected')
+            //                 ->body('Please select at least one KOL before generating quotation.')
+            //                 ->danger()
+            //                 ->send();
+            //             return;
+            //         }
+            //
+            //         // Redirect to quotation download route
+            //         return redirect()->route('quotation.download', ['mediaPlan' => $record->id]);
+            //     }),
 
             // Actions\Action::make('preview_quotation')
             //     ->label('Preview Quotation')
@@ -212,34 +269,34 @@ class EditMediaPlan extends EditRecord
             //     ->visible(fn($record) => $record->selectedKols()->count() > 0)
             //     ->tooltip('Preview Quotation in browser'),
 
-            Actions\Action::make('preview_pdf')
-                ->label('Preview PDF')
-                ->icon('heroicon-m-document-text')
-                ->color('gray')
-                ->url(fn($record) => $record->internalBudget
-                    ? route('internal-budget.pdf.preview', ['internalBudget' => $record->internalBudget->id])
-                    : null)
-                ->openUrlInNewTab()
-                ->visible(fn($record) => $record->internalBudget !== null)
-                ->tooltip('Preview Internal Budget PDF in browser'),
+            // Actions\Action::make('preview_pdf')
+            //     ->label('Preview PDF')
+            //     ->icon('heroicon-m-document-text')
+            //     ->color('gray')
+            //     ->url(fn($record) => $record->internalBudget
+            //         ? route('internal-budget.pdf.preview', ['internalBudget' => $record->internalBudget->id])
+            //         : null)
+            //     ->openUrlInNewTab()
+            //     ->visible(fn($record) => $record->internalBudget !== null)
+            //     ->tooltip('Preview Internal Budget PDF in browser'),
 
-            Actions\Action::make('preview_media_plan_pdf')
-                ->label('Preview Media Plan')
-                ->icon('heroicon-m-document-text')
-                ->color('info')
-                ->url(fn($record) => route('media-plan.pdf.preview', ['mediaPlan' => $record->id]))
-                ->openUrlInNewTab()
-                ->visible(fn($record) => $record->internalBudget?->status === 'approved')
-                ->tooltip('Preview Media Plan PDF in browser'),
+            // Actions\Action::make('preview_media_plan_pdf')
+            //     ->label('Preview Media Plan')
+            //     ->icon('heroicon-m-document-text')
+            //     ->color('info')
+            //     ->url(fn($record) => route('media-plan.pdf.preview', ['mediaPlan' => $record->id]))
+            //     ->openUrlInNewTab()
+            //     ->visible(fn($record) => $record->internalBudget?->status === 'approved')
+            //     ->tooltip('Preview Media Plan PDF in browser'),
 
-            Actions\Action::make('export_google_sheets')
-                ->label('Export Google Sheets')
-                ->icon('heroicon-m-table-cells')
-                ->color('success')
-                ->url(fn($record) => route('media-plan.google-sheets', ['mediaPlan' => $record->id]))
-                ->openUrlInNewTab()
-                ->visible(fn($record) => $record->internalBudget?->status === 'approved')
-                ->tooltip('Create new Google Spreadsheet from Media Plan'),
+            // Actions\Action::make('export_google_sheets')
+            //     ->label('Export Google Sheets')
+            //     ->icon('heroicon-m-table-cells')
+            //     ->color('success')
+            //     ->url(fn($record) => route('media-plan.google-sheets', ['mediaPlan' => $record->id]))
+            //     ->openUrlInNewTab()
+            //     ->visible(fn($record) => $record->internalBudget?->status === 'approved')
+            //     ->tooltip('Create new Google Spreadsheet from Media Plan'),
         ];
     }
 }

@@ -63,7 +63,7 @@ class BvSalesForm
                             $dealValue = 'Rp ' . number_format((float) $campaign->deal_value, 0, ',', '.');
                             $progress = $campaign->progress;
                             $campaignStatus = $campaign->status ?? 'draft';
-                            $editUrl = url('/admin/campaign-ongoing/' . $campaign->id . '/edit');
+                            $editUrl = url('/office/campaign-ongoing-internal/' . $campaign->id . '/edit');
 
                             $progressBar = '
                                 <div style="background:#e5e7eb;border-radius:999px;height:6px;overflow:hidden;margin-top:4px;">

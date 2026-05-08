@@ -173,7 +173,7 @@ SQLSTATE[HY000]: General error: 1364 Field 'nama_brand' doesn't have a default v
 
 ### 3.1 Assign Tugas Brief Ke (PIC) — Multiple PIC
 
-**Status:** 🔴 Belum dikerjakan  
+**Status:** 🟢 Selesai  
 **Prioritas:** High
 
 **Kondisi saat ini:**
@@ -187,10 +187,10 @@ SQLSTATE[HY000]: General error: 1364 Field 'nama_brand' doesn't have a default v
 
 **To-Do:**
 
-- [ ] Ubah field `pic_campaign_id` menjadi Select single (PIC Utama tetap 1)
-- [ ] Tambah field baru `sub_pic_campaign_ids` (TagsInput / Select multiple) untuk sub-PIC
-- [ ] Tambah kolom `sub_pic_campaign_ids` (JSON, nullable) di migration `media_plans`
-- [ ] Update model `MediaPlan` → tambah cast `'sub_pic_campaign_ids' => 'array'`
+- [x] Ubah field `pic_campaign_id` menjadi Select single (PIC Utama tetap 1)
+- [x] Tambah field baru `sub_pic_campaign_ids` (Select multiple) untuk sub-PIC
+- [x] Tambah kolom `sub_pic_campaign_ids` (JSON, nullable) di migration `media_plans`
+- [x] Update model `MediaPlan` → tambah cast `'sub_pic_campaign_ids' => 'array'`
 
 ---
 
@@ -312,7 +312,7 @@ SQLSTATE[42S22]: Column not found: 1054 Unknown column 'kol_margins' in 'field l
 
 ### 4.1 Generate Quotation di Media Plan External
 
-**Status:** 🔴 Belum dikerjakan  
+**Status:** 🟢 Selesai  
 **Prioritas:** High
 
 **Kondisi saat ini:**
@@ -322,14 +322,15 @@ SQLSTATE[42S22]: Column not found: 1054 Unknown column 'kol_margins' in 'field l
 
 **Permintaan:**
 
-- Tambahkan fitur generate quotation dari media plan external (Internal Budget).
+- Tambahkan fitur generate quotation dari media plan external (Internal Budget) section, ketika KOL di approve
 
 **To-Do:**
 
-- [ ] Tambah action button "Generate Quotation" di halaman edit `InternalBudget` / `EditInternalBudget.php`
-- [ ] Quotation auto-generate berdasarkan data budget items yang sudah approved
-- [ ] Gunakan `QuotationNumberGenerator` yang sudah ada
-- [ ] Buat PDF view untuk quotation
+- [x] Tambah action button "Generate Quotation" di halaman edit `InternalBudget` / `EditInternalBudget.php`
+- [x] Quotation auto-generate berdasarkan data budget items (menggunakan `total_rounded`)
+- [x] Gunakan `QuotationNumberGenerator` yang sudah ada
+- [x] Tambah kolom `internal_budget_id` di `bv_quotations` untuk link ke budget sumbernya
+- [x] Tambah tombol "View Quotation" otomatis muncul jika quotation sudah ada
 
 ---
 
@@ -417,7 +418,7 @@ SQLSTATE[42S22]: Column not found: 1054 Unknown column 'kol_margins' in 'field l
 
 ### 5.3 Rate Card Per Channel — Section Baru + Upload File
 
-**Status:** 🟡 Sebagian sudah ada  
+**Status:** 🟢 Selesai  
 **Prioritas:** High
 
 **Kondisi saat ini:**
@@ -436,12 +437,12 @@ SQLSTATE[42S22]: Column not found: 1054 Unknown column 'kol_margins' in 'field l
 
 **To-Do:**
 
-- [ ] Ubah field `rate_card` menjadi repeater `rate_cards` yang berisi: `channel`, `sow`, `rate`, `valid_from`, `notes`
-- [ ] Tambah field `FileUpload` untuk upload file rate card (PDF/image)
-- [ ] Buat tabel/kolom baru `kol_rate_cards` (id, data_kol_id, channel, sow, rate, file_path, valid_from, notes, timestamps)
-- [ ] Tambah relasi `hasMany('kol_rate_cards')` di model `DataKol`
-- [ ] Implementasi historikal: setiap update rate → simpan record baru, tampilkan timeline
-- [ ] Rate card tidak wajib (`->nullable()`)
+- [x] Ubah field `rate_card` menjadi repeater `rateCards` yang berisi: `channel`, `sow`, `rate`, `valid_from`, `notes`
+- [x] Tambah field `FileUpload` untuk upload file rate card (PDF/image, maks 5MB)
+- [x] Buat tabel baru `kol_rate_cards` (id, data_kol_id, channel, sow, rate, file_path, valid_from, notes, timestamps)
+- [x] Buat model `KolRateCard` dan tambah relasi `hasMany('rateCards')` di model `DataKol`
+- [x] Implementasi historikal: setiap entry rate card tersimpan sebagai record terpisah, di-order by `valid_from` desc
+- [x] Rate card tidak wajib (defaultItems: 0, semua field nullable kecuali channel)
 
 ---
 
@@ -449,23 +450,34 @@ SQLSTATE[42S22]: Column not found: 1054 Unknown column 'kol_margins' in 'field l
 
 ### 6.1 Campaign Tracker = Campaign Ongoing External
 
-**Status:** 🟡 Sudah ada, perlu review  
-**Prioritas:** Low
+**Status:** 🟢 Selesai  
+**Prioritas:** Medium
 
 **Kondisi saat ini:**
 
-- Resource `BvCampigns` (Campaign Ongoing) sudah ada dan muncul otomatis saat campaign live.
-- Model `BvCampign` sudah ada dengan KOL tracking.
+- Resource `BvCampigns` (Campaign Ongoing) sudah ada dan muncul otomatis saat campaign live. tapi rename dengan (campaign ongoing internal)
+- Buatkan lagi model dan resource (camapign ongoing external) isinya sama kaya campaign on oging internal, bedanya yang external bisa di view untuk external, saja, mungin buatkan page khusus di frontend
 
 **Permintaan:**
 
-- "Campaign Tracker" = "Campaign Ongoing External" — pastikan penamaan konsisten.
+- "Campaign Ongoing External" — Buatkan lagi model dan resource (camapign ongoing external) isinya sama kaya campaign on oging internal, bedanya yang external bisa di view untuk external, saja, mungin buatkan page khusus di frontend
+
+**Pendekatan implementasi:**
+
+- Tidak membuat model/resource baru yang redundan — data tetap di satu tabel `bv_campaigns`
+- Akses external dikontrol via `public_token` (unique random string) + flag `is_public`
+- Admin generate link dari tombol di halaman edit campaign; link bisa dicabut kapan saja
 
 **To-Do:**
 
-- [ ] Rename label navigasi dari "Campaign Ongoing" ke "Campaign Tracker" (jika belum)
-- [ ] Verifikasi bahwa data muncul otomatis saat campaign di kanban berubah ke "Campaign Live"
-
+- [x] Rename label navigasi dari "Campaign Ongoing" ke "Campaign Ongoing Internal" (`BvCampignResource.php`)
+- [x] Tambah kolom `public_token` dan `is_public` ke tabel `bv_campaigns` (migration baru)
+- [x] Tambah method `generatePublicToken()` dan `revokePublicToken()` di model `BvCampign`
+- [x] Buat resource Filament baru `CampaignExternalResource` — menu "Campaign Ongoing External" di sidebar
+- [x] Resource external: list campaign + aksi generate/copy/revoke link per record, dan halaman View detail
+- [x] Buat `CampaignPublicController` — serve halaman publik berdasarkan token
+- [x] Tambah route `GET /campaign/{token}` → `campaign.public` (no auth required)
+- [x] Buat view `resources/views/campaign/public.blade.php` — halaman tracking untuk client
 ---
 
 ### 6.2 Followers di Ongoing — Dikomentari Saja
@@ -526,10 +538,10 @@ SQLSTATE[42S22]: Column not found: 1054 Unknown column 'kol_margins' in 'field l
 | #   | Modul               | Deskripsi                                                  | File Terkait                                    |
 | --- | ------------------- | ---------------------------------------------------------- | ----------------------------------------------- |
 | 3   | Data Client         | ✅ Agency: tambah field brand yang di-handle (multi brand) | `DataClientForm.php`, migration                 |
-| 4   | Media Plan          | PIC Campaign/Sales bisa multiple                           | `MediaPlanForm.php`, migration `media_plans`    |
-| 5   | Media Plan External | Generate Quotation dari external                           | `EditInternalBudget.php`, `BvQuotationResource` |
+| 4   | Media Plan          | ✅ PIC Campaign/Sales bisa multiple                        | `MediaPlanForm.php`, migration `media_plans`    |
+| 5   | Media Plan External | ✅ Generate Quotation dari external                        | `EditInternalBudget.php`, `BvQuotationResource` |
 | 6   | Media Plan          | ✅ Flow Brief → KOL → Internal → External + Approve/Reject    | `EditInternalBudget.php`, `MediaPlan.php`       |
-| 7   | KOL Database        | Rate Card per channel + upload file + historikal           | `DataKolForm.php`, migration baru               |
+| 7   | KOL Database        | ✅ Rate Card per channel + upload file + historikal        | `DataKolForm.php`, migration baru               |
 
 ### 🟡 Medium Priority
 

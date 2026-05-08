@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\CampaignPublicController;
 use App\Http\Controllers\FormBriefPublicController;
 use App\Http\Controllers\KolContractController;
 use App\Http\Controllers\KolImportTemplateController;
@@ -16,6 +17,9 @@ Route::get('/', function () {
 // Form Brief Public (Client Portal) — no auth required
 Route::get('/brief/{token}', [FormBriefPublicController::class, 'show'])->name('form-brief.public');
 Route::post('/brief/{token}', [FormBriefPublicController::class, 'submit'])->name('form-brief.submit');
+
+// Campaign Ongoing External — public tracking page for clients
+Route::get('/campaign/{token}', [CampaignPublicController::class, 'show'])->name('campaign.public');
 
 // Media Plan PDF Routes (require auth)
 Route::middleware(['auth'])->group(function () {

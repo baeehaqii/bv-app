@@ -51,6 +51,10 @@ return new class extends Migration {
             // Notes per item
             $table->text('notes')->nullable();
 
+            // Per-item approval status
+            $table->string('status')->default('pending')->comment('pending | approved | rejected');
+            $table->text('rejection_notes')->nullable();
+
             // Display Order
             $table->integer('sort_order')->default(0);
 

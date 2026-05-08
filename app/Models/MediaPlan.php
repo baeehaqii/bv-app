@@ -15,6 +15,7 @@ class MediaPlan extends Model
         'updated_at' => 'datetime',
         'margin_percent' => 'decimal:2',
         'use_global_margin' => 'boolean',
+        'sub_pic_campaign_ids' => 'array',
     ];
 
     /**
@@ -82,6 +83,67 @@ class MediaPlan extends Model
             }
 
             // Jika KOL tidak punya scope, tetap buat 1 item placeholder
+            if (empty($scopes)) {
+                InternalBudgetItem::create([
+                    'internal_budget_id' => $budget->id,
+                    'media_plan_kol_id' => $kol->id,
+                    'master_pph_id' => $kol->tipe_pajak_kol ?? null,
+                    'qty' => 1,
+                    'scope_item' => $kol->name ?? 'KOL',
+                    'rate_base' => $rate,
+                    'sort_order' => $sortOrder++,
+                ]);
+            }
+        }
+
+        $budget->recalculateTotals();
+    }
+
+    /**
+     * Sync ulang InternalBudgetItems dari MediaPlanKol yang sedang selected.
+     * Hapus items lama lalu buat ulang dari KOLs terkini. Budget header tidak diubah.
+     * Digunakan setelah perubahan di Media Plan Internal (KOL, scope, rate).
+     */
+    public function syncInternalBudgetItems(): void
+    {
+        $budget = $this->internalBudget;
+        if (!$budget) {
+            $this->autoGenerateInternalBudget();
+            return;
+        }
+
+        // Jangan sync jika sudah approved — budget sudah final
+        if ($budget->status === 'approved') {
+            return;
+        }
+
+        $selectedKols = $this->selectedKols()->with('dataKol')->get();
+        if ($selectedKols->isEmpty()) {
+            return;
+        }
+
+        // Hapus items lama dan buat ulang
+        $budget->items()->delete();
+
+        $sortOrder = 0;
+        foreach ($selectedKols as $kol) {
+            $scopes = $kol->scope_items ?? [];
+            $rate = (float) ($kol->after_nego ?? $kol->rate ?? 0);
+            $scopeCount = max(1, count($scopes));
+            $ratePerScope = $scopeCount > 0 ? $rate / $scopeCount : $rate;
+
+            foreach ($scopes as $scope) {
+                InternalBudgetItem::create([
+                    'internal_budget_id' => $budget->id,
+                    'media_plan_kol_id' => $kol->id,
+                    'master_pph_id' => $kol->tipe_pajak_kol ?? null,
+                    'qty' => 1,
+                    'scope_item' => $scope,
+                    'rate_base' => $ratePerScope,
+                    'sort_order' => $sortOrder++,
+                ]);
+            }
+
             if (empty($scopes)) {
                 InternalBudgetItem::create([
                     'internal_budget_id' => $budget->id,

@@ -51,7 +51,7 @@ class KolPerformance extends Page implements HasTable
     public function getBreadcrumbs(): array
     {
         return [
-            BvCampignResource::getUrl() => 'Campaign Ongoing',
+            BvCampignResource::getUrl() => 'Campaign Ongoing Internal',
             BvCampignResource::getUrl('edit', ['record' => $this->record]) => $this->record->campaign_name,
             '' => 'KOL Performance',
         ];

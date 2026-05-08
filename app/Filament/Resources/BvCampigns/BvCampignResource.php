@@ -21,10 +21,10 @@ class BvCampignResource extends Resource
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-megaphone';
     protected static string|\UnitEnum|null $navigationGroup = 'Campaign Area';
     protected static ?int $navigationSort = 1;
-    protected static ?string $navigationLabel = 'Campaign Ongoing';
-    protected static ?string $modelLabel = 'Campaign Ongoing';
-    protected static ?string $pluralModelLabel = 'Campaign Ongoing';
-    protected static ?string $slug = 'campaign-ongoing';
+    protected static ?string $navigationLabel = 'Campaign Ongoing Internal';
+    protected static ?string $modelLabel = 'Campaign Ongoing Internal';
+    protected static ?string $pluralModelLabel = 'Campaign Ongoing Internal';
+    protected static ?string $slug = 'campaign-ongoing-internal';
 
     protected static ?string $recordTitleAttribute = 'campaign_name';
 

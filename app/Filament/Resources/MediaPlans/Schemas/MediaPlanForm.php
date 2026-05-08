@@ -244,12 +244,20 @@ class MediaPlanForm
                                     //     ->label('Domisili')->required()
                                     //     ->placeholder('e.g., Jakarta'),
                                     Select::make('pic_campaign_id')
-                                        ->label('Assign Tugas Brief Ke (PIC Campaign/Sales)')
+                                        ->label('PIC Utama (Assign Tugas Brief)')
                                         ->options(\App\Models\BvSalesList::pluck('nama_sales', 'id'))
                                         ->searchable()
                                         ->preload()
                                         ->nullable()
-                                        ->helperText('Assign tugas brief media plan ke PIC tim internal'),
+                                        ->helperText('PIC utama yang bertanggung jawab atas brief media plan ini'),
+                                    Select::make('sub_pic_campaign_ids')
+                                        ->label('Sub-PIC (Tambahan)')
+                                        ->options(\App\Models\BvSalesList::pluck('nama_sales', 'id'))
+                                        ->multiple()
+                                        ->searchable()
+                                        ->preload()
+                                        ->nullable()
+                                        ->helperText('Tambahkan sub-PIC pendukung (bisa lebih dari 1)'),
                                 ])->columns(3),
                         ]),
 
@@ -1322,79 +1330,268 @@ class MediaPlanForm
                             $set('kol_margins', $newMargins);
                         }),
 
-                    Step::make('Margin Setting')
-                        ->icon('heroicon-m-calculator')
-                        ->description('Configure margin settings for this campaign')
+                    Step::make('Budget Items')
+                        ->icon('heroicon-m-currency-dollar')
+                        ->description('Input rate KOL & kalkulasi cost, client price, dan margin')
                         ->schema([
-                            Section::make('🎯 Margin Configuration')
-                                ->description('Setting margin akan diaplikasikan ke semua KOL dalam campaign ini saat kalkulasi Internal Budget')
+                            Section::make('💰 Budget Items')
+                                ->description('Input Rate (Base) = harga pokok KOL. Cost & Client Price dikalkulasi otomatis.')
                                 ->schema([
-                                    TextInput::make('margin_percent')
-                                        ->label('Custom Margin %')
-                                        ->suffix('%')
-                                        ->numeric()
-                                        ->step('0.01')
-                                        ->minValue(0)
-                                        ->maxValue(100)
-                                        ->default(30)
-                                        ->required()
-                                        ->helperText('Contoh: 30 untuk 30%, 40 untuk 40%, dll'),
-
-                                    Toggle::make('use_global_margin')
-                                        ->label('Apply to All KOLs')
-                                        ->helperText('Jika aktif, margin ini akan diterapkan ke semua KOL. Jika tidak, setiap KOL bisa memiliki margin berbeda di Internal Budget.')
-                                        ->inline()
-                                        ->default(true)
-                                        ->live()
-                                        ->afterStateUpdated(function ($state, callable $get, callable $set) {
-                                            if (!$state) {
-                                                // Sync kols to margins when toggled OFF
-                                                $kols = $get('kols') ?? [];
-                                                $margins = [];
-                                                $default = $get('margin_percent') ?? 30;
-
-                                                foreach ($kols as $kol) {
-                                                    $margins[] = [
-                                                        'name' => $kol['name'] ?? 'New KOL',
-                                                        'margin' => $default,
-                                                    ];
-                                                }
-                                                $set('kol_margins', $margins);
+                                    Placeholder::make('budget_items_hint')
+                                        ->label('')
+                                        ->content(function ($record) {
+                                            if (!$record) {
+                                                return new \Illuminate\Support\HtmlString(
+                                                    '<p class="text-sm text-warning-600 dark:text-warning-400">Simpan Media Plan terlebih dahulu, lalu kembali ke tab ini untuk mengisi rate KOL.</p>'
+                                                );
                                             }
+                                            return null;
                                         })
+                                        ->visible(fn($record) => $record === null)
                                         ->columnSpanFull(),
 
-                                    Repeater::make('kol_margins')
-                                        ->label('Custom Margin per KOL')
-                                        ->hidden(fn(callable $get) => $get('use_global_margin') === true)
+                                    Placeholder::make('budget_items_sticky_css')
+                                        ->label('')
+                                        ->content(new \Illuminate\Support\HtmlString('
+                                            <style>
+                                                #budget-items-repeater .fi-fo-repeater-table-wrapper {
+                                                    overflow-x: auto;
+                                                }
+                                                /* Freeze KOL column */
+                                                #budget-items-repeater table th:nth-child(1),
+                                                #budget-items-repeater table td:nth-child(1) {
+                                                    position: sticky;
+                                                    left: 0;
+                                                    z-index: 3;
+                                                    background-color: #ffffff;
+                                                }
+                                                /* Freeze Scope Item column */
+                                                #budget-items-repeater table th:nth-child(2),
+                                                #budget-items-repeater table td:nth-child(2) {
+                                                    position: sticky;
+                                                    left: 160px;
+                                                    z-index: 3;
+                                                    background-color: #ffffff;
+                                                    box-shadow: 3px 0 6px -2px rgba(0,0,0,0.10);
+                                                }
+                                                /* Dark mode */
+                                                .dark #budget-items-repeater table th:nth-child(1),
+                                                .dark #budget-items-repeater table td:nth-child(1) {
+                                                    background-color: #111827;
+                                                }
+                                                .dark #budget-items-repeater table th:nth-child(2),
+                                                .dark #budget-items-repeater table td:nth-child(2) {
+                                                    background-color: #111827;
+                                                    box-shadow: 3px 0 6px -2px rgba(0,0,0,0.4);
+                                                }
+                                                /* Header row darker shade */
+                                                #budget-items-repeater table thead th:nth-child(1),
+                                                #budget-items-repeater table thead th:nth-child(2) {
+                                                    background-color: #f9fafb;
+                                                }
+                                                .dark #budget-items-repeater table thead th:nth-child(1),
+                                                .dark #budget-items-repeater table thead th:nth-child(2) {
+                                                    background-color: #1f2937;
+                                                }
+                                            </style>
+                                        '))
+                                        ->columnSpanFull(),
+
+                                    Repeater::make('budget_items')
+                                        ->label('Items')
+                                        ->extraAttributes(['id' => 'budget-items-repeater'])
                                         ->schema([
-                                            TextInput::make('name')
+                                            TextInput::make('kol_name')
+                                                ->label('KOL')
                                                 ->disabled()
-                                                ->dehydrated(false)
-                                                ->columnSpan(2),
-                                            TextInput::make('margin')
-                                                ->label('Margin %')
+                                                ->dehydrated(false),
+
+                                            TextInput::make('scope_item')
+                                                ->label('Scope Item')
+                                                ->disabled(),
+
+                                            TextInput::make('qty')
+                                                ->label('Qty')
                                                 ->numeric()
-                                                ->suffix('%')
+                                                ->default(1)
+                                                ->minValue(1)
                                                 ->required()
-                                                ->maxValue(100)
-                                                ->minValue(0)
-                                                ->columnSpan(1),
+                                                ->live(debounce: 500)
+                                                ->afterStateUpdated(fn($get, $set, $livewire) => self::calculateBudgetItem($get, $set, $livewire->record)),
+
+                                            TextInput::make('rate_base')
+                                                ->label('Rate (Base)')
+                                                ->prefix('Rp')
+                                                ->placeholder('Harga pokok KOL')
+                                                ->mask(RawJs::make('$money($input)'))
+                                                ->dehydrateStateUsing(fn($state) => self::parseNumber($state))
+                                                ->live(debounce: 500)
+                                                ->afterStateUpdated(fn($get, $set, $livewire) => self::calculateBudgetItem($get, $set, $livewire->record)),
+
+                                            Select::make('master_pph_id')
+                                                ->label('Tax Type')
+                                                ->options(\App\Models\MasterPph::getActiveOptions())
+                                                ->native(false)
+                                                ->live()
+                                                ->afterStateUpdated(fn($get, $set, $livewire) => self::calculateBudgetItem($get, $set, $livewire->record)),
+
+                                            TextInput::make('mu_pph')
+                                                ->label('🔴 Cost (MU PPh)')
+                                                ->prefix('Rp')
+                                                ->mask(RawJs::make('$money($input)'))
+                                                ->dehydrateStateUsing(fn($state) => self::parseNumber($state))
+                                                ->readOnly(),
+
+                                            TextInput::make('rounded')
+                                                ->label('🟢 Client Price')
+                                                ->prefix('Rp')
+                                                ->mask(RawJs::make('$money($input)'))
+                                                ->dehydrateStateUsing(fn($state) => self::parseNumber($state))
+                                                ->readOnly(),
+
+                                            TextInput::make('actual_margin_percent')
+                                                ->label('Margin %')
+                                                ->suffix('%')
+                                                ->readOnly(),
+
+                                            Textarea::make('notes')
+                                                ->label('Notes')
+                                                ->rows(1)
+                                                ->placeholder('Optional...'),
+
+                                            // Hidden fields
+                                            Hidden::make('id'),
+                                            Hidden::make('sort_order')->default(0),
+                                            TextInput::make('published_rate')
+                                                ->hidden()
+                                                ->dehydrateStateUsing(fn($state) => self::parseNumber($state)),
+                                            TextInput::make('subtotal')
+                                                ->hidden()
+                                                ->dehydrateStateUsing(fn($state) => self::parseNumber($state)),
+                                            TextInput::make('mu_target')
+                                                ->hidden()
+                                                ->dehydrateStateUsing(fn($state) => self::parseNumber($state)),
+                                        ])
+                                        ->table([
+                                            TableColumn::make('KOL')->width('160px'),
+                                            TableColumn::make('Scope Item')->width('160px'),
+                                            TableColumn::make('Qty')->width('60px'),
+                                            TableColumn::make('Rate (Base)')->width('160px'),
+                                            TableColumn::make('Tax Type')->width('140px'),
+                                            TableColumn::make('🔴 Cost (MU PPh)')->width('160px'),
+                                            TableColumn::make('🟢 Client Price')->width('160px'),
+                                            TableColumn::make('Margin %')->width('130px'),
+                                            TableColumn::make('Notes')->width('160px'),
                                         ])
                                         ->addable(false)
                                         ->deletable(false)
                                         ->reorderable(false)
-                                        ->columns(3)
+                                        ->defaultItems(0)
+                                        ->visible(fn($record) => $record !== null)
                                         ->columnSpanFull(),
-
-                                    // Master Margin Reference removed
                                 ])
-                                ->columns(2),
+                                ->columnSpanFull(),
                         ]),
+
+                    // Step::make('Margin Setting')
+                    //     ->icon('heroicon-m-calculator')
+                    //     ->description('Configure margin settings for this campaign')
+                    //     ->schema([
+                    //         Section::make('🎯 Margin Configuration')
+                    //             ->description('Setting margin akan diaplikasikan ke semua KOL dalam campaign ini saat kalkulasi Internal Budget')
+                    //             ->schema([
+                    //                 TextInput::make('margin_percent')
+                    //                     ->label('Custom Margin %')
+                    //                     ->suffix('%')
+                    //                     ->numeric()
+                    //                     ->step('0.01')
+                    //                     ->minValue(0)
+                    //                     ->maxValue(100)
+                    //                     ->default(30)
+                    //                     ->required()
+                    //                     ->helperText('Contoh: 30 untuk 30%, 40 untuk 40%, dll'),
+                    //
+                    //                 Toggle::make('use_global_margin')
+                    //                     ->label('Apply to All KOLs')
+                    //                     ->helperText('Jika aktif, margin ini akan diterapkan ke semua KOL.')
+                    //                     ->inline()
+                    //                     ->default(true)
+                    //                     ->live()
+                    //                     ->columnSpanFull(),
+                    //
+                    //                 Repeater::make('kol_margins')
+                    //                     ->label('Custom Margin per KOL')
+                    //                     ->hidden(fn(callable $get) => $get('use_global_margin') === true)
+                    //                     ->schema([
+                    //                         TextInput::make('name')->disabled()->dehydrated(false)->columnSpan(2),
+                    //                         TextInput::make('margin')->label('Margin %')->numeric()->suffix('%')->required()->columnSpan(1),
+                    //                     ])
+                    //                     ->addable(false)->deletable(false)->reorderable(false)
+                    //                     ->columns(3)->columnSpanFull(),
+                    //             ])
+                    //             ->columns(2),
+                    //     ]),
                 ])
                     ->columnSpanFull()
                     ->skippable()
             ]);
+    }
+
+    /**
+     * Calculate budget item values (cost, client price, margin) based on rate & PPh.
+     * Margin diambil dari MediaPlan record (global) atau per-item override.
+     */
+    private static function calculateBudgetItem(callable $get, callable $set, $mediaPlanRecord): void
+    {
+        $qty = (int) ($get('qty') ?? 1);
+        $rateBase = self::parseNumber($get('rate_base') ?? 0);
+
+        if ($rateBase <= 0) {
+            $set('mu_pph', 0);
+            $set('published_rate', 0);
+            $set('rounded', 0);
+            $set('actual_margin_percent', 0);
+            $set('subtotal', 0);
+            $set('mu_target', 0);
+            return;
+        }
+
+        $subtotal = $qty * $rateBase;
+
+        // PPh Coefficient dari MasterPph
+        $masterPphId = $get('master_pph_id');
+        $pphCoefficient = 0.975; // default Pribadi
+        if ($masterPphId) {
+            $masterPph = \App\Models\MasterPph::find($masterPphId);
+            if ($masterPph) {
+                $pphCoefficient = $masterPph->getCalculatedCoefficient();
+            }
+        }
+
+        $muPph = $subtotal / $pphCoefficient;
+
+        // Margin: prioritaskan global margin dari MediaPlan
+        $targetMargin = 30.0;
+        if ($mediaPlanRecord && $mediaPlanRecord->use_global_margin && $mediaPlanRecord->margin_type === 'custom') {
+            $targetMargin = (float) $mediaPlanRecord->margin_percent;
+        } elseif ($mediaPlanRecord) {
+            $targetMargin = \App\Models\MasterMargin::getMarginForAmount($subtotal);
+        }
+
+        $marginDecimal = $targetMargin / 100;
+        $muTarget = $marginDecimal >= 1 ? $muPph : $muPph / (1 - $marginDecimal);
+
+        $rounded = ceil($muTarget / 100000) * 100000;
+        $actualMargin = $rounded > 0 ? (($rounded - $muPph) / $rounded) * 100 : 0;
+
+        $fmt = fn($v) => number_format(round($v), 0, '.', ',');
+
+        $set('subtotal', round($subtotal));
+        $set('mu_pph', $fmt($muPph));
+        $set('mu_target', round($muTarget));
+        $set('published_rate', $fmt($muTarget));
+        $set('rounded', $fmt($rounded));
+        $set('actual_margin_percent', round($actualMargin, 2));
     }
 
     /**

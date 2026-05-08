@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class InternalBudget extends Model
 {
@@ -79,6 +80,48 @@ class InternalBudget extends Model
     public function items(): HasMany
     {
         return $this->hasMany(InternalBudgetItem::class)->orderBy('sort_order');
+    }
+
+    /**
+     * Get the quotation generated from this budget
+     */
+    public function quotation(): HasOne
+    {
+        return $this->hasOne(BvQuotation::class);
+    }
+
+    /**
+     * Generate (or regenerate) a BvQuotation from this budget's approved items.
+     * Uses total_rounded as the billing amount (client-facing price after markup).
+     */
+    public function generateQuotation(): BvQuotation
+    {
+        $mediaPlan = $this->mediaPlan;
+        $clientName = $mediaPlan?->bvSales?->dataClient?->nama_brand
+            ?? $mediaPlan?->brand
+            ?? 'Client';
+
+        $clientEmail = $mediaPlan?->bvSales?->dataClient?->email ?? null;
+
+        $quotationNumber = \App\Helpers\QuotationNumberGenerator::generate();
+
+        $quotation = $this->quotation()->updateOrCreate(
+            ['internal_budget_id' => $this->id],
+            [
+                'quotation_number' => $this->quotation?->quotation_number ?? $quotationNumber,
+                'quotation_date' => now()->toDateString(),
+                'expiry_date' => now()->addDays(14)->toDateString(),
+                'client_name' => $clientName,
+                'client_email' => $clientEmail,
+                'subtotal' => $this->total_rounded ?? 0,
+                'discount' => 0,
+                'total_amount' => $this->total_rounded ?? 0,
+                'status' => 'draft',
+                'user_id' => auth()->id(),
+            ]
+        );
+
+        return $quotation;
     }
 
     /**

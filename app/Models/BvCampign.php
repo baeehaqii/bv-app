@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 class BvCampign extends Model
 {
@@ -23,7 +24,28 @@ class BvCampign extends Model
         'total_cost' => 'decimal:2',
         'deal_value' => 'decimal:2',
         'campaign_month' => 'integer',
+        'is_public' => 'boolean',
     ];
+
+    public function generatePublicToken(): string
+    {
+        $token = Str::random(32);
+        $this->update(['public_token' => $token, 'is_public' => true]);
+        return $token;
+    }
+
+    public function revokePublicToken(): void
+    {
+        $this->update(['public_token' => null, 'is_public' => false]);
+    }
+
+    public function getPublicUrlAttribute(): ?string
+    {
+        if (!$this->public_token) {
+            return null;
+        }
+        return route('campaign.public', $this->public_token);
+    }
 
     /**
      * Get the linked Sales Activity

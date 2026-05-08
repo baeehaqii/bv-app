@@ -19,6 +19,16 @@ class InternalBudgetItem extends Model
         // Note: Removed decimal casts - mutators handle number parsing
     ];
 
+    public function approve(): void
+    {
+        $this->update(['status' => 'approved', 'rejection_notes' => null]);
+    }
+
+    public function reject(string $notes): void
+    {
+        $this->update(['status' => 'rejected', 'rejection_notes' => $notes]);
+    }
+
     /**
      * Parse formatted number string to float
      * Converts "2.000.000" or "2.000.000,50" to 2000000.50

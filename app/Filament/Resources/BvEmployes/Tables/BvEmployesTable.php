@@ -2,10 +2,12 @@
 
 namespace App\Filament\Resources\BvEmployes\Tables;
 
+use App\Models\Position;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 
 class BvEmployesTable
@@ -15,35 +17,82 @@ class BvEmployesTable
         return $table
             ->columns([
                 TextColumn::make('nama_lengkap')
-                    ->searchable(),
-                TextColumn::make('email')
-                    ->label('Email address')
-                    ->searchable(),
-                TextColumn::make('whatsapp')
-                    ->searchable(),
-                TextColumn::make('alamat')
-                    ->searchable(),
-                TextColumn::make('kota')
-                    ->searchable(),
-                TextColumn::make('provinsi')
-                    ->searchable(),
-                TextColumn::make('kode_pos')
-                    ->searchable(),
-                TextColumn::make('divis')
-                    ->searchable(),
-                TextColumn::make('photo')
-                    ->searchable(),
-                TextColumn::make('created_at')
-                    ->dateTime()
+                    ->label('Nama Lengkap')
+                    ->searchable()
+                    ->sortable(),
+
+                TextColumn::make('position.department.division.name')
+                    ->label('Divisi')
+                    ->badge()
+                    ->color('primary')
                     ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('updated_at')
-                    ->dateTime()
+                    ->toggleable(),
+
+                TextColumn::make('position.department.name')
+                    ->label('Departemen')
+                    ->badge()
+                    ->color('gray')
+                    ->sortable()
+                    ->toggleable(),
+
+                TextColumn::make('position.name')
+                    ->label('Jabatan')
+                    ->searchable()
+                    ->sortable(),
+
+                TextColumn::make('position.level')
+                    ->label('Level')
+                    ->formatStateUsing(fn (?string $state): string => $state ? (Position::LEVELS[$state] ?? $state) : '-')
+                    ->badge()
+                    ->color(fn (?string $state): string => match ($state) {
+                        'director' => 'danger',
+                        'manager'  => 'warning',
+                        'senior'   => 'info',
+                        'staff'    => 'success',
+                        'junior'   => 'gray',
+                        'intern'   => 'gray',
+                        default    => 'gray',
+                    })
+                    ->toggleable(),
+
+                TextColumn::make('reportsTo.nama_lengkap')
+                    ->label('Melapor Kepada')
+                    ->searchable()
+                    ->toggleable(),
+
+                TextColumn::make('email')
+                    ->label('Email')
+                    ->searchable()
+                    ->toggleable(),
+
+                TextColumn::make('whatsapp')
+                    ->label('WhatsApp')
+                    ->searchable()
+                    ->toggleable(),
+
+                TextColumn::make('kota')
+                    ->label('Kota')
+                    ->searchable()
+                    ->toggleable(),
+
+                TextColumn::make('created_at')
+                    ->label('Dibuat')
+                    ->dateTime('d M Y')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                //
+                SelectFilter::make('division')
+                    ->label('Divisi')
+                    ->relationship('position.department.division', 'name'),
+
+                SelectFilter::make('department')
+                    ->label('Departemen')
+                    ->relationship('position.department', 'name'),
+
+                SelectFilter::make('position_id')
+                    ->label('Jabatan')
+                    ->relationship('position', 'name'),
             ])
             ->recordActions([
                 EditAction::make(),
@@ -52,6 +101,7 @@ class BvEmployesTable
                 BulkActionGroup::make([
                     DeleteBulkAction::make(),
                 ]),
-            ]);
+            ])
+            ->defaultSort('nama_lengkap');
     }
 }

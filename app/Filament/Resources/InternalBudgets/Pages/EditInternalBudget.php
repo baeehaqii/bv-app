@@ -4,7 +4,6 @@ namespace App\Filament\Resources\InternalBudgets\Pages;
 
 use App\Filament\Resources\InternalBudgets\InternalBudgetResource;
 use Filament\Actions;
-use Filament\Forms\Components\Textarea;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 
@@ -15,74 +14,80 @@ class EditInternalBudget extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
+            Actions\Action::make('generate_quotation')
+                ->label('Generate Quotation')
+                ->icon('heroicon-m-document-arrow-down')
+                ->color('success')
+                ->requiresConfirmation()
+                ->modalHeading('Generate Quotation')
+                ->modalDescription(fn($record) => $record->quotation
+                    ? 'Quotation sudah ada ('. $record->quotation->quotation_number .'). Generate ulang akan memperbarui data quotation. Lanjutkan?'
+                    : 'Generate quotation baru dari data budget ini. Quotation akan dibuat dengan status Draft.')
+                ->modalSubmitActionLabel('Generate')
+                ->action(function ($record) {
+                    if ($record->total_rounded <= 0) {
+                        Notification::make()
+                            ->title('Tidak Dapat Generate Quotation')
+                            ->body('Total budget masih 0. Pastikan budget items sudah diisi.')
+                            ->warning()
+                            ->send();
+                        return;
+                    }
+
+                    $quotation = $record->generateQuotation();
+
+                    Notification::make()
+                        ->title('Quotation Berhasil Dibuat')
+                        ->body("Quotation #{$quotation->quotation_number} berhasil di-generate.")
+                        ->success()
+                        ->send();
+
+                    return redirect()->route(
+                        'filament.office.resources.quotation.edit',
+                        ['record' => $quotation->id]
+                    );
+                }),
+
+            Actions\Action::make('view_quotation')
+                ->label('View Quotation')
+                ->icon('heroicon-m-document-text')
+                ->color('info')
+                ->url(fn($record) => $record->quotation
+                    ? route('filament.office.resources.quotation.edit', ['record' => $record->quotation->id])
+                    : null)
+                ->visible(fn($record) => $record->quotation !== null),
+
+            Actions\Action::make('sync_from_media_plan')
+                ->label('Sync from Media Plan')
+                ->icon('heroicon-m-arrow-path')
+                ->color('warning')
+                ->visible(fn($record) => $record->mediaPlan !== null && $record->status !== 'approved')
+                ->requiresConfirmation()
+                ->modalHeading('Sync Budget Items dari Media Plan Internal')
+                ->modalDescription('Ini akan menghapus semua items saat ini dan menggantinya dengan data terbaru dari Media Plan Internal (KOL, scope, dan rate). Lanjutkan?')
+                ->modalSubmitActionLabel('Ya, Sync Sekarang')
+                ->action(function ($record) {
+                    $record->mediaPlan->syncInternalBudgetItems();
+
+                    Notification::make()
+                        ->title('Budget Items Diperbarui')
+                        ->body('Items berhasil disinkronkan dari Media Plan Internal.')
+                        ->success()
+                        ->send();
+
+                    $this->refreshFormData(['items']);
+                }),
+
             Actions\Action::make('view_media_plan')
                 ->label('View Media Plan Internal')
                 ->icon('heroicon-m-eye')
-                ->color('info')
+                ->color('gray')
                 ->url(
                     fn($record) => $record->mediaPlan
                     ? route('filament.office.resources.media-plan-internal.edit', ['record' => $record->mediaPlan->id])
                     : null
                 )
                 ->visible(fn($record) => $record->mediaPlan !== null),
-
-            // Actions\Action::make('download_pdf')
-            //     ->label('Download PDF')
-            //     ->icon('heroicon-m-arrow-down-tray')
-            //     ->color('success')
-            //     ->url(fn($record) => route('internal-budget.pdf', ['internalBudget' => $record->id]))
-            //     ->openUrlInNewTab()
-            //     ->tooltip('Download Internal Budget as PDF'),
-
-            Actions\Action::make('approve')
-                ->label('Approve Budget')
-                ->icon('heroicon-m-check-circle')
-                ->color('success')
-                ->visible(fn($record) => !in_array($record->status, ['approved']))
-                ->requiresConfirmation()
-                ->modalHeading('Approve Budget')
-                ->modalDescription('Apakah Anda yakin ingin meng-approve budget ini? Campaign akan diaktifkan jika Media Plan sudah berstatus Ongoing.')
-                ->modalSubmitActionLabel('Ya, Approve')
-                ->action(function ($record) {
-                    $record->approve();
-
-                    Notification::make()
-                        ->title('Budget Approved')
-                        ->body('Internal Budget berhasil di-approve.')
-                        ->success()
-                        ->send();
-
-                    $this->refreshFormData(['status', 'rejection_notes']);
-                }),
-
-            Actions\Action::make('reject')
-                ->label('Reject Budget')
-                ->icon('heroicon-m-x-circle')
-                ->color('danger')
-                ->visible(fn($record) => !in_array($record->status, ['rejected']))
-                ->form([
-                    Textarea::make('rejection_notes')
-                        ->label('Alasan Penolakan')
-                        ->placeholder('Tuliskan alasan penolakan budget ini...')
-                        ->required()
-                        ->rows(4)
-                        ->minLength(10),
-                ])
-                ->modalHeading('Reject Budget')
-                ->modalSubmitActionLabel('Reject')
-                ->action(function ($record, array $data) {
-                    $record->reject($data['rejection_notes']);
-
-                    Notification::make()
-                        ->title('Budget Rejected')
-                        ->body('Internal Budget ditolak dengan catatan: ' . $data['rejection_notes'])
-                        ->warning()
-                        ->send();
-
-                    $this->refreshFormData(['status', 'rejection_notes']);
-                }),
-
-            // Actions\DeleteAction::make(),
         ];
     }
 }
