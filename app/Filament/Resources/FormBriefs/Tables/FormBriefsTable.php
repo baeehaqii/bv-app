@@ -22,20 +22,14 @@ class FormBriefsTable
                     ->searchable()
                     ->sortable()
                     ->weight('bold')
-                    ->limit(40),
+                    ->formatStateUsing(fn($state, $record) => 'Brief — ' . ($record->campaign_name ?: preg_replace('/^KOL Needs\s*[—-]\s*/u', '', $state)))
+                    ->limit(50),
 
-                TextColumn::make('client.nama_brand')
+                TextColumn::make('brand')
                     ->label('Client')
                     ->searchable()
                     ->sortable()
                     ->placeholder('-'),
-
-                TextColumn::make('campaign.campaign_name')
-                    ->label('Campaign')
-                    ->searchable()
-                    ->sortable()
-                    ->placeholder('-')
-                    ->limit(30),
 
                 TextColumn::make('status')
                     ->label('Status')
@@ -58,17 +52,17 @@ class FormBriefsTable
                     })
                     ->sortable(),
 
-                TextColumn::make('content_deadline')
+                TextColumn::make('deadline')
                     ->label('Deadline')
-                    ->date('d M Y')
-                    ->sortable()
                     ->placeholder('-'),
 
-                TextColumn::make('budget')
-                    ->label('Budget')
-                    ->money('IDR')
-                    ->sortable()
-                    ->placeholder('-'),
+                TextColumn::make('budget_main_kol')
+                    ->label('Budget Main KOL')
+                    ->formatStateUsing(fn($state) => $state ? 'Rp ' . number_format((float) preg_replace('/[^0-9]/', '', $state), 0, ',', '.') : '-'),
+
+                TextColumn::make('budget_macro_kol')
+                    ->label('Budget Macro KOL')
+                    ->formatStateUsing(fn($state) => $state ? 'Rp ' . number_format((float) preg_replace('/[^0-9]/', '', $state), 0, ',', '.') : '-'),
 
                 TextColumn::make('submitted_by_name')
                     ->label('Submitted By')

@@ -58,18 +58,24 @@ class BvSales extends Model
     ];
 
     // -------------------------------------------------------
-    // Boot: auto-create FormBrief saat status = BRIEFING
+    // Boot: trigger otomatis berdasarkan perubahan status
+    // Flow:
+    //   BRIEFING      → buat FormBrief + MediaPlan Internal
+    //   CAMPAIGN_LIVE → buat Campaign Ongoing Internal (BvCampign)
     // -------------------------------------------------------
 
     protected static function booted(): void
     {
-        static::created(function (BvSales $sales) {
-            $sales->createCampaignData();
-        });
-
         static::updated(function (BvSales $sales) {
-            if ($sales->wasChanged('status') && $sales->status === SalesStatus::BRIEFING) {
-                $sales->ensureFormBriefExists();
+            if ($sales->wasChanged('status')) {
+                if ($sales->status === SalesStatus::BRIEFING) {
+                    $sales->ensureFormBriefExists();
+                    $sales->ensureMediaPlanExists();
+                }
+
+                if ($sales->status === SalesStatus::CAMPAIGN_LIVE) {
+                    $sales->ensureCampaignOngoingExists();
+                }
             }
 
             if ($sales->wasChanged(['status', 'quotation_sign'])) {
@@ -79,7 +85,7 @@ class BvSales extends Model
     }
 
     /**
-     * Buat FormBrief jika belum ada saat status = briefing.
+     * Buat FormBrief jika belum ada saat status = BRIEFING.
      */
     public function ensureFormBriefExists(): FormBrief
     {
@@ -88,15 +94,82 @@ class BvSales extends Model
         }
 
         return $this->formBrief()->create([
-            'title' => 'KOL Needs — ' . $this->event_name,
+            'title' => 'Brief — ' . $this->event_name,
             'brand' => $this->company_name,
             'campaign_name' => $this->event_name,
         ]);
     }
 
     /**
-     * Sync status campaign ke 'ongoing' ketika sales live + quotation_sign sudah diupload.
-     * Sekaligus isi media_platforms dari KOL yang sudah ada.
+     * Buat MediaPlan Internal jika belum ada saat status = BRIEFING.
+     */
+    public function ensureMediaPlanExists(): void
+    {
+        if ($this->mediaPlan()->exists()) {
+            return;
+        }
+
+        $picInternal = $this->salesList?->nama_sales;
+        $year = now()->year;
+        $count = \App\Models\MediaPlan::whereYear('created_at', $year)->count() + 1;
+        $quotationNumber = 'BV-' . $year . '-' . str_pad($count, 4, '0', STR_PAD_LEFT);
+
+        \App\Models\MediaPlan::create([
+            'bv_sales_id' => $this->id,
+            'brand' => $this->company_name,
+            'pic_client' => $this->pic_media_plan ?? $picInternal ?? '-',
+            'quotation_number' => $quotationNumber,
+            'campaign_name' => $this->event_name,
+            'campaign_period_start' => $this->start_date ? \Carbon\Carbon::parse($this->start_date)->format('Y-m-d') : null,
+            'campaign_period_end' => $this->end_date ? \Carbon\Carbon::parse($this->end_date)->format('Y-m-d') : null,
+            'status' => 'Planning',
+            'pic_campaign_id' => $this->bv_sales_list_id,
+        ]);
+    }
+
+    /**
+     * Buat Campaign Ongoing Internal (BvCampign) jika belum ada saat status = CAMPAIGN_LIVE.
+     */
+    public function ensureCampaignOngoingExists(): void
+    {
+        if ($this->campaign()->exists()) {
+            return;
+        }
+
+        $client = \App\Models\DataClient::where('nama_brand', $this->company_name)->first();
+        $picInternal = $this->salesList?->nama_sales;
+        $agencyName = $client?->agency_name;
+
+        \App\Models\BvCampign::create([
+            'bv_sales_id' => $this->id,
+            'form_brief_id' => $this->form_brief_id,
+            'client_id' => $client?->id,
+            'client_type' => $client?->type ?? 'direct',
+            'agency_name' => is_array($agencyName) ? implode(', ', $agencyName) : $agencyName,
+            'campaign_name' => $this->event_name,
+            'campaign_description' => $this->detail ?? '-',
+            'campaign_month' => $this->campaign_month,
+            'campaign_date' => $this->campaign_date,
+            'deal_value' => $this->deal_value ?? 0,
+            'total_cost' => $this->budget_propose ?? 0,
+            'start_date' => $this->start_date,
+            'end_date' => $this->end_date,
+            'close_date' => $this->close_date,
+            'brief_received_date' => $this->brief_submit_date,
+            'pic_internal' => $picInternal,
+            'pic_media_plan' => $this->pic_media_plan,
+            'status' => 'ongoing',
+        ]);
+
+        // Jika InternalBudget sudah fully approved, langsung sync KOL entries ke campaign
+        $internalBudget = $this->mediaPlan?->internalBudget;
+        if ($internalBudget && $internalBudget->status === 'approved') {
+            $internalBudget->syncCampaignKolsFromApprovedBudget();
+        }
+    }
+
+    /**
+     * Sync media_platforms campaign ketika status live + quotation_sign sudah diupload.
      */
     public function syncCampaignOngoingStatus(): void
     {
@@ -121,55 +194,6 @@ class BvSales extends Model
                 'media_platforms' => $platforms ?: $campaign->media_platforms,
             ]);
         }
-    }
-
-    /**
-     * Otomatis membuat data campaign di BvCampaign(Media Plan Internal)
-     */
-    public function createCampaignData(): void
-    {
-        $client = \App\Models\DataClient::where('nama_brand', $this->company_name)->first();
-
-        // Cari sales name
-        $picInternal = $this->salesList ? $this->salesList->nama_sales : null;
-
-        \App\Models\BvCampign::create([
-            'bv_sales_id' => $this->id,
-            'form_brief_id' => $this->form_brief_id,
-            'client_id' => $client?->id,
-            'client_type' => $client?->type ?? 'direct',
-            'agency_name' => $client?->agency_name,
-            'campaign_name' => $this->event_name,
-            'campaign_description' => $this->detail ?? '-',
-            'campaign_month' => $this->campaign_month,
-            'campaign_date' => $this->campaign_date,
-            'deal_value' => $this->deal_value ?? 0,
-            'total_cost' => $this->budget_propose ?? 0,
-            'start_date' => $this->start_date,
-            'end_date' => $this->end_date,
-            'close_date' => $this->close_date,
-            'brief_received_date' => $this->brief_submit_date,
-            'pic_internal' => $picInternal,
-            'pic_media_plan' => $this->pic_media_plan,
-            'status' => 'draft',
-        ]);
-
-        // Auto-create MediaPlan (Media Plan Internal) agar langsung muncul di menu Media Plan Internal
-        $year = now()->year;
-        $count = \App\Models\MediaPlan::whereYear('created_at', $year)->count() + 1;
-        $quotationNumber = 'BV-' . $year . '-' . str_pad($count, 4, '0', STR_PAD_LEFT);
-
-        \App\Models\MediaPlan::create([
-            'bv_sales_id' => $this->id,
-            'brand' => $this->company_name,
-            'pic_client' => $this->pic_media_plan ?? $picInternal ?? '-',
-            'quotation_number' => $quotationNumber,
-            'campaign_name' => $this->event_name,
-            'campaign_period_start' => $this->start_date ? \Carbon\Carbon::parse($this->start_date)->format('Y-m-d') : null,
-            'campaign_period_end' => $this->end_date ? \Carbon\Carbon::parse($this->end_date)->format('Y-m-d') : null,
-            'status' => 'Planning',
-            'pic_campaign_id' => $this->bv_sales_list_id,
-        ]);
     }
 
     // -------------------------------------------------------

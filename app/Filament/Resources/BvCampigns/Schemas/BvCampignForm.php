@@ -203,7 +203,8 @@ class BvCampignForm
                                                         if ($client) {
                                                             $set('client_id', $client->id);
                                                             $set('client_type', $client->type ?? 'direct');
-                                                            $set('agency_name', $client->agency_name);
+                                                            $agencyName = $client->agency_name;
+                                                    $set('agency_name', is_array($agencyName) ? implode(', ', $agencyName) : $agencyName);
                                                         }
                                                     }
                                                 }

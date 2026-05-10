@@ -13,15 +13,17 @@ class FormBriefPublicController extends Controller
      */
     public function show(string $token)
     {
-        $brief = FormBrief::where('token', $token)->with('client', 'bvSales')->firstOrFail();
+        $brief = FormBrief::where('token', $token)->with('client', 'bvSales.salesList')->firstOrFail();
 
-        $salesName = $brief->bvSales?->pic_media_plan ?: 'Tim Beyond Viral';
+        $picName = $brief->bvSales?->salesList?->nama_sales
+            ?: $brief->bvSales?->pic_media_plan;
+        $salesName = $picName ?: 'Tim Beyond Viral';
         $salesWhatsapp = null;
 
-        if ($brief->bvSales?->pic_media_plan) {
+        if ($picName) {
             $employee = BvEmploye::query()
-                ->where('nama_lengkap', $brief->bvSales->pic_media_plan)
-                ->orWhere('nama_lengkap', 'like', '%' . $brief->bvSales->pic_media_plan . '%')
+                ->where('nama_lengkap', $picName)
+                ->orWhere('nama_lengkap', 'like', '%' . $picName . '%')
                 ->first();
 
             $salesWhatsapp = $employee?->whatsapp;

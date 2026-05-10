@@ -18,7 +18,7 @@ class BvCampignsTable
     public static function configure(Table $table): Table
     {
         return $table
-            ->query(BvCampign::query()->where('status', 'ongoing')->with(['client', 'kols']))
+            ->query(BvCampign::query()->whereNotIn('status', ['completed', 'cancelled'])->with(['client', 'kols']))
             ->columns([
                 ImageColumn::make('campaign_image')
                     ->label('')

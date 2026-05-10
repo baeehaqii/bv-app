@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Divisions\Tables;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
+use Filament\Actions\Action;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
@@ -23,7 +24,20 @@ class DivisionsTable
                 TextColumn::make('departments_count')
                     ->label('Dept')
                     ->counts('departments')
-                    ->sortable(),
+                    ->sortable()
+                    ->badge()
+                    ->color('primary')
+                    ->action(
+                        Action::make('viewDepartments')
+                            ->modalHeading(fn ($record) => 'Departemen — ' . $record->name)
+                            ->modalContent(fn ($record) => view(
+                                'filament.modals.division-departments',
+                                ['division' => $record->load('departments.positions')]
+                            ))
+                            ->modalWidth('lg')
+                            ->modalSubmitAction(false)
+                            ->modalCancelActionLabel('Tutup')
+                    ),
 
                 TextColumn::make('description')
                     ->label('Deskripsi')

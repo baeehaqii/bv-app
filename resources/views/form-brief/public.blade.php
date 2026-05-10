@@ -296,7 +296,7 @@
 
         function confirmSubmitBrief() {
             closeSubmitConfirmationModal();
-            const form = document.querySelector('form[action*="form-brief"]');
+            const form = document.querySelector('form');
             if (form) {
                 form.submit();
             }

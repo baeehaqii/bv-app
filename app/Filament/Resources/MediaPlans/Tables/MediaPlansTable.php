@@ -26,9 +26,17 @@ class MediaPlansTable
 
                 TextColumn::make('brand')
                     ->label('Brand')
+                    ->state(function ($record) {
+                        $brand = $record->brand;
+                        if (!$brand || trim($brand) === '-') {
+                            return $record->bvSales?->company_name;
+                        }
+                        return $brand;
+                    })
                     ->searchable()
                     ->sortable()
-                    ->weight('bold'),
+                    ->weight('bold')
+                    ->placeholder('-'),
 
                 TextColumn::make('campaign_name')
                     ->label('Campaign')
@@ -97,6 +105,20 @@ class MediaPlansTable
                     ->alignCenter()
                     ->color(fn($state) => ($state ?? 0) < 30 ? 'danger' : 'success')
                     ->toggleable(isToggledHiddenByDefault: true),
+
+                TextColumn::make('bvSales.status')
+                    ->label('Campaign Status')
+                    ->badge()
+                    ->state(fn($record) => $record->bvSales?->status?->getLabel())
+                    ->color(fn($record): string => match ($record->bvSales?->status?->getColor()) {
+                        'warning' => 'warning',
+                        'success' => 'success',
+                        'info' => 'info',
+                        'danger' => 'danger',
+                        'purple' => 'purple',
+                        default => 'gray',
+                    })
+                    ->placeholder('-'),
 
                 TextColumn::make('status')
                     ->label('Plan Status')

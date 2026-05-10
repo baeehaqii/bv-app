@@ -270,14 +270,14 @@ class SalesKanban extends BoardPage implements HasTable
 
                 TextColumn::make('budget_propose')
                     ->label('Budget Propose')
-                    ->money('IDR')
+                    ->formatStateUsing(fn($state) => 'IDR ' . number_format((float) $state, 0, ',', '.'))
                     ->sortable()
                     ->color('info')
                     ->toggleable(isToggledHiddenByDefault: false),
 
                 TextColumn::make('deal_value')
                     ->label('Deal Value')
-                    ->money('IDR')
+                    ->formatStateUsing(fn($state) => 'IDR ' . number_format((float) $state, 0, ',', '.'))
                     ->sortable()
                     ->color('success'),
 

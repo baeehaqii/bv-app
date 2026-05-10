@@ -292,7 +292,7 @@ class BvSalesForm
                                 ->mask(\Filament\Support\RawJs::make(<<<'JS'
                             $money($input, ',', '.', 0)
                         JS))
-                                ->stripCharacters(['.'])
+                                ->formatStateUsing(fn($state) => $state ? (int) $state : 0)
                                 ->dehydrateStateUsing(fn($state) => (int) str_replace('.', '', $state))
                                 ->default(0),
 
@@ -303,7 +303,7 @@ class BvSalesForm
                                 ->mask(\Filament\Support\RawJs::make(<<<'JS'
                             $money($input, ',', '.', 0)
                         JS))
-                                ->stripCharacters(['.'])
+                                ->formatStateUsing(fn($state) => $state ? (int) $state : 0)
                                 ->dehydrateStateUsing(fn($state) => (int) str_replace('.', '', $state))
                                 ->default(0),
 
@@ -378,7 +378,8 @@ class BvSalesForm
                                 ]);
                         })
                         ->searchable()->columnSpanFull()
-                        ->preload(),
+                        ->preload()
+                        ->hidden(fn(string $operation): bool => $operation === 'create'),
 
                     FileUpload::make('brief_files')
                         ->label('Upload Brief (PDF) — Legacy / Archive')
@@ -390,11 +391,13 @@ class BvSalesForm
                         ->downloadable()
                         ->openable()
                         ->reorderable()
-                        ->columnSpanFull(),
+                        ->columnSpanFull()
+                        ->hidden(fn(string $operation): bool => $operation === 'create'),
 
                     Repeater::make('briefHistories')
                         ->relationship()
                         ->label('Brief History')
+                        ->hidden(fn(string $operation): bool => $operation === 'create')
                         ->helperText('Setiap revisi brief dari client (file atau link) — append, tidak overwrite.')
                         ->addActionLabel('+ Tambah Brief Baru')
                         ->orderColumn(false)

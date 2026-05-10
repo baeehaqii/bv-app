@@ -5,7 +5,6 @@ namespace App\Filament\Resources\InternalBudgets\Schemas;
 use App\Models\MediaPlanKol;
 use App\Models\InternalBudgetItem;
 use App\Filament\Resources\BvQuotations\BvQuotationResource;
-use App\Models\BvQuotation;
 use Filament\Schemas\Schema;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -289,7 +288,32 @@ class InternalBudgetForm
                                 'rejected' => 'Rejected',
                             ])
                             ->default('draft')
-                            ->required(),
+                            ->required()
+                            ->live()
+                            ->afterStateUpdated(function ($state, $record) {
+                                if ($state !== 'approved' || !$record) {
+                                    return;
+                                }
+
+                                $sales = $record->mediaPlan?->bvSales;
+                                if (!$sales) {
+                                    return;
+                                }
+
+                                // Update status sales → CAMPAIGN_LIVE jika belum
+                                if ($sales->status !== \App\Enums\SalesStatus::CAMPAIGN_LIVE) {
+                                    $sales->update(['status' => \App\Enums\SalesStatus::CAMPAIGN_LIVE]);
+                                }
+
+                                // Sync KOL dari approved budget items ke Campaign Ongoing
+                                $record->syncCampaignKolsFromApprovedBudget();
+
+                                Notification::make()
+                                    ->title('Campaign Live!')
+                                    ->body('Status Sales diperbarui ke "Campaign Live". Data KOL Campaign Ongoing Internal sudah diisi sesuai SOW yang di-approve.')
+                                    ->success()
+                                    ->send();
+                            }),
 
                         Textarea::make('rejection_notes')
                             ->label('Alasan Penolakan')
@@ -450,6 +474,7 @@ class InternalBudgetForm
                                     ->rows(1)
                                     ->disabled(),
 
+                                Hidden::make('id'),
                                 Hidden::make('status')->default('pending'),
                                 Hidden::make('rejection_notes'),
 
@@ -494,6 +519,29 @@ class InternalBudgetForm
                                     ->color('success')
                                     ->iconButton()
                                     ->tooltip('Approve item ini')
+                                    ->requiresConfirmation()
+                                    ->modalHeading('Approve SOW Item')
+                                    ->modalDescription(function (array $arguments, Repeater $component): string {
+                                        $itemUuid = $arguments['item'] ?? null;
+                                        if (!$itemUuid)
+                                            return 'Apakah Anda yakin ingin meng-approve item ini?';
+                                        $rawState = $component->getRawItemState($itemUuid);
+                                        $scopeItem = $rawState['scope_item'] ?? 'item ini';
+                                        return "Apakah Anda yakin ingin meng-approve SOW \"{$scopeItem}\"? Tindakan ini akan mengubah status item menjadi Approved.";
+                                    })
+                                    ->modalSubmitActionLabel('Ya, Approve')
+                                    ->modalIcon('heroicon-o-check-circle')
+                                    ->modalIconColor('success')
+                                    ->visible(function (array $arguments, Repeater $component): bool {
+                                        $itemUuid = $arguments['item'] ?? null;
+                                        if (!$itemUuid)
+                                            return true;
+                                        $rawState = $component->getRawItemState($itemUuid);
+                                        $status = $rawState['status'] ?? 'pending';
+                                        if ($status === 'pending')
+                                            return true;
+                                        return auth()->user()?->hasRole(['super_admin', 'superadmin', 'Super Admin', 'CEO', 'COO']) ?? false;
+                                    })
                                     ->action(function (array $arguments, Repeater $component, $livewire) {
                                         $itemUuid = $arguments['item'] ?? null;
                                         if (!$itemUuid)
@@ -524,6 +572,9 @@ class InternalBudgetForm
                                             if ($allApproved) {
                                                 $budget->approve();
 
+                                                // Sync approved items → Campaign Ongoing KOL list
+                                                $budget->syncCampaignKolsFromApprovedBudget();
+
                                                 // Auto-generate quotation dari budget yang sudah approved
                                                 $quotation = $budget->generateQuotation();
 
@@ -538,6 +589,7 @@ class InternalBudgetForm
                                             }
                                         }
 
+                                        $component->clearCachedExistingRecords();
                                         $livewire->refreshFormData(['items']);
                                     }),
 
@@ -547,6 +599,16 @@ class InternalBudgetForm
                                     ->color('danger')
                                     ->iconButton()
                                     ->tooltip('Reject item ini')
+                                    ->visible(function (array $arguments, Repeater $component): bool {
+                                        $itemUuid = $arguments['item'] ?? null;
+                                        if (!$itemUuid)
+                                            return true;
+                                        $rawState = $component->getRawItemState($itemUuid);
+                                        $status = $rawState['status'] ?? 'pending';
+                                        if ($status === 'pending')
+                                            return true;
+                                        return auth()->user()?->hasRole(['super_admin', 'superadmin', 'Super Admin', 'CEO', 'COO']) ?? false;
+                                    })
                                     ->form([
                                         Textarea::make('rejection_notes')
                                             ->label('Alasan Penolakan')
@@ -578,6 +640,7 @@ class InternalBudgetForm
                                             ->warning()
                                             ->send();
 
+                                        $component->clearCachedExistingRecords();
                                         $livewire->refreshFormData(['items']);
                                     }),
                             ])

@@ -113,13 +113,17 @@ class FormBriefForm
                     Grid::make(2)->schema([
                         TextInput::make('budget_main_kol')
                             ->label('Budget Main KOL')
-                            ->placeholder('e.g. 1M - 1,5M')
-                            ->maxLength(255),
+                            ->prefix('Rp')
+                            ->mask(\Filament\Support\RawJs::make('$money($input, \',\', \'.\', 0)'))
+                            ->formatStateUsing(fn($state) => $state !== null && $state !== '' ? (int) preg_replace('/[^0-9]/', '', $state) : null)
+                            ->dehydrateStateUsing(fn($state) => $state !== null && $state !== '' ? (int) preg_replace('/[^0-9]/', '', $state) : null),
 
                         TextInput::make('budget_macro_kol')
                             ->label('Budget Macro KOL')
-                            ->placeholder('e.g. 250JT - 300JT')
-                            ->maxLength(255),
+                            ->prefix('Rp')
+                            ->mask(\Filament\Support\RawJs::make('$money($input, \',\', \'.\', 0)'))
+                            ->formatStateUsing(fn($state) => $state !== null && $state !== '' ? (int) preg_replace('/[^0-9]/', '', $state) : null)
+                            ->dehydrateStateUsing(fn($state) => $state !== null && $state !== '' ? (int) preg_replace('/[^0-9]/', '', $state) : null),
                     ]),
                 ]),
 

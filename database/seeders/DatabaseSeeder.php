@@ -40,6 +40,10 @@ class DatabaseSeeder extends Seeder
         $this->call(MasterPphSeeder::class);
         $this->command->info('MasterPph seeding completed!');
 
+        // Jalankan OrganizationStructureSeeder
+        $this->call(OrganizationStructureSeeder::class);
+        $this->command->info('OrganizationStructure seeding completed!');
+
         $this->command->info('Database seeding completed successfully!');
     }
 }

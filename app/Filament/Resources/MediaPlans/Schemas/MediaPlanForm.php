@@ -5,18 +5,15 @@ namespace App\Filament\Resources\MediaPlans\Schemas;
 use Filament\Schemas\Schema;
 use App\Models\DataKol;
 use App\Models\MasterPph;
-use App\Enums\VendorTaxType;
 use App\Service\InstagramService;
 use App\Service\TiktokService;
 use App\Service\YoutubeChannelsService;
 use App\Service\YoutubeShortsService;
-use App\Helpers\QuotationNumberGenerator;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Repeater\TableColumn;
-use Filament\Forms\Components\Toggle;
 use Filament\Forms\Components\Checkbox;
 use Filament\Forms\Components\TagsInput;
 use Filament\Forms\Components\Hidden;
@@ -132,14 +129,16 @@ class MediaPlanForm
                                         ->searchable()
                                         ->preload()
                                         ->placeholder('Pilih Sales Activity')
-                                        ->required(),
+                                        ->required()
+                                        ->disabled(fn($record) => (bool) $record?->bvSales)
+                                        ->dehydrated(),
                                     DatePicker::make('campaign_period_start')
                                         ->label('Campaign Period Start')
                                         ->native(false)
                                         ->displayFormat('d/m/Y')
                                         ->placeholder('e.g., November 2025')
                                         ->afterStateHydrated(function ($component, $record) {
-                                            if ($record?->bvSales?->start_date && !$component->getState()) {
+                                            if ($record?->bvSales?->start_date) {
                                                 $component->state($record->bvSales->start_date->format('Y-m-d'));
                                             }
                                         })
@@ -150,14 +149,14 @@ class MediaPlanForm
                                         ->displayFormat('d/m/Y')
                                         ->placeholder('e.g., December 2025')
                                         ->afterStateHydrated(function ($component, $record) {
-                                            if ($record?->bvSales?->end_date && !$component->getState()) {
+                                            if ($record?->bvSales?->end_date) {
                                                 $component->state($record->bvSales->end_date->format('Y-m-d'));
                                             }
                                         })
                                         ->readOnly(fn($record) => (bool) $record?->bvSales),
-                                    TextInput::make('platform')
-                                        ->label('Platform')
-                                        ->placeholder('e.g., Social Media'),
+                                    // TextInput::make('platform')
+                                    //     ->label('Platform')
+                                    //     ->placeholder('e.g., Social Media'),
 
                                 ])->columns(2),
 
@@ -181,24 +180,26 @@ class MediaPlanForm
                                         }),
                                     Actions::make([
                                         Action::make('lihat_pic_client')
-                                            ->label(function (callable $get) {
-                                                $brand = $get('brand');
-                                                if (!$brand)
+                                            ->label(function (callable $get, \Livewire\Component $livewire) {
+                                                $record = $livewire->record ?? null;
+                                                $client = $record?->bvSales?->client
+                                                    ?? \App\Models\DataClient::where('nama_brand', $get('brand'))->first();
+                                                if (!$client)
                                                     return 'Lihat PIC Client';
-                                                $client = \App\Models\DataClient::where('nama_brand', $brand)->first();
-                                                $count = count($client?->pic_clients ?? []);
+                                                $count = count($client->pic_clients ?? []);
                                                 return "Lihat PIC Client ({$count})";
                                             })
                                             ->icon('heroicon-o-users')
                                             ->color('white')
                                             ->modalHeading('Daftar PIC Client')
-                                            ->modalContent(function (callable $get) {
-                                                $brand = $get('brand');
-                                                if (!$brand) {
-                                                    return new \Illuminate\Support\HtmlString('<p style="color:#6b7280;padding:16px;">Brand belum dipilih.</p>');
+                                            ->modalContent(function (callable $get, \Livewire\Component $livewire) {
+                                                $record = $livewire->record ?? null;
+                                                $client = $record?->bvSales?->client
+                                                    ?? \App\Models\DataClient::where('nama_brand', $get('brand'))->first();
+                                                if (!$client) {
+                                                    return new \Illuminate\Support\HtmlString('<p style="color:#6b7280;padding:16px;">Brand belum dipilih atau tidak ditemukan.</p>');
                                                 }
-                                                $client = \App\Models\DataClient::where('nama_brand', $brand)->first();
-                                                $pics = $client?->pic_clients ?? [];
+                                                $pics = $client->pic_clients ?? [];
                                                 if (empty($pics)) {
                                                     return new \Illuminate\Support\HtmlString('<p style="color:#6b7280;padding:16px;">Tidak ada PIC Client terdaftar.</p>');
                                                 }
@@ -250,14 +251,15 @@ class MediaPlanForm
                                         ->preload()
                                         ->nullable()
                                         ->helperText('PIC utama yang bertanggung jawab atas brief media plan ini'),
-                                    Select::make('sub_pic_campaign_ids')
-                                        ->label('Sub-PIC (Tambahan)')
-                                        ->options(\App\Models\BvSalesList::pluck('nama_sales', 'id'))
-                                        ->multiple()
-                                        ->searchable()
-                                        ->preload()
-                                        ->nullable()
-                                        ->helperText('Tambahkan sub-PIC pendukung (bisa lebih dari 1)'),
+                                    // Select::make('sub_pic_campaign_ids')
+                                    //     ->label('Sub-PIC (Tambahan)')
+                                    //     ->options(\App\Models\BvSalesList::pluck('nama_sales', 'id'))
+                                    //     ->multiple()
+                                    //     ->searchable()
+                                    //     ->preload()
+                                    //     ->nullable()
+                                    //     ->helperText('Tambahkan sub-PIC pendukung (bisa lebih dari 1)'),
+
                                 ])->columns(3),
                         ]),
 
@@ -316,7 +318,45 @@ class MediaPlanForm
                                         ->modalCancelActionLabel('Tutup')
                                         ->visible(fn(array $arguments, Repeater $component): bool => !empty(($component->getRawItemState($arguments['item'])['name'] ?? null)))
                                         ->modalContent(function (array $arguments, Repeater $component): \Illuminate\Contracts\View\View {
-                                            return view('filament.actions.kol-overview-modal', self::buildKolOverviewData($component->getRawItemState($arguments['item'])));
+                                            $item = $component->getRawItemState($arguments['item']);
+
+                                            // Query langsung ke DB agar status approval dari Media Plan External akurat
+                                            // (tidak terpengaruh default 'pending' dari Hidden field di form state)
+                                            $livewire = $component->getLivewire();
+                                            $mediaPlan = $livewire->record;
+                                            $kolName = $item['name'] ?? null;
+                                            $mediaPlanKolId = $item['id'] ?? null;
+
+                                            $kolBudgetItems = collect();
+                                            if ($mediaPlan?->internalBudget) {
+                                                $query = $mediaPlan->internalBudget
+                                                    ->items()
+                                                    ->with('mediaPlanKol')
+                                                    ->orderBy('sort_order');
+
+                                                // Filter by media_plan_kol_id jika tersedia, fallback ke kol_name
+                                                if ($mediaPlanKolId) {
+                                                    $query->where('media_plan_kol_id', $mediaPlanKolId);
+                                                } elseif ($kolName) {
+                                                    $query->whereHas('mediaPlanKol', fn($q) => $q->where('name', $kolName));
+                                                }
+
+                                                $kolBudgetItems = $query->get()->map(fn($bi) => [
+                                                    'scope_item' => $bi->scope_item,
+                                                    'qty' => $bi->qty,
+                                                    'rate_base' => $bi->rate_base,
+                                                    'mu_pph' => $bi->mu_pph ? number_format(round($bi->mu_pph), 0, '.', ',') : null,
+                                                    'rounded' => $bi->rounded ? number_format(round($bi->rounded), 0, '.', ',') : null,
+                                                    'actual_margin_percent' => $bi->actual_margin_percent,
+                                                    'status' => $bi->status ?? 'pending',
+                                                    'rejection_notes' => $bi->rejection_notes,
+                                                ]);
+                                            }
+
+                                            return view('filament.actions.kol-overview-modal', array_merge(
+                                                self::buildKolOverviewData($item),
+                                                ['budget_items' => $kolBudgetItems],
+                                            ));
                                         }),
 
                                     Action::make('edit_kol_details')
@@ -1351,7 +1391,7 @@ class MediaPlanForm
                                         ->columnSpanFull(),
 
                                     Placeholder::make('budget_items_sticky_css')
-                                        ->label('')
+                                        ->hiddenLabel()
                                         ->content(new \Illuminate\Support\HtmlString('
                                             <style>
                                                 #budget-items-repeater .fi-fo-repeater-table-wrapper {
@@ -1459,8 +1499,20 @@ class MediaPlanForm
                                                 ->rows(1)
                                                 ->placeholder('Optional...'),
 
+                                            TextInput::make('status')
+                                                ->label('Status')
+                                                ->formatStateUsing(fn($state) => match ($state) {
+                                                    'approved' => 'Approved',
+                                                    'rejected' => 'Rejected',
+                                                    default => 'Pending',
+                                                })
+                                                ->readOnly()
+                                                ->dehydrated(false),
+
                                             // Hidden fields
                                             Hidden::make('id'),
+                                            Hidden::make('status')->default('pending'),
+                                            Hidden::make('rejection_notes'),
                                             Hidden::make('sort_order')->default(0),
                                             TextInput::make('published_rate')
                                                 ->hidden()
@@ -1482,6 +1534,7 @@ class MediaPlanForm
                                             TableColumn::make('🟢 Client Price')->width('160px'),
                                             TableColumn::make('Margin %')->width('130px'),
                                             TableColumn::make('Notes')->width('160px'),
+                                            TableColumn::make('Status')->width('110px'),
                                         ])
                                         ->addable(false)
                                         ->deletable(false)
@@ -1641,6 +1694,12 @@ class MediaPlanForm
         $schedules = \App\Helpers\PaymentScheduleHelper::getUpcomingSchedules();
         $paymentKey = $item['payment_date'] ?? null;
 
+        // Fetch rate cards from DataKol database
+        $dataKol = \App\Models\DataKol::where('username', $item['name'] ?? null)
+            ->where('channel', $item['channel'] ?? null)
+            ->first();
+        $rateCards = $dataKol ? $dataKol->rateCards()->get() : collect();
+
         return [
             'is_selected' => ($item['is_selected'] ?? false) ? 'Ya ✅' : 'Tidak',
             'status' => $item['status'] ?? '—',
@@ -1671,6 +1730,7 @@ class MediaPlanForm
             'payment_date' => ($paymentKey && isset($schedules[$paymentKey]))
                 ? $schedules[$paymentKey]
                 : ($paymentKey ?? '—'),
+            'rate_cards' => $rateCards,
         ];
     }
 

@@ -122,10 +122,22 @@ class MediaPlan extends Model
             return;
         }
 
-        // Hapus items lama dan buat ulang
-        $budget->items()->delete();
+        // Kumpulkan pasangan (media_plan_kol_id, scope_item) yang sudah approved/rejected
+        // agar tidak tertimpa saat sync ulang
+        $lockedPairs = $budget->items()
+            ->whereIn('status', ['approved', 'rejected'])
+            ->get(['media_plan_kol_id', 'scope_item'])
+            ->map(fn($item) => $item->media_plan_kol_id . '|' . $item->scope_item)
+            ->flip()
+            ->all(); // pakai flip agar bisa pakai isset() O(1)
 
-        $sortOrder = 0;
+        // Hapus hanya item yang masih pending
+        $budget->items()->where('status', 'pending')->delete();
+
+        // Tentukan sort_order mulai setelah item locked yang sudah ada
+        $maxSortOrder = $budget->items()->max('sort_order') ?? -1;
+        $sortOrder = $maxSortOrder + 1;
+
         foreach ($selectedKols as $kol) {
             $scopes = $kol->scope_items ?? [];
             $rate = (float) ($kol->after_nego ?? $kol->rate ?? 0);
@@ -133,6 +145,11 @@ class MediaPlan extends Model
             $ratePerScope = $scopeCount > 0 ? $rate / $scopeCount : $rate;
 
             foreach ($scopes as $scope) {
+                // Lewati jika kombinasi kol+scope ini sudah approved/rejected
+                if (isset($lockedPairs[$kol->id . '|' . $scope])) {
+                    continue;
+                }
+
                 InternalBudgetItem::create([
                     'internal_budget_id' => $budget->id,
                     'media_plan_kol_id' => $kol->id,
@@ -145,15 +162,18 @@ class MediaPlan extends Model
             }
 
             if (empty($scopes)) {
-                InternalBudgetItem::create([
-                    'internal_budget_id' => $budget->id,
-                    'media_plan_kol_id' => $kol->id,
-                    'master_pph_id' => $kol->tipe_pajak_kol ?? null,
-                    'qty' => 1,
-                    'scope_item' => $kol->name ?? 'KOL',
-                    'rate_base' => $rate,
-                    'sort_order' => $sortOrder++,
-                ]);
+                $fallbackScope = $kol->name ?? 'KOL';
+                if (!isset($lockedPairs[$kol->id . '|' . $fallbackScope])) {
+                    InternalBudgetItem::create([
+                        'internal_budget_id' => $budget->id,
+                        'media_plan_kol_id' => $kol->id,
+                        'master_pph_id' => $kol->tipe_pajak_kol ?? null,
+                        'qty' => 1,
+                        'scope_item' => $fallbackScope,
+                        'rate_base' => $rate,
+                        'sort_order' => $sortOrder++,
+                    ]);
+                }
             }
         }
 

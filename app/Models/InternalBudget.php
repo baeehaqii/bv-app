@@ -125,6 +125,101 @@ class InternalBudget extends Model
     }
 
     /**
+     * Parse scope_item string → [platform, content_type] for BvCampaignKol.
+     * Maps human-readable SOW labels (e.g. "IG Reels", "TT Video") to
+     * the platform/content_type values used by BvCampaignKol.
+     */
+    public static function parseScopeItemToChannel(string $scopeItem): array
+    {
+        $scope = strtolower($scopeItem);
+
+        // Instagram
+        if (str_contains($scope, 'instagram') || preg_match('/\big\b/', $scope)) {
+            if (str_contains($scope, 'reel'))
+                return ['platform' => 'instagram', 'content_type' => 'reels'];
+            if (str_contains($scope, 'story') || str_contains($scope, 'stories'))
+                return ['platform' => 'instagram', 'content_type' => 'story'];
+            return ['platform' => 'instagram', 'content_type' => 'feed']; // post / feed
+        }
+
+        // TikTok
+        if (str_contains($scope, 'tiktok') || preg_match('/\btt\b/', $scope)) {
+            if (str_contains($scope, 'story'))
+                return ['platform' => 'tiktok', 'content_type' => 'story'];
+            if (str_contains($scope, 'photo'))
+                return ['platform' => 'tiktok', 'content_type' => 'photos'];
+            return ['platform' => 'tiktok', 'content_type' => 'video'];
+        }
+
+        // YouTube
+        if (str_contains($scope, 'youtube') || preg_match('/\byt\b/', $scope)) {
+            if (str_contains($scope, 'short'))
+                return ['platform' => 'youtube', 'content_type' => 'short'];
+            return ['platform' => 'youtube', 'content_type' => 'video'];
+        }
+
+        // Threads
+        if (str_contains($scope, 'thread')) {
+            return ['platform' => 'threads', 'content_type' => 'post'];
+        }
+
+        return ['platform' => 'instagram', 'content_type' => 'feed'];
+    }
+
+    /**
+     * Sync approved budget items → BvCampaignKol entries in the linked campaign.
+     * Idempotent: deletes existing KOL entries then recreates from approved items.
+     * No-op when no campaign exists yet (safe to call at any time).
+     */
+    public function syncCampaignKolsFromApprovedBudget(): void
+    {
+        $campaign = $this->mediaPlan?->bvSales?->campaign;
+        if (!$campaign) {
+            return;
+        }
+
+        $approvedItems = $this->items()
+            ->where('status', 'approved')
+            ->with('mediaPlanKol')
+            ->orderBy('sort_order')
+            ->get();
+
+        if ($approvedItems->isEmpty()) {
+            return;
+        }
+
+        // Replace all KOL entries with data from approved budget items
+        $campaign->kols()->delete();
+
+        foreach ($approvedItems as $item) {
+            ['platform' => $platform, 'content_type' => $contentType] =
+                self::parseScopeItemToChannel($item->scope_item ?? '');
+
+            \App\Models\BvCampaignKol::create([
+                'campaign_id' => $campaign->id,
+                'creator_name' => $item->mediaPlanKol?->name ?? '—',
+                'price' => (float) ($item->rounded ?? 0),
+                'platform' => $platform,
+                'content_type' => $contentType,
+                'status' => 'pending',
+            ]);
+        }
+
+        // Update campaign totals & media platforms
+        $platforms = $approvedItems
+            ->map(fn($item) => self::parseScopeItemToChannel($item->scope_item ?? '')['platform'])
+            ->unique()
+            ->values()
+            ->toArray();
+
+        $campaign->update([
+            'deal_value' => $this->total_rounded ?? 0,
+            'total_cost' => $this->total_mu_pph ?? 0,
+            'media_platforms' => $platforms,
+        ]);
+    }
+
+    /**
      * Recalculate all totals from items
      */
     public function recalculateTotals(): void

@@ -18,11 +18,10 @@ class EditInternalBudget extends EditRecord
                 ->label('Generate Quotation')
                 ->icon('heroicon-m-document-arrow-down')
                 ->color('success')
+                ->visible(fn($record) => $record->quotation === null)
                 ->requiresConfirmation()
                 ->modalHeading('Generate Quotation')
-                ->modalDescription(fn($record) => $record->quotation
-                    ? 'Quotation sudah ada ('. $record->quotation->quotation_number .'). Generate ulang akan memperbarui data quotation. Lanjutkan?'
-                    : 'Generate quotation baru dari data budget ini. Quotation akan dibuat dengan status Draft.')
+                ->modalDescription('Generate quotation baru dari data budget ini. Quotation akan dibuat dengan status Draft.')
                 ->modalSubmitActionLabel('Generate')
                 ->action(function ($record) {
                     if ($record->total_rounded <= 0) {
@@ -64,7 +63,7 @@ class EditInternalBudget extends EditRecord
                 ->visible(fn($record) => $record->mediaPlan !== null && $record->status !== 'approved')
                 ->requiresConfirmation()
                 ->modalHeading('Sync Budget Items dari Media Plan Internal')
-                ->modalDescription('Ini akan menghapus semua items saat ini dan menggantinya dengan data terbaru dari Media Plan Internal (KOL, scope, dan rate). Lanjutkan?')
+                ->modalDescription('Tombol ini menarik ulang data KOL dan scope item (SOW) dari Media Plan Internal ke halaman ini. Berguna ketika ada perubahan KOL atau scope di Media Plan Internal setelah budget external sudah dibuat. Semua items saat ini akan dihapus dan diganti data terbaru. Lanjutkan?')
                 ->modalSubmitActionLabel('Ya, Sync Sekarang')
                 ->action(function ($record) {
                     $record->mediaPlan->syncInternalBudgetItems();

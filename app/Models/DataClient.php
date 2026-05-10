@@ -11,12 +11,59 @@ class DataClient extends Model
     protected $guarded = [];
 
     protected $casts = [
-        'pics' => 'array',
-        'agency_brands' => 'array',
-        'agency_name' => 'array',
-        'pic_clients' => 'array',
         'has_agency' => 'boolean',
     ];
+
+    private static function decodeJsonField(mixed $value): array
+    {
+        if (is_array($value)) return $value;
+        if (is_null($value)) return [];
+        $decoded = json_decode($value, true);
+        if (is_string($decoded)) {
+            $decoded = json_decode($decoded, true);
+        }
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    public function getPicsAttribute(mixed $value): array
+    {
+        return self::decodeJsonField($value);
+    }
+
+    public function setPicsAttribute(mixed $value): void
+    {
+        $this->attributes['pics'] = json_encode(is_array($value) ? $value : []);
+    }
+
+    public function getAgencyBrandsAttribute(mixed $value): array
+    {
+        return self::decodeJsonField($value);
+    }
+
+    public function setAgencyBrandsAttribute(mixed $value): void
+    {
+        $this->attributes['agency_brands'] = json_encode(is_array($value) ? $value : []);
+    }
+
+    public function getAgencyNameAttribute(mixed $value): array
+    {
+        return self::decodeJsonField($value);
+    }
+
+    public function setAgencyNameAttribute(mixed $value): void
+    {
+        $this->attributes['agency_name'] = json_encode(is_array($value) ? $value : []);
+    }
+
+    public function getPicClientsAttribute(mixed $value): array
+    {
+        return self::decodeJsonField($value);
+    }
+
+    public function setPicClientsAttribute(mixed $value): void
+    {
+        $this->attributes['pic_clients'] = json_encode(is_array($value) ? $value : []);
+    }
 
     // -------------------------------------------------------
     // Relationships

@@ -67,6 +67,8 @@ class EditMediaPlan extends EditRecord
                     'sort_order' => $item->sort_order,
                     'subtotal' => $item->subtotal,
                     'mu_target' => $item->mu_target,
+                    'status' => $item->status ?? 'pending',
+                    'rejection_notes' => $item->rejection_notes,
                 ])
                 ->toArray();
         }
@@ -204,11 +206,11 @@ class EditMediaPlan extends EditRecord
 
                 $item->update([
                     'qty' => (int) ($itemData['qty'] ?? 1),
-                    'rate_base' => is_numeric($itemData['rate_base']) ? $itemData['rate_base'] : 0,
+                    'rate_base' => is_numeric($itemData['rate_base'] ?? null) ? $itemData['rate_base'] : 0,
                     'master_pph_id' => $itemData['master_pph_id'] ?? $item->master_pph_id,
-                    'mu_pph' => is_numeric($itemData['mu_pph']) ? $itemData['mu_pph'] : (float) str_replace(',', '', $itemData['mu_pph'] ?? '0'),
-                    'published_rate' => is_numeric($itemData['published_rate']) ? $itemData['published_rate'] : (float) str_replace(',', '', $itemData['published_rate'] ?? '0'),
-                    'rounded' => is_numeric($itemData['rounded']) ? $itemData['rounded'] : (float) str_replace(',', '', $itemData['rounded'] ?? '0'),
+                    'mu_pph' => is_numeric($itemData['mu_pph'] ?? null) ? $itemData['mu_pph'] : (float) str_replace(',', '', $itemData['mu_pph'] ?? '0'),
+                    'published_rate' => is_numeric($itemData['published_rate'] ?? null) ? $itemData['published_rate'] : (float) str_replace(',', '', $itemData['published_rate'] ?? '0'),
+                    'rounded' => is_numeric($itemData['rounded'] ?? null) ? $itemData['rounded'] : (float) str_replace(',', '', $itemData['rounded'] ?? '0'),
                     'actual_margin_percent' => (float) ($itemData['actual_margin_percent'] ?? 0),
                     'subtotal' => (float) ($itemData['subtotal'] ?? 0),
                     'mu_target' => (float) ($itemData['mu_target'] ?? 0),
