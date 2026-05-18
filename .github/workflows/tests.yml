@@ -1,4 +1,4 @@
-name: tests
+name: CI/CD Pipeline
 
 on:
   push:
@@ -11,7 +11,8 @@ on:
       - main
 
 jobs:
-  ci:
+  test:
+    name: Run Tests
     runs-on: ubuntu-latest
     environment: Testing
 
@@ -22,9 +23,9 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: 8.4
+          php-version: 8.3
           tools: composer:v2
-          coverage: xdebug
+          extensions: pdo_sqlite, sqlite3
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -35,10 +36,10 @@ jobs:
       - name: Install Node Dependencies
         run: npm i
 
-      - name: Add Flux Credentials Loaded From ENV
+      - name: Add Flux Credentials
         run: composer config http-basic.composer.fluxui.dev "${{ secrets.FLUX_USERNAME }}" "${{ secrets.FLUX_LICENSE_KEY }}"
 
-      - name: Install Dependencies
+      - name: Install PHP Dependencies
         run: composer install --no-interaction --prefer-dist --optimize-autoloader
 
       - name: Copy Environment File
@@ -52,3 +53,84 @@ jobs:
 
       - name: Run Tests
         run: ./vendor/bin/pest
+
+      - name: Notify Telegram - Tests Failed
+        if: failure()
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+          ACTOR: ${{ github.actor }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+            -d "chat_id=${CHAT_ID}" \
+            -d "parse_mode=HTML" \
+            --data-urlencode "text=❌ <b>TESTS FAILED — Deploy Dibatalkan!</b>
+
+📦 <b>Repo:</b> ${REPO}
+🌿 <b>Branch:</b> ${BRANCH}
+👤 <b>By:</b> ${ACTOR}
+
+🔍 <a href='${RUN_URL}'>Lihat detail error</a>"
+
+  deploy:
+    name: Deploy to Server
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Trigger aaPanel Webhook Deployment
+        run: |
+          curl -k -X POST "${{ secrets.AAPANEL_WEBHOOK_URL }}" \
+            --max-time 60 \
+            --fail \
+            --silent \
+            --show-error
+          echo "Deploy triggered at $(date)"
+
+      - name: Notify Telegram - Deploy Success
+        if: success()
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+          ACTOR: ${{ github.actor }}
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+            -d "chat_id=${CHAT_ID}" \
+            -d "parse_mode=HTML" \
+            --data-urlencode "text=✅ <b>DEPLOY BERHASIL!</b>
+
+📦 <b>Repo:</b> ${REPO}
+🌿 <b>Branch:</b> ${BRANCH}
+👤 <b>By:</b> ${ACTOR}
+💬 <b>Commit:</b> ${COMMIT_MSG}
+
+🚀 Aplikasi sudah live di server!"
+
+      - name: Notify Telegram - Deploy Failed
+        if: failure()
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+          ACTOR: ${{ github.actor }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+            -d "chat_id=${CHAT_ID}" \
+            -d "parse_mode=HTML" \
+            --data-urlencode "text=⚠️ <b>DEPLOY GAGAL!</b>
+
+📦 <b>Repo:</b> ${REPO}
+🌿 <b>Branch:</b> ${BRANCH}
+👤 <b>By:</b> ${ACTOR}
+
+⚠️ Tests lulus tapi webhook deploy ke server gagal!
+🔍 <a href='${RUN_URL}'>Lihat detail error</a>"
