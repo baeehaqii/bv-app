@@ -21,12 +21,17 @@ class InternalBudgetItem extends Model
 
     public function approve(): void
     {
-        $this->update(['status' => 'approved', 'rejection_notes' => null]);
+        $this->update(['status' => 'approved', 'rejection_notes' => null, 'nego_notes' => null]);
     }
 
     public function reject(string $notes): void
     {
-        $this->update(['status' => 'rejected', 'rejection_notes' => $notes]);
+        $this->update(['status' => 'rejected', 'rejection_notes' => $notes, 'nego_notes' => null]);
+    }
+
+    public function nego(string $notes): void
+    {
+        $this->update(['status' => 'nego', 'nego_notes' => $notes, 'rejection_notes' => null]);
     }
 
     /**

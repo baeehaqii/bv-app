@@ -3,148 +3,43 @@
 namespace App\Service;
 
 use App\Models\BvCampign;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 
 /**
- * Service untuk mengirim notifikasi saat Campaign berhasil dibuat.
- *
- * Logika (CP-07):
- *  - Jika campaign item = "Influencer" → kirim ke Manager KOL & Email Grup
- *  - Jika campaign item = "Social Media" → kirim ke Media Creative
+ * Adapter tipis untuk event "Campaign Ongoing dibuat".
+ * Semua logika notifikasi ada di BvNotificationService.
  */
 class CampaignNotificationService
 {
-    /**
-     * Konfigurasi penerima notifikasi — menggunakan file .env
-     */
-    protected static function getRecipients(): array
-    {
-        return [
-            'influencer' => [
-                'emails' => array_filter(explode(',', env('NOTIFY_INFLUENCER_EMAILS', 'manager.kol@beyondviral.id,grup-kol@beyondviral.id'))),
-                'phones' => array_filter(explode(',', env('NOTIFY_INFLUENCER_PHONES', ''))),
-                'label' => 'Manager KOL & Email Grup',
-            ],
-            'social_media' => [
-                'emails' => array_filter(explode(',', env('NOTIFY_SOCIAL_MEDIA_EMAILS', 'media.creative@beyondviral.id'))),
-                'phones' => array_filter(explode(',', env('NOTIFY_SOCIAL_MEDIA_PHONES', ''))),
-                'label' => 'Media Creative',
-            ],
-        ];
-    }
-
-    /**
-     * Kirim notifikasi berdasarkan platform/item campaign.
-     */
     public static function notify(BvCampign $campaign): void
     {
         $platforms = $campaign->media_platforms ?? [];
-        $campaignName = $campaign->campaign_name;
-        $clientName = $campaign->client?->nama_brand ?? '-';
 
-        // Deteksi tipe campaign item dari platform yang dipilih
-        $hasInfluencer = static::hasInfluencerPlatforms($platforms);
+        $hasInfluencer  = static::hasInfluencerPlatforms($platforms);
         $hasSocialMedia = static::hasSocialMediaPlatforms($platforms);
 
+        $svc = app(BvNotificationService::class);
+
         if ($hasInfluencer) {
-            static::sendNotification('influencer', $campaign, $campaignName, $clientName);
+            $svc->campaignCreated($campaign, 'influencer');
         }
 
         if ($hasSocialMedia) {
-            static::sendNotification('social_media', $campaign, $campaignName, $clientName);
+            $svc->campaignCreated($campaign, 'social_media');
         }
 
         if (!$hasInfluencer && !$hasSocialMedia) {
-            Log::info('[CampaignNotification] Campaign dibuat tanpa item Influencer/Social Media', [
-                'campaign_id' => $campaign->id,
-                'platforms' => $platforms,
-            ]);
+            // Campaign tanpa kategori platform yang dikenal — tetap notif sebagai generic
+            $svc->campaignCreated($campaign, 'other');
         }
     }
 
-    /**
-     * Kirim email & WhatsApp ke grup penerima.
-     */
-    protected static function sendNotification(string $type, BvCampign $campaign, string $campaignName, string $clientName): void
+    private static function hasInfluencerPlatforms(array $platforms): bool
     {
-        $config = static::getRecipients()[$type] ?? null;
-        if (!$config) {
-            return;
-        }
-
-        $message = static::buildMessage($type, $campaign, $campaignName, $clientName);
-
-        // Kirim Email
-        foreach ($config['emails'] as $email) {
-            try {
-                Mail::raw($message, function ($mail) use ($email, $campaignName) {
-                    $mail->to($email)
-                        ->subject("🚀 Campaign Baru: {$campaignName}");
-                });
-            } catch (\Throwable $e) {
-                Log::warning("[CampaignNotification] Gagal kirim email ke {$email}: " . $e->getMessage());
-            }
-        }
-
-        // Kirim WhatsApp
-        WhatsAppService::sendBulk($config['phones'], $message);
-
-        Log::info("[CampaignNotification] Notifikasi '{$type}' dikirim", [
-            'campaign_id' => $campaign->id,
-            'target' => $config['label'],
-            'emails' => count($config['emails']),
-            'phones' => count($config['phones']),
-        ]);
+        return !empty(array_intersect($platforms, ['instagram', 'tiktok', 'youtube']));
     }
 
-    /**
-     * Bangun isi pesan notifikasi.
-     */
-    protected static function buildMessage(string $type, BvCampign $campaign, string $campaignName, string $clientName): string
+    private static function hasSocialMediaPlatforms(array $platforms): bool
     {
-        $label = match ($type) {
-            'influencer' => 'Influencer / KOL',
-            'social_media' => 'Social Media',
-            default => ucfirst($type),
-        };
-
-        $dealValue = $campaign->deal_value
-            ? 'Rp ' . number_format($campaign->deal_value, 0, ',', '.')
-            : '-';
-
-        $period = '';
-        if ($campaign->start_date && $campaign->end_date) {
-            $period = $campaign->start_date->format('d M Y') . ' – ' . $campaign->end_date->format('d M Y');
-        }
-
-        return "🚀 *Campaign Baru Dibuat!*\n\n"
-            . "📌 *Nama Campaign:* {$campaignName}\n"
-            . "🏢 *Client:* {$clientName}\n"
-            . "📋 *Tipe:* {$label}\n"
-            . "💰 *Deal Value:* {$dealValue}\n"
-            . ($period ? "📅 *Periode:* {$period}\n" : '')
-            . "👤 *PIC Internal:* " . ($campaign->pic_internal ?? '-') . "\n"
-            . "\nSilakan cek detail di panel admin.";
-    }
-
-    /**
-     * Cek apakah ada platform yang termasuk kategori Influencer.
-     */
-    protected static function hasInfluencerPlatforms(array $platforms): bool
-    {
-        $influencerPlatforms = ['instagram', 'tiktok', 'youtube'];
-        return !empty(array_intersect($platforms, $influencerPlatforms));
-    }
-
-    /**
-     * Cek apakah ada platform yang termasuk kategori Social Media.
-     * Logika: jika ada item campaign bertipe "social_media" atau
-     * campaign_type mengindikasikan social media management.
-     */
-    protected static function hasSocialMediaPlatforms(array $platforms): bool
-    {
-        $socialMediaPlatforms = ['social_media', 'social-media'];
-        return !empty(array_intersect($platforms, $socialMediaPlatforms));
+        return !empty(array_intersect($platforms, ['social_media', 'social-media']));
     }
 }

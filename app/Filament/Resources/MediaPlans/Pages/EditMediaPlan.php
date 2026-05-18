@@ -4,9 +4,11 @@ namespace App\Filament\Resources\MediaPlans\Pages;
 
 use App\Filament\Resources\MediaPlans\MediaPlanResource;
 use App\Models\InternalBudgetItem;
+use App\Service\BvNotificationService;
 use Filament\Actions;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
+use Illuminate\Support\Facades\Log;
 
 class EditMediaPlan extends EditRecord
 {
@@ -222,6 +224,19 @@ class EditMediaPlan extends EditRecord
         // Recalculate budget totals
         $internalBudget->refresh();
         $internalBudget->recalculateTotals();
+
+        // Notifikasi WA jika ada perubahan PIC
+        $picFields = ['pic_sales_bd_id', 'pic_leads_project_id', 'pic_am_id', 'pic_project_internal_ids'];
+        $picChanged = collect($picFields)->contains(fn($f) => $this->record->wasChanged($f));
+
+        if ($picChanged) {
+            try {
+                $this->record->loadMissing(['picSalesBd.user', 'picLeadsProject.user', 'picAm.user']);
+                app(BvNotificationService::class)->picAssigned($this->record);
+            } catch (\Throwable $e) {
+                Log::warning('[EditMediaPlan] Notifikasi WA PIC assigned gagal: ' . $e->getMessage());
+            }
+        }
     }
 
     protected function getHeaderActions(): array

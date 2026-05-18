@@ -4,11 +4,16 @@ namespace App\Filament\Resources\CampaignExternals;
 
 use App\Filament\Resources\CampaignExternals\Pages\ListCampaignExternals;
 use App\Filament\Resources\CampaignExternals\Pages\ViewCampaignExternal;
+use App\Filament\Resources\CampaignExternals\RelationManagers\StorylinesExternalRelationManager;
 use App\Filament\Resources\CampaignExternals\Tables\CampaignExternalsTable;
 use App\Models\BvCampign;
 use BackedEnum;
+use Filament\Infolists\Components\Section;
+use Filament\Infolists\Components\TextEntry;
+use Filament\Infolists\Infolist;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
+use Filament\Support\Enums\FontWeight;
 use Filament\Tables\Table;
 
 class CampaignExternalResource extends Resource
@@ -30,6 +35,42 @@ class CampaignExternalResource extends Resource
         return $schema->components([]);
     }
 
+    public static function infolist(Infolist $infolist): Infolist
+    {
+        return $infolist
+            ->schema([
+                Section::make('Informasi Campaign')
+                    ->columns(3)
+                    ->schema([
+                        TextEntry::make('campaign_name')
+                            ->label('Nama Campaign')
+                            ->weight(FontWeight::SemiBold)
+                            ->columnSpan(2),
+
+                        TextEntry::make('status')
+                            ->label('Status')
+                            ->badge()
+                            ->color(fn($state) => match ($state) {
+                                'ongoing'   => 'success',
+                                'upcoming'  => 'warning',
+                                'completed' => 'gray',
+                                default     => 'primary',
+                            }),
+
+                        TextEntry::make('client.nama_brand')
+                            ->label('Client / Brand'),
+
+                        TextEntry::make('start_date')
+                            ->label('Mulai')
+                            ->date('d M Y'),
+
+                        TextEntry::make('end_date')
+                            ->label('Selesai')
+                            ->date('d M Y'),
+                    ]),
+            ]);
+    }
+
     public static function table(Table $table): Table
     {
         return CampaignExternalsTable::configure($table);
@@ -37,7 +78,9 @@ class CampaignExternalResource extends Resource
 
     public static function getRelations(): array
     {
-        return [];
+        return [
+            StorylinesExternalRelationManager::class,
+        ];
     }
 
     public static function getPages(): array

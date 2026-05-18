@@ -3,7 +3,9 @@
 namespace App\Filament\Resources\SalesTargets\Schemas;
 
 use App\Models\BvSalesList;
+use App\Models\User;
 use Carbon\Carbon;
+use Spatie\Permission\Models\Role;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -21,7 +23,36 @@ class SalesTargetForm
                 ->schema([
                     Select::make('bv_sales_list_id')
                         ->label('Sales Person')
-                        ->options(fn() => BvSalesList::orderBy('nama_sales')->pluck('nama_sales', 'id'))
+                        ->options(function () {
+                            $candidateRoles = ['Sales/BD', 'sales', 'bd', 'Sales', 'BD', 'Business Development'];
+
+                            // Only query roles that actually exist in the DB
+                            $existingRoles = Role::whereIn('name', $candidateRoles)->pluck('name')->toArray();
+
+                            $options = collect();
+
+                            if (!empty($existingRoles)) {
+                                User::role($existingRoles)
+                                    ->orderBy('name')
+                                    ->get()
+                                    ->each(function ($user) use ($options) {
+                                        $salesList = BvSalesList::firstOrCreate(
+                                            ['user_id' => $user->id],
+                                            ['nama_sales' => $user->name]
+                                        );
+                                        $options->put($salesList->id, $user->name);
+                                    });
+                            }
+
+                            // Also include BvSalesList entries not linked to any user account
+                            BvSalesList::whereNull('user_id')
+                                ->orderBy('nama_sales')
+                                ->each(function ($sl) use ($options) {
+                                    $options->put($sl->id, $sl->nama_sales);
+                                });
+
+                            return $options->sortBy(fn($v) => $v)->all();
+                        })
                         ->searchable()
                         ->required()
                         ->native(false)

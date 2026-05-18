@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\CampaignPublicController;
 use App\Http\Controllers\FormBriefPublicController;
+use App\Http\Controllers\QuotationPublicController;
 use App\Http\Controllers\KolContractController;
 use App\Http\Controllers\KolImportTemplateController;
 use App\Http\Controllers\MediaPlanPdfController;
@@ -20,6 +21,9 @@ Route::post('/brief/{token}', [FormBriefPublicController::class, 'submit'])->nam
 
 // Campaign Ongoing External — public tracking page for clients
 Route::get('/campaign/{token}', [CampaignPublicController::class, 'show'])->name('campaign.public');
+
+// Quotation Public Review — no auth required
+Route::get('/quotation-review/{token}', [QuotationPublicController::class, 'show'])->name('quotation.public');
 
 // Media Plan PDF Routes (require auth)
 Route::middleware(['auth'])->group(function () {

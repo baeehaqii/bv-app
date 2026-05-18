@@ -11,8 +11,6 @@ class ViewFormBrief extends ViewRecord
 {
     protected static string $resource = FormBriefResource::class;
 
-    protected string $view = 'filament.resources.form-briefs.pages.view-form-brief';
-
     protected function getHeaderActions(): array
     {
         return [

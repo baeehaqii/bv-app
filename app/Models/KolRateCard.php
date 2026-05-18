@@ -18,4 +18,20 @@ class KolRateCard extends Model
     {
         return $this->belongsTo(DataKol::class);
     }
+
+    public function masterSow(): BelongsTo
+    {
+        return $this->belongsTo(MasterSow::class);
+    }
+
+    /**
+     * Label SOW yang ditampilkan: custom_sow_name jika SOW = custom, otherwise nama dari master
+     */
+    public function getSowLabelAttribute(): string
+    {
+        if ($this->masterSow?->is_custom && $this->custom_sow_name) {
+            return $this->custom_sow_name;
+        }
+        return $this->masterSow?->name ?? $this->sow ?? '-';
+    }
 }

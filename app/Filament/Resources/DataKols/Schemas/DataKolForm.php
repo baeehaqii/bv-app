@@ -49,16 +49,54 @@ class DataKolForm
                                 Select::make('channel')
                                     ->label('Channel')
                                     ->options([
-                                        'Instagram' => 'Instagram',
-                                        'Tiktok' => 'TikTok',
-                                        'Threads' => 'Threads',
-                                        'Youtube Channels' => 'YouTube Channels',
-                                        'Youtube Shorts' => 'YouTube Shorts',
-                                        'Facebook' => 'Facebook',
-                                        'Talent' => 'Talent',
-                                        'X' => 'X (Twitter)',
+                                        'Instagram'       => 'Instagram',
+                                        'Tiktok'          => 'TikTok',
+                                        'Threads'         => 'Threads',
+                                        'Youtube Channels'=> 'YouTube Channels',
+                                        'Youtube Shorts'  => 'YouTube Shorts',
+                                        'Facebook'        => 'Facebook',
+                                        'Talent'          => 'Talent',
+                                        'X'               => 'X (Twitter)',
                                     ])
+                                    ->live()
+                                    ->afterStateUpdated(fn(callable $set) => $set('master_sow_id', null))
                                     ->required(),
+
+                                Select::make('master_sow_id')
+                                    ->label('SOW')
+                                    ->options(function (callable $get) {
+                                        return \App\Models\MasterSow::active()
+                                            ->ordered()
+                                            ->get()
+                                            ->mapWithKeys(fn($sow) => [
+                                                $sow->id => $sow->channel
+                                                    ? "{$sow->name} ({$sow->channel})"
+                                                    : $sow->name,
+                                            ]);
+                                    })
+                                    ->searchable()
+                                    ->placeholder('Pilih SOW')
+                                    ->live()
+                                    ->afterStateUpdated(function ($state, callable $set) {
+                                        $sow = \App\Models\MasterSow::find($state);
+                                        if ($sow && !$sow->is_custom) {
+                                            $set('custom_sow_name', null);
+                                        }
+                                    })
+                                    ->nullable(),
+
+                                TextInput::make('custom_sow_name')
+                                    ->label('SOW Custom (Tulis Manual)')
+                                    ->placeholder('e.g. IG Collab Post + Story')
+                                    ->visible(function (callable $get) {
+                                        $sowId = $get('master_sow_id');
+                                        if (!$sowId) {
+                                            return false;
+                                        }
+                                        $sow = \App\Models\MasterSow::find($sowId);
+                                        return $sow?->is_custom === true;
+                                    })
+                                    ->nullable(),
 
                                 TextInput::make('rate')
                                     ->label('Rate Card')
@@ -79,6 +117,7 @@ class DataKolForm
                             ])
                             ->table([
                                 TableColumn::make('Channel'),
+                                TableColumn::make('SOW'),
                                 TableColumn::make('Rate Card'),
                                 TableColumn::make('Berlaku Dari'),
                                 TableColumn::make('Catatan'),

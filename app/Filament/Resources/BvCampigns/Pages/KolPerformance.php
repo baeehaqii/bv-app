@@ -60,7 +60,8 @@ class KolPerformance extends Page implements HasTable
     public function table(Table $table): Table
     {
         return $table
-            ->query(BvCampaignKol::query()->where('campaign_id', $this->record->id))
+            ->queryStringIdentifier('kol')
+            ->query(BvCampaignKol::query()->where('campaign_id', $this->record->id)->where('brief_status', 'approved'))
             ->columns([
                 TextColumn::make('creator_name')
                     ->label('Creator')

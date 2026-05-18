@@ -5,69 +5,86 @@ namespace App\Service;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
-/**
- * WhatsApp Notification Service
- *
- * Service dasar untuk mengirim pesan WhatsApp.
- * Saat ini menggunakan log sebagai placeholder.
- * Ke depan bisa diintegrasikan dengan provider WA API
- * seperti Fonnte, Wablas, WooWA, dll.
- */
 class WhatsAppService
 {
-    /**
-     * Kirim pesan WhatsApp ke satu nomor.
-     */
-    public static function send(string $phone, string $message): bool
+    protected string $webhookUrl;
+
+    public function __construct()
     {
-        // Normalisasi nomor telepon (pastikan format internasional)
-        $phone = static::normalizePhone($phone);
+        $this->webhookUrl = config('services.webhook.n8n', '');
 
-        // TODO: Ganti dengan integrasi provider WA API
-        // Contoh implementasi Fonnte:
-        // $response = Http::withHeaders([
-        //     'Authorization' => config('services.whatsapp.token'),
-        // ])->post(config('services.whatsapp.url', 'https://api.fonnte.com/send'), [
-        //     'target'  => $phone,
-        //     'message' => $message,
-        // ]);
-
-        Log::channel('daily')->info('[WhatsApp] Pesan terkirim', [
-            'phone' => $phone,
-            'message' => $message,
-        ]);
-
-        return true;
+        if (empty($this->webhookUrl)) {
+            Log::stack(['single', 'whatsapp'])->error('[WA] N8N_WEBHOOK_URL belum di-set di .env');
+        }
     }
 
     /**
-     * Kirim pesan ke banyak nomor sekaligus.
+     * Kirim pesan WA ke satu nomor via n8n webhook.
      */
-    public static function sendBulk(array $phones, string $message): void
+    public function send(string $phone, string $message): bool
+    {
+        $phone = $this->normalizePhone($phone);
+
+        return $this->dispatch($phone, $message);
+    }
+
+    /**
+     * Kirim pesan WA ke banyak nomor.
+     */
+    public function sendBulk(array $phones, string $message): void
     {
         foreach ($phones as $phone) {
-            static::send($phone, $message);
+            $this->send($phone, $message);
         }
     }
 
-    /**
-     * Normalisasi format nomor telepon ke format internasional (62xxx).
-     */
-    protected static function normalizePhone(string $phone): string
+    private function dispatch(string $phone, string $message): bool
     {
-        // Hapus karakter non-digit
-        $phone = preg_replace('/[^0-9]/', '', $phone);
-
-        // Ganti awalan 0 menjadi 62
-        if (str_starts_with($phone, '0')) {
-            $phone = '62' . substr($phone, 1);
+        if (empty($this->webhookUrl)) {
+            return false;
         }
 
-        // Pastikan ada awalan 62
-        if (!str_starts_with($phone, '62')) {
-            $phone = '62' . $phone;
+        Log::stack(['single', 'whatsapp'])->info('[WA] Kirim notifikasi', [
+            'phone'      => $phone,
+            'webhook'    => $this->webhookUrl,
+            'message'    => $message,
+        ]);
+
+        try {
+            $response = Http::timeout(15)->post($this->webhookUrl, [
+                'phoneNumber' => $phone,
+                'message'     => $message,
+            ]);
+
+            Log::stack(['single', 'whatsapp'])->info('[WA] Response n8n', [
+                'phone'  => $phone,
+                'status' => $response->status(),
+                'body'   => $response->body(),
+            ]);
+
+            return $response->successful();
+        } catch (\Throwable $e) {
+            Log::stack(['single', 'whatsapp'])->error('[WA] Gagal kirim ke n8n', [
+                'phone'   => $phone,
+                'error'   => $e->getMessage(),
+            ]);
+
+            return false;
+        }
+    }
+
+    private function normalizePhone(string $phone): string
+    {
+        $cleaned = preg_replace('/\D/', '', $phone);
+
+        if (str_starts_with($cleaned, '62')) {
+            return $cleaned;
         }
 
-        return $phone;
+        if (str_starts_with($cleaned, '0')) {
+            return '62' . substr($cleaned, 1);
+        }
+
+        return '62' . $cleaned;
     }
 }

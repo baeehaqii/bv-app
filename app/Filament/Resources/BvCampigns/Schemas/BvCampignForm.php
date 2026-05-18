@@ -584,6 +584,57 @@ class BvCampignForm
                                         ->placeholder('Link to report document')
                                         ->url(),
                                 ])->columns(2),
+
+                            Section::make('PIC Campaign')
+                                ->description('Penanggung jawab campaign — diambil otomatis dari Media Plan Internal setelah quotation ditandatangani')
+                                ->icon('heroicon-o-user-group')
+                                ->hidden(fn($record) => !$record?->mediaPlan?->quotation_signed_path)
+                                ->schema([
+                                    Placeholder::make('pic_campaign_display')
+                                        ->label('')
+                                        ->columnSpanFull()
+                                        ->content(function ($record) {
+                                            $mediaPlan = $record?->mediaPlan;
+                                            if (!$mediaPlan) {
+                                                return new \Illuminate\Support\HtmlString(
+                                                    '<p style="color:#9ca3af;font-size:13px;">Media Plan Internal belum terhubung.</p>'
+                                                );
+                                            }
+
+                                            $pics = [
+                                                ['role' => 'PIC Sales / BD',              'name' => $mediaPlan->picSalesBd?->nama_sales],
+                                                ['role' => 'PIC Leads Project (Manager)', 'name' => $mediaPlan->picLeadsProject?->nama_sales],
+                                                ['role' => 'PIC Account Manager (AM)',    'name' => $mediaPlan->picAm?->nama_sales],
+                                            ];
+
+                                            // PIC Project Internal bisa lebih dari 1
+                                            $internalIds = $mediaPlan->pic_project_internal_ids ?? [];
+                                            if (!empty($internalIds)) {
+                                                $names = \App\Models\BvSalesList::whereIn('id', $internalIds)
+                                                    ->pluck('nama_sales')
+                                                    ->join(', ');
+                                                $pics[] = ['role' => 'PIC Project Internal (KOL Specialist)', 'name' => $names ?: '-'];
+                                            } else {
+                                                $pics[] = ['role' => 'PIC Project Internal (KOL Specialist)', 'name' => '-'];
+                                            }
+
+                                            $rows = '';
+                                            foreach ($pics as $i => $pic) {
+                                                $bg = $i % 2 === 0 ? '#f9fafb' : '#ffffff';
+                                                $name = $pic['name'] ? e($pic['name']) : '<span style="color:#9ca3af;">—</span>';
+                                                $rows .= '<tr style="background:' . $bg . ';">
+                                                    <td style="padding:10px 14px;font-size:12px;color:#6b7280;white-space:nowrap;width:220px;">' . e($pic['role']) . '</td>
+                                                    <td style="padding:10px 14px;font-size:13px;font-weight:600;color:#111827;">' . $name . '</td>
+                                                </tr>';
+                                            }
+
+                                            return new \Illuminate\Support\HtmlString('
+                                                <div style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
+                                                    <table style="width:100%;border-collapse:collapse;">' . $rows . '</table>
+                                                </div>
+                                            ');
+                                        }),
+                                ]),
                         ]),
                 ])
                     ->columnSpanFull()

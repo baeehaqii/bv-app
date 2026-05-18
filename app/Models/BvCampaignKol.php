@@ -12,20 +12,42 @@ class BvCampaignKol extends Model
     protected $guarded = [];
 
     protected $casts = [
-        'price' => 'double',
+        'price'           => 'double',
         'engagement_rate' => 'decimal:4',
-        'posted_at' => 'datetime',
+        'posted_at'       => 'datetime',
         'last_fetched_at' => 'datetime',
+        'visit_date'      => 'date',
+        'posting_date'    => 'date',
+    ];
+
+    public const PLATFORMS = [
+        'instagram' => 'Instagram',
+        'tiktok'    => 'TikTok',
+        'youtube'   => 'YouTube',
+        'threads'   => 'Threads',
+    ];
+
+    public const TIERS = [
+        'nano'  => 'Nano (< 10K)',
+        'micro' => 'Micro (10K–100K)',
+        'macro' => 'Macro (100K–1M)',
+        'mega'  => 'Mega (> 1M)',
+    ];
+
+    public const VISIT_STATUSES = [
+        'scheduled' => 'Scheduled',
+        'done'      => 'Done',
+        'cancelled' => 'Cancelled',
     ];
 
     /**
-     * Platform options
+     * Status brief sebelum konten di-approve dan masuk KOL Performance.
      */
-    public const PLATFORMS = [
-        'instagram' => 'Instagram',
-        'tiktok' => 'TikTok',
-        'youtube' => 'YouTube',
-        'threads' => 'Threads',
+    public const BRIEF_STATUSES = [
+        'draft'          => 'Draft',
+        'waiting_review' => 'Waiting Review',
+        'revision'       => 'Revision',
+        'approved'       => 'Approved',
     ];
 
     /**
@@ -59,12 +81,38 @@ class BvCampaignKol extends Model
         'completed' => 'Completed',
     ];
 
-    /**
-     * Get the campaign for this KOL
-     */
     public function campaign(): BelongsTo
     {
         return $this->belongsTo(BvCampign::class, 'campaign_id');
+    }
+
+    /**
+     * Approve brief KOL — otomatis masuk KOL Performance.
+     * Set brief_status = approved dan status = posted.
+     */
+    public function approveBrief(): void
+    {
+        $this->update([
+            'brief_status' => 'approved',
+            'status'       => 'posted',
+            'posted_at'    => $this->posted_at ?? now(),
+        ]);
+    }
+
+    /**
+     * Scope: hanya KOL yang sudah approved (untuk KOL Performance).
+     */
+    public function scopeApproved($query)
+    {
+        return $query->where('brief_status', 'approved');
+    }
+
+    /**
+     * Scope: KOL yang masih dalam proses brief (belum approved).
+     */
+    public function scopeInBrief($query)
+    {
+        return $query->where('brief_status', '!=', 'approved');
     }
 
     /**

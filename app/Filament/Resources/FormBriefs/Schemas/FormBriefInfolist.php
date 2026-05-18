@@ -6,6 +6,8 @@ use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
+use Filament\Support\Enums\FontWeight;
+use Filament\Tables\Columns\TextColumn;
 
 class FormBriefInfolist
 {
@@ -28,16 +30,16 @@ class FormBriefInfolist
                                 ->label('Client Status')
                                 ->badge()
                                 ->color(fn($state) => match ($state) {
-                                    'direct' => 'info',
-                                    'agency' => 'warning',
+                                    'direct'         => 'info',
+                                    'agency'         => 'warning',
                                     'another_agency' => 'danger',
-                                    default => 'gray',
+                                    default          => 'gray',
                                 })
                                 ->formatStateUsing(fn($state) => match ($state) {
-                                    'direct' => 'Direct',
-                                    'agency' => 'Agency',
+                                    'direct'         => 'Direct',
+                                    'agency'         => 'Agency',
                                     'another_agency' => 'Another Agency',
-                                    default => ucfirst($state ?? '-'),
+                                    default          => ucfirst($state ?? '-'),
                                 })
                                 ->placeholder('-'),
 
@@ -91,21 +93,21 @@ class FormBriefInfolist
                     ]),
 
                 // -----------------------------------------------
-                // Section 4: Budget
+                // Section 4: Budget — 1 field
                 // -----------------------------------------------
                 Section::make('Budget')
                     ->icon('heroicon-o-banknotes')
                     ->collapsible()
                     ->schema([
-                        Grid::make(2)->schema([
-                            TextEntry::make('budget_main_kol')
-                                ->label('Budget Main KOL')
-                                ->placeholder('-'),
-
-                            TextEntry::make('budget_macro_kol')
-                                ->label('Budget Macro KOL')
-                                ->placeholder('-'),
-                        ]),
+                        TextEntry::make('budget')
+                            ->label('Budget Campaign')
+                            ->formatStateUsing(
+                                fn($state) => $state !== null && $state !== ''
+                                    ? 'Rp ' . number_format((int) $state, 0, ',', '.')
+                                    : '-'
+                            )
+                            ->weight(FontWeight::Bold)
+                            ->placeholder('-'),
                     ]),
 
                 // -----------------------------------------------
@@ -116,8 +118,12 @@ class FormBriefInfolist
                     ->collapsible()
                     ->schema([
                         Grid::make(2)->schema([
-                            TextEntry::make('deadline')
+                            // Deadline — bold & size large sesuai permintaan
+                            TextEntry::make('deadline_date')
                                 ->label('Deadline')
+                                ->date('d M Y')
+                                ->weight(FontWeight::Bold)
+                                ->size(TextEntry\TextEntrySize::Large)
                                 ->placeholder('-'),
 
                             TextEntry::make('status')

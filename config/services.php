@@ -40,8 +40,20 @@ return [
     ],
 
     'google' => [
-        'folder_id' => env('GOOGLE_DRIVE_FOLDER_ID'), // Optional: Folder ID to store spreadsheets
-        'share_with_email' => env('GOOGLE_SHARE_WITH_EMAIL'), // Optional: Auto-share with this email
+        'folder_id' => env('GOOGLE_DRIVE_FOLDER_ID'),
+        'share_with_email' => env('GOOGLE_SHARE_WITH_EMAIL'),
+    ],
+
+    'webhook' => [
+        'n8n' => env('N8N_WEBHOOK_URL', ''),
+    ],
+
+    'notification' => [
+        'wa_group_main'    => env('NOTIFY_WA_GROUP_MAIN', ''),
+        'influencer_phones' => array_filter(explode(',', env('NOTIFY_INFLUENCER_PHONES', ''))),
+        'social_media_phones' => array_filter(explode(',', env('NOTIFY_SOCIAL_MEDIA_PHONES', ''))),
+        'influencer_emails' => array_filter(explode(',', env('NOTIFY_INFLUENCER_EMAILS', ''))),
+        'social_media_emails' => array_filter(explode(',', env('NOTIFY_SOCIAL_MEDIA_EMAILS', ''))),
     ],
 
 ];

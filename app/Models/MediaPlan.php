@@ -16,6 +16,8 @@ class MediaPlan extends Model
         'margin_percent' => 'decimal:2',
         'use_global_margin' => 'boolean',
         'sub_pic_campaign_ids' => 'array',
+        'pic_project_internal_ids' => 'array',
+        'quotation_signed_at' => 'datetime',
     ];
 
     /**
@@ -200,6 +202,11 @@ class MediaPlan extends Model
             return;
         }
 
+        // Quotation bertanda tangan wajib diupload sebelum campaign bisa live
+        if (empty($this->quotation_signed_path)) {
+            return;
+        }
+
         // Parse campaign dates
         $startDate = null;
         $endDate = null;
@@ -310,12 +317,19 @@ class MediaPlan extends Model
         return $this->belongsTo(BvSales::class, 'bv_sales_id');
     }
 
-    /**
-     * Get PIC Campaign (Tugas Brief Assignee)
-     */
-    public function picCampaign(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    public function picSalesBd(): BelongsTo
     {
-        return $this->belongsTo(BvSalesList::class, 'pic_campaign_id');
+        return $this->belongsTo(BvSalesList::class, 'pic_sales_bd_id');
+    }
+
+    public function picLeadsProject(): BelongsTo
+    {
+        return $this->belongsTo(BvSalesList::class, 'pic_leads_project_id');
+    }
+
+    public function picAm(): BelongsTo
+    {
+        return $this->belongsTo(BvSalesList::class, 'pic_am_id');
     }
 
     /**

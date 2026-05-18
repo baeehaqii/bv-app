@@ -305,6 +305,12 @@ class InternalBudgetForm
                                     $sales->update(['status' => \App\Enums\SalesStatus::CAMPAIGN_LIVE]);
                                 }
 
+                                // 4.4 — Sync deal_value ke BvSales dari total_rounded budget
+                                $record->refresh();
+                                if ($record->total_rounded > 0) {
+                                    $sales->update(['deal_value' => $record->total_rounded]);
+                                }
+
                                 // Sync KOL dari approved budget items ke Campaign Ongoing
                                 $record->syncCampaignKolsFromApprovedBudget();
 
@@ -477,6 +483,7 @@ class InternalBudgetForm
                                 Hidden::make('id'),
                                 Hidden::make('status')->default('pending'),
                                 Hidden::make('rejection_notes'),
+                                Hidden::make('nego_notes'),
 
                                 Placeholder::make('status_badge')
                                     ->label('Status')
@@ -485,17 +492,25 @@ class InternalBudgetForm
                                         $colors = [
                                             'approved' => 'bg-green-100 text-green-800',
                                             'rejected' => 'bg-red-100 text-red-800',
-                                            'pending' => 'bg-gray-100 text-gray-800',
+                                            'nego'     => 'bg-yellow-100 text-yellow-800',
+                                            'pending'  => 'bg-gray-100 text-gray-800',
                                         ];
                                         $labels = [
                                             'approved' => 'Approved',
                                             'rejected' => 'Rejected',
-                                            'pending' => 'Pending',
+                                            'nego'     => 'Nego',
+                                            'pending'  => 'Pending',
                                         ];
                                         $colorClass = $colors[$status] ?? $colors['pending'];
                                         $label = $labels[$status] ?? ucfirst($status);
+
+                                        $negoNotes = $get('nego_notes');
+                                        $tooltip = ($status === 'nego' && $negoNotes)
+                                            ? ' title="' . e($negoNotes) . '"'
+                                            : '';
+
                                         return new \Illuminate\Support\HtmlString(
-                                            "<span class=\"inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {$colorClass}\">{$label}</span>"
+                                            "<span class=\"inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {$colorClass}\"{$tooltip}>{$label}</span>"
                                         );
                                     }),
                             ])
@@ -637,6 +652,60 @@ class InternalBudgetForm
                                         Notification::make()
                                             ->title('Item Rejected')
                                             ->body("Item {$item->scope_item} ditolak.")
+                                            ->warning()
+                                            ->send();
+
+                                        $component->clearCachedExistingRecords();
+                                        $livewire->refreshFormData(['items']);
+                                    }),
+
+                                Action::make('nego_item')
+                                    ->label('Nego')
+                                    ->icon('heroicon-m-chat-bubble-left-right')
+                                    ->color('warning')
+                                    ->iconButton()
+                                    ->tooltip('Tandai sebagai Nego & tambah catatan')
+                                    ->visible(function (array $arguments, Repeater $component): bool {
+                                        $itemUuid = $arguments['item'] ?? null;
+                                        if (!$itemUuid)
+                                            return true;
+                                        $rawState = $component->getRawItemState($itemUuid);
+                                        $status = $rawState['status'] ?? 'pending';
+                                        if (in_array($status, ['pending', 'nego']))
+                                            return true;
+                                        return auth()->user()?->hasRole(['super_admin', 'superadmin', 'Super Admin', 'CEO', 'COO']) ?? false;
+                                    })
+                                    ->form([
+                                        Textarea::make('nego_notes')
+                                            ->label('Catatan Negosiasi')
+                                            ->placeholder('Tuliskan catatan atau syarat negosiasi...')
+                                            ->required()
+                                            ->rows(3),
+                                    ])
+                                    ->modalHeading('Nego Item')
+                                    ->modalDescription('Tandai item ini sebagai "Nego" dan tambahkan catatan negosiasi untuk disampaikan ke client.')
+                                    ->modalSubmitActionLabel('Simpan Nego')
+                                    ->modalIcon('heroicon-o-chat-bubble-left-right')
+                                    ->modalIconColor('warning')
+                                    ->action(function (array $arguments, array $data, Repeater $component, $livewire) {
+                                        $itemUuid = $arguments['item'] ?? null;
+                                        if (!$itemUuid)
+                                            return;
+
+                                        $itemState = $component->getItemState($itemUuid);
+                                        $itemId = $itemState['id'] ?? null;
+                                        if (!$itemId)
+                                            return;
+
+                                        $item = InternalBudgetItem::find($itemId);
+                                        if (!$item)
+                                            return;
+
+                                        $item->nego($data['nego_notes']);
+
+                                        Notification::make()
+                                            ->title('Item Ditandai Nego')
+                                            ->body("Item \"{$item->scope_item}\" ditandai sebagai Nego.")
                                             ->warning()
                                             ->send();
 

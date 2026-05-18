@@ -27,11 +27,25 @@ class InternalBudget extends Model
     ];
 
     /**
-     * Approve budget dan trigger aktivasi campaign
+     * Approve budget, sync deal_value ke BvSales, dan trigger aktivasi campaign
      */
     public function approve(): void
     {
         $this->update(['status' => 'approved', 'rejection_notes' => null]);
+
+        // 4.4 — Sync deal_value ke BvSales berdasarkan total_rounded (harga client setelah markup)
+        $bvSales = $this->mediaPlan?->bvSales;
+        if ($bvSales && $this->total_rounded > 0) {
+            $bvSales->update(['deal_value' => $this->total_rounded]);
+        }
+
+        if ($this->mediaPlan) {
+            try {
+                app(\App\Service\BvNotificationService::class)->budgetApproved($this->mediaPlan);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('[InternalBudget] Notifikasi WA approve gagal: ' . $e->getMessage());
+            }
+        }
     }
 
     /**
@@ -40,6 +54,14 @@ class InternalBudget extends Model
     public function reject(string $rejectionNotes): void
     {
         $this->update(['status' => 'rejected', 'rejection_notes' => $rejectionNotes]);
+
+        if ($this->mediaPlan) {
+            try {
+                app(\App\Service\BvNotificationService::class)->budgetRejected($this->mediaPlan, $rejectionNotes);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('[InternalBudget] Notifikasi WA reject gagal: ' . $e->getMessage());
+            }
+        }
     }
 
     /**

@@ -4,6 +4,7 @@ namespace App\Filament\Resources\FormBriefs\Schemas;
 
 use App\Models\BvSales;
 use App\Models\DataClient;
+use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\RichEditor;
 use Filament\Forms\Components\Select;
@@ -12,6 +13,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
+use Filament\Support\RawJs;
 
 class FormBriefForm
 {
@@ -41,8 +43,8 @@ class FormBriefForm
                         Select::make('client_status')
                             ->label('Client Status')
                             ->options([
-                                'direct' => 'Direct',
-                                'agency' => 'Agency',
+                                'direct'         => 'Direct',
+                                'agency'         => 'Agency',
                                 'another_agency' => 'Another Agency',
                             ])
                             ->native(false)
@@ -103,28 +105,29 @@ class FormBriefForm
                 ]),
 
             // -------------------------------------------------------
-            // Section 4: Budget
+            // Section 4: Budget — 1 field total campaign budget
             // -------------------------------------------------------
             Section::make('Budget')
-                ->description('Estimasi budget per tier KOL')
+                ->description('Total budget campaign')
                 ->icon('heroicon-o-banknotes')
                 ->collapsible()
                 ->schema([
-                    Grid::make(2)->schema([
-                        TextInput::make('budget_main_kol')
-                            ->label('Budget Main KOL')
-                            ->prefix('Rp')
-                            ->mask(\Filament\Support\RawJs::make('$money($input, \',\', \'.\', 0)'))
-                            ->formatStateUsing(fn($state) => $state !== null && $state !== '' ? (int) preg_replace('/[^0-9]/', '', $state) : null)
-                            ->dehydrateStateUsing(fn($state) => $state !== null && $state !== '' ? (int) preg_replace('/[^0-9]/', '', $state) : null),
-
-                        TextInput::make('budget_macro_kol')
-                            ->label('Budget Macro KOL')
-                            ->prefix('Rp')
-                            ->mask(\Filament\Support\RawJs::make('$money($input, \',\', \'.\', 0)'))
-                            ->formatStateUsing(fn($state) => $state !== null && $state !== '' ? (int) preg_replace('/[^0-9]/', '', $state) : null)
-                            ->dehydrateStateUsing(fn($state) => $state !== null && $state !== '' ? (int) preg_replace('/[^0-9]/', '', $state) : null),
-                    ]),
+                    TextInput::make('budget')
+                        ->label('Budget Campaign')
+                        ->prefix('Rp')
+                        ->placeholder('0')
+                        ->mask(RawJs::make('$money($input, \',\', \'.\', 0)'))
+                        ->formatStateUsing(
+                            fn($state) => $state !== null && $state !== ''
+                                ? number_format((int) $state, 0, ',', '.')
+                                : null
+                        )
+                        ->dehydrateStateUsing(
+                            fn($state) => $state !== null && $state !== ''
+                                ? (int) preg_replace('/[^0-9]/', '', (string) $state)
+                                : null
+                        )
+                        ->helperText('Masukkan total budget campaign dalam Rupiah'),
                 ]),
 
             // -------------------------------------------------------
@@ -136,19 +139,20 @@ class FormBriefForm
                 ->collapsible()
                 ->schema([
                     Grid::make(2)->schema([
-                        TextInput::make('deadline')
+                        DatePicker::make('deadline_date')
                             ->label('Deadline')
-                            ->placeholder('e.g. January 2026')
-                            ->maxLength(255),
+                            ->placeholder('Pilih tanggal deadline')
+                            ->native(false)
+                            ->displayFormat('d M Y'),
 
                         Select::make('status')
                             ->label('Status')
                             ->options([
-                                'draft' => 'Draft',
+                                'draft'     => 'Draft',
                                 'submitted' => 'Submitted',
-                                'reviewed' => 'Reviewed',
-                                'approved' => 'Approved',
-                                'revision' => 'Perlu Revisi',
+                                'reviewed'  => 'Reviewed',
+                                'approved'  => 'Approved',
+                                'revision'  => 'Perlu Revisi',
                             ])
                             ->default('draft')
                             ->native(false)

@@ -244,23 +244,92 @@ class MediaPlanForm
                                     // TextInput::make('domisili')
                                     //     ->label('Domisili')->required()
                                     //     ->placeholder('e.g., Jakarta'),
-                                    Select::make('pic_campaign_id')
-                                        ->label('PIC Utama (Assign Tugas Brief)')
+                                ])->columns(2),
+
+                            Section::make('PIC Campaign')
+                                ->description('Penanggung jawab campaign per role')
+                                ->icon('heroicon-o-user-group')
+                                ->schema([
+                                    Select::make('pic_sales_bd_id')
+                                        ->label('PIC Sales / BD')
                                         ->options(\App\Models\BvSalesList::pluck('nama_sales', 'id'))
                                         ->searchable()
                                         ->preload()
                                         ->nullable()
-                                        ->helperText('PIC utama yang bertanggung jawab atas brief media plan ini'),
-                                    // Select::make('sub_pic_campaign_ids')
-                                    //     ->label('Sub-PIC (Tambahan)')
-                                    //     ->options(\App\Models\BvSalesList::pluck('nama_sales', 'id'))
-                                    //     ->multiple()
-                                    //     ->searchable()
-                                    //     ->preload()
-                                    //     ->nullable()
-                                    //     ->helperText('Tambahkan sub-PIC pendukung (bisa lebih dari 1)'),
+                                        ->helperText('Sales atau BD yang menangani campaign ini'),
 
-                                ])->columns(3),
+                                    Select::make('pic_leads_project_id')
+                                        ->label('PIC Leads Project (Manager)')
+                                        ->options(\App\Models\BvSalesList::pluck('nama_sales', 'id'))
+                                        ->searchable()
+                                        ->preload()
+                                        ->nullable()
+                                        ->helperText('Manager yang memimpin project'),
+
+                                    Select::make('pic_project_internal_ids')
+                                        ->label('PIC Project Internal (KOL Specialist)')
+                                        ->options(\App\Models\BvSalesList::pluck('nama_sales', 'id'))
+                                        ->multiple()
+                                        ->searchable()
+                                        ->preload()
+                                        ->nullable()
+                                        ->helperText('Bisa lebih dari 1 KOL Specialist'),
+
+                                    Select::make('pic_am_id')
+                                        ->label('PIC Account Manager (AM)')
+                                        ->options(\App\Models\BvSalesList::pluck('nama_sales', 'id'))
+                                        ->searchable()
+                                        ->preload()
+                                        ->nullable()
+                                        ->helperText('AM yang berkoordinasi dengan client'),
+                                ])->columns(2),
+
+                            Section::make('Quotation Bertanda Tangan')
+                                ->description('Upload quotation yang sudah ditandatangani client sebelum campaign bisa live')
+                                ->icon('heroicon-o-document-check')
+                                ->schema([
+                                    FileUpload::make('quotation_signed_path')
+                                        ->label('Upload Quotation Signed')
+                                        ->directory('quotation-signed')
+                                        ->disk('public')
+                                        ->acceptedFileTypes([
+                                            'application/pdf',
+                                            'image/png',
+                                            'image/jpeg',
+                                        ])
+                                        ->maxSize(10240)
+                                        ->downloadable()
+                                        ->openable()
+                                        ->helperText('Format: PDF, JPG, PNG (maks. 10 MB). Wajib diisi sebelum status bisa berubah ke Ongoing.')
+                                        ->afterStateUpdated(function ($state, callable $set) {
+                                            if ($state) {
+                                                $set('quotation_signed_at', now()->toDateTimeString());
+                                            } else {
+                                                $set('quotation_signed_at', null);
+                                            }
+                                        })
+                                        ->live()
+                                        ->columnSpanFull(),
+
+                                    \Filament\Forms\Components\Hidden::make('quotation_signed_at'),
+
+                                    \Filament\Schemas\Components\Grid::make(2)->schema([
+                                        \Filament\Forms\Components\Placeholder::make('quotation_signed_status')
+                                            ->label('Status Quotation Signed')
+                                            ->content(function ($record) {
+                                                if (!$record?->quotation_signed_path) {
+                                                    return new \Illuminate\Support\HtmlString(
+                                                        '<span style="color:#dc2626;font-size:13px;">⚠ Belum diupload — campaign tidak bisa Ongoing</span>'
+                                                    );
+                                                }
+                                                $date = $record->quotation_signed_at?->format('d M Y H:i') ?? '-';
+                                                return new \Illuminate\Support\HtmlString(
+                                                    '<span style="color:#16a34a;font-size:13px;">✓ Sudah diupload pada ' . e($date) . '</span>'
+                                                );
+                                            })
+                                            ->hidden(fn(string $operation) => $operation === 'create'),
+                                    ]),
+                                ]),
                         ]),
 
                     Step::make('Brief')
@@ -549,10 +618,10 @@ class MediaPlanForm
 
                                                     Select::make('pic')
                                                         ->label('PIC')
-                                                        ->options([
-                                                            'ROHMAH' => 'ROHMAH',
-                                                            'NABILLA' => 'NABILLA',
-                                                        ]),
+                                                        ->options(\App\Models\BvSalesList::pluck('nama_sales', 'id'))
+                                                        ->searchable()
+                                                        ->default(fn() => auth()->id())
+                                                        ->nullable(),
                                                 ])
                                                 ->columns(3),
 
@@ -1240,10 +1309,10 @@ class MediaPlanForm
 
                                                 Select::make('pic')
                                                     ->label('PIC')
-                                                    ->options([
-                                                        'ROHMAH' => 'ROHMAH',
-                                                        'NABILLA' => 'NABILLA',
-                                                    ]),
+                                                    ->options(\App\Models\BvSalesList::pluck('nama_sales', 'id'))
+                                                    ->searchable()
+                                                    ->default(fn() => auth()->id())
+                                                    ->nullable(),
                                             ])
                                             ->columns(3),
                                     ])->extraAttributes(['style' => 'display: none;']),

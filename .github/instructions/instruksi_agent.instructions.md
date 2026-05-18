@@ -7,5 +7,4 @@
 5. Hindari kode yang bisa di expose
 6. Baca url dokumentasi yang diberikan user
 7. Response jawaban menggunakan Indonesia
-8. jika harus edit migration, edit saja, jangan buat file migration baru add, atau change
 9. referensi gunakan contex 7

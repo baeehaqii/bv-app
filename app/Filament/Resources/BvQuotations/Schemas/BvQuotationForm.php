@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\BvQuotations\Schemas;
 
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -43,39 +44,46 @@ class BvQuotationForm
                                     );
                                 }
 
-                                $rows = $items->map(function ($item) {
-                                    $kol = e($item->mediaPlanKol?->name ?? '—');
-                                    $scope = e($item->scope_item ?? '—');
-                                    $qty = (int) ($item->qty ?? 1);
-                                    $price = 'Rp ' . number_format((float) ($item->rounded ?? 0), 0, ',', '.');
+                                // Group by KOL: KOL yang sama dijadikan 1 baris, SOW digabung
+                                $grouped = $items->groupBy(fn($item) => $item->mediaPlanKol?->id ?? $item->scope_item);
+
+                                $rows = $grouped->map(function ($kolItems) {
+                                    $kolName = e($kolItems->first()->mediaPlanKol?->name ?? '—');
+
+                                    $sowBadges = $kolItems->map(function ($item) {
+                                        $sow = e($item->scope_item ?? '—');
+                                        $qty = (int) ($item->qty ?? 1);
+                                        $label = $qty > 1 ? "{$sow} ×{$qty}" : $sow;
+                                        return "<span style='display:inline-block;margin:2px 3px 2px 0;padding:2px 8px;border-radius:9999px;font-size:11px;font-weight:500;background:#eef2ff;color:#4f46e5;'>{$label}</span>";
+                                    })->join('');
+
+                                    $totalPrice = 'Rp ' . number_format((float) $kolItems->sum('rounded'), 0, ',', '.');
 
                                     return "
-                                        <tr class='border-b border-gray-100 dark:border-gray-700'>
-                                            <td class='py-2 pr-4 text-sm text-gray-800 dark:text-gray-200'>{$kol}</td>
-                                            <td class='py-2 pr-4 text-sm text-gray-800 dark:text-gray-200'>{$scope}</td>
-                                            <td class='py-2 pr-4 text-sm text-center text-gray-600 dark:text-gray-400'>{$qty}</td>
-                                            <td class='py-2 text-sm text-right font-medium text-gray-800 dark:text-gray-200'>{$price}</td>
+                                        <tr style='border-bottom:1px solid #f3f4f6;'>
+                                            <td style='padding:10px 12px 10px 0;font-size:13px;font-weight:600;color:#111827;vertical-align:top;white-space:nowrap;'>{$kolName}</td>
+                                            <td style='padding:10px 12px;font-size:13px;color:#374151;'>{$sowBadges}</td>
+                                            <td style='padding:10px 0 10px 12px;font-size:13px;font-weight:600;color:#111827;text-align:right;white-space:nowrap;vertical-align:top;'>{$totalPrice}</td>
                                         </tr>";
                                 })->join('');
 
                                 $total = 'Rp ' . number_format((float) ($budget->total_rounded ?? 0), 0, ',', '.');
 
                                 return new \Illuminate\Support\HtmlString("
-                                    <div class='overflow-x-auto'>
-                                        <table class='w-full border-collapse'>
+                                    <div style='overflow-x:auto;'>
+                                        <table style='width:100%;border-collapse:collapse;'>
                                             <thead>
-                                                <tr class='border-b-2 border-gray-200 dark:border-gray-600'>
-                                                    <th class='text-left py-2 pr-4 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400'>KOL</th>
-                                                    <th class='text-left py-2 pr-4 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400'>Scope Item (SOW)</th>
-                                                    <th class='text-center py-2 pr-4 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400'>Qty</th>
-                                                    <th class='text-right py-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400'>Client Price</th>
+                                                <tr style='border-bottom:2px solid #e5e7eb;'>
+                                                    <th style='text-align:left;padding:8px 12px 8px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;white-space:nowrap;'>KOL / Creator</th>
+                                                    <th style='text-align:left;padding:8px 12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;'>Scope of Work</th>
+                                                    <th style='text-align:right;padding:8px 0 8px 12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;white-space:nowrap;'>Client Price</th>
                                                 </tr>
                                             </thead>
                                             <tbody>{$rows}</tbody>
                                             <tfoot>
-                                                <tr class='border-t-2 border-gray-300 dark:border-gray-500'>
-                                                    <td colspan='3' class='pt-3 text-sm font-semibold text-gray-700 dark:text-gray-300'>Total</td>
-                                                    <td class='pt-3 text-sm font-bold text-right text-gray-900 dark:text-white'>{$total}</td>
+                                                <tr style='border-top:2px solid #d1d5db;'>
+                                                    <td colspan='2' style='padding-top:10px;font-size:13px;font-weight:600;color:#374151;'>Total Penawaran</td>
+                                                    <td style='padding-top:10px;font-size:14px;font-weight:700;text-align:right;color:#111827;'>{$total}</td>
                                                 </tr>
                                             </tfoot>
                                         </table>
@@ -179,6 +187,41 @@ class BvQuotationForm
                             ->label('Syarat & Ketentuan')
                             ->rows(4)
                             ->columnSpanFull(),
+                    ])
+                    ->columnSpanFull(),
+
+                // ── Tanda Tangan Digital ──
+                Section::make('✍️ Tanda Tangan Digital')
+                    ->description('Upload file tanda tangan (PNG transparan direkomendasikan, maks. 1 MB).')
+                    ->columns(3)
+                    ->schema([
+                        FileUpload::make('ttd_pic_client')
+                            ->label('TTD PIC Client')
+                            ->image()
+                            ->imageEditor()
+                            ->disk('public')
+                            ->directory('ttd/quotations')
+                            ->acceptedFileTypes(['image/png', 'image/jpeg', 'image/webp'])
+                            ->maxSize(1024)
+                            ->helperText('PNG transparan direkomendasikan.'),
+
+                        FileUpload::make('ttd_sales_bv')
+                            ->label('TTD Sales BV')
+                            ->image()
+                            ->imageEditor()
+                            ->disk('public')
+                            ->directory('ttd/quotations')
+                            ->acceptedFileTypes(['image/png', 'image/jpeg', 'image/webp'])
+                            ->maxSize(1024),
+
+                        FileUpload::make('ttd_bd_sales')
+                            ->label('TTD BD / Director BV')
+                            ->image()
+                            ->imageEditor()
+                            ->disk('public')
+                            ->directory('ttd/quotations')
+                            ->acceptedFileTypes(['image/png', 'image/jpeg', 'image/webp'])
+                            ->maxSize(1024),
                     ])
                     ->columnSpanFull(),
 

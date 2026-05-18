@@ -20,53 +20,62 @@ class UserSeeder extends Seeder
         $salesBdRole = Role::firstOrCreate(['name' => 'Sales/BD']);
         $operationRole = Role::firstOrCreate(['name' => 'Operation KOL & Creative']);
 
-        // Data users
+        // Data users — domain resmi @bvnetwork.com
         $users = [
             [
                 'name' => 'CEO',
-                'email' => 'ceo@bv.com',
+                'email' => 'ceo@bvnetwork.com',
                 'password' => 'Ap4sihya',
                 'role' => $superAdminRole,
             ],
             [
                 'name' => 'COO',
-                'email' => 'coo@bv.com',
+                'email' => 'coo@bvnetwork.com',
                 'password' => 'Ap4sihya',
                 'role' => $superAdminRole,
             ],
             [
                 'name' => 'Finance Team',
-                'email' => 'finance@bv.com',
+                'email' => 'finance@bvnetwork.com',
                 'password' => 'Ap4sihya',
                 'role' => $financeRole,
             ],
             [
                 'name' => 'Sales',
-                'email' => 'sales@bv.com',
+                'email' => 'sales@bvnetwork.com',
                 'password' => 'Ap4sihya',
                 'role' => $salesBdRole,
             ],
             [
                 'name' => 'BD Manager',
-                'email' => 'bd.manager@bv.com',
+                'email' => 'bd.manager@bvnetwork.com',
                 'password' => 'Ap4sihya',
                 'role' => $salesBdRole,
             ],
             [
                 'name' => 'Operation KOL Creative Team',
-                'email' => 'operation.kol@bv.com',
+                'email' => 'operation.kol@bvnetwork.com',
                 'password' => 'Ap4sihya',
                 'role' => $operationRole,
             ],
             [
                 'name' => 'Baehaqi',
-                'email' => 'baehaqi@bv.com',
+                'email' => 'baehaqi@bvnetwork.com',
                 'password' => 'Ap4sihya#@',
                 'role' => $superAdminRole,
             ],
         ];
 
-        // Buat atau update users dan assign role sesuai matrix OD
+        // Migrasi email lama (@bv.com dan @bvnetwork tanpa .com) → @bvnetwork.com
+        $oldDomains = ['@bv.com', '@bvnetwork'];
+        foreach ($users as $userData) {
+            $local = explode('@', $userData['email'])[0];
+            foreach ($oldDomains as $oldDomain) {
+                User::where('email', $local . $oldDomain)->update(['email' => $userData['email']]);
+            }
+        }
+
+        // Buat atau update users dan assign role
         foreach ($users as $userData) {
             $user = User::updateOrCreate(
                 ['email' => $userData['email']],

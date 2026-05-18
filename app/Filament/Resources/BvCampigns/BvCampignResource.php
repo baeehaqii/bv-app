@@ -5,6 +5,9 @@ namespace App\Filament\Resources\BvCampigns;
 use App\Filament\Resources\BvCampigns\Pages\CreateBvCampign;
 use App\Filament\Resources\BvCampigns\Pages\EditBvCampign;
 use App\Filament\Resources\BvCampigns\Pages\ListBvCampigns;
+use App\Filament\Resources\BvCampigns\RelationManagers\KolBriefRelationManager;
+use App\Filament\Resources\BvCampigns\RelationManagers\KolsRelationManager;
+use App\Filament\Resources\BvCampigns\RelationManagers\StorylinesRelationManager;
 use App\Filament\Resources\BvCampigns\Schemas\BvCampignForm;
 use App\Filament\Resources\BvCampigns\Tables\BvCampignsTable;
 use App\Models\BvCampign;
@@ -40,7 +43,11 @@ class BvCampignResource extends Resource
 
     public static function getRelations(): array
     {
-        return [];
+        return [
+            KolBriefRelationManager::class,
+            KolsRelationManager::class,
+            StorylinesRelationManager::class,
+        ];
     }
 
     public static function getPages(): array

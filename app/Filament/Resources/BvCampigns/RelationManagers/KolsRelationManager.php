@@ -126,6 +126,7 @@ class KolsRelationManager extends RelationManager
     public function table(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(fn($query) => $query->where('brief_status', 'approved'))
             ->columns([
                 TextColumn::make('creator_name')
                     ->label('Creator')

@@ -15,6 +15,7 @@ use Filament\Actions\EditAction;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Grid as InfolistGrid;
+use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Support\Colors\Color;
 use Filament\Support\Enums\FontWeight;
@@ -37,9 +38,9 @@ class SalesKanban extends BoardPage implements HasTable
 
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-view-columns';
 
-    protected static ?string $title = 'Sales Activity Tracker';
+    protected static ?string $title = 'Sales Activity Trackerrr';
 
-    protected static ?string $navigationLabel = 'Sales Activity Tracker';
+    protected static ?string $navigationLabel = 'Sales Activity Trackerrr';
 
     protected static string|UnitEnum|null $navigationGroup = 'Sales';
 
@@ -151,6 +152,93 @@ class SalesKanban extends BoardPage implements HasTable
             ])
             */
             ->cardActions([
+                Action::make('view_detail')
+                    ->label('Lihat Detail')
+                    ->icon('heroicon-o-eye')
+                    ->modalHeading(fn(BvSales $record) => $record->event_name)
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Tutup')
+                    ->modalWidth('2xl')
+                    ->infolist(fn(BvSales $record): array => [
+                        InfolistGrid::make(2)->schema([
+                            TextEntry::make('status')
+                                ->label('Status')
+                                ->getStateUsing(fn() => $record->status instanceof SalesStatus
+                                    ? $record->status->getLabel()
+                                    : (SalesStatus::tryFrom($record->status)?->getLabel() ?? $record->status))
+                                ->badge()
+                                ->color(fn() => $record->status instanceof SalesStatus
+                                    ? $record->status->getColor()
+                                    : (SalesStatus::tryFrom((string) $record->status)?->getColor() ?? 'gray')),
+
+                            TextEntry::make('company_name')
+                                ->label('Client / Brand')
+                                ->getStateUsing(fn() => $record->company_name ?: '-'),
+                        ]),
+
+                        InfolistGrid::make(2)->schema([
+                            TextEntry::make('budget_propose')
+                                ->label('Budget Propose')
+                                ->getStateUsing(fn() => $record->budget_propose
+                                    ? 'Rp ' . number_format((float) $record->budget_propose, 0, ',', '.')
+                                    : '-'),
+
+                            TextEntry::make('deal_value')
+                                ->label('Deal Value')
+                                ->getStateUsing(fn() => $record->deal_value
+                                    ? 'Rp ' . number_format((float) $record->deal_value, 0, ',', '.')
+                                    : '-'),
+                        ]),
+
+                        InfolistGrid::make(2)->schema([
+                            TextEntry::make('period')
+                                ->label('Campaign Period')
+                                ->getStateUsing(fn() => $record->campaign_month && $record->campaign_year
+                                    ? \Carbon\Carbon::createFromDate(null, $record->campaign_month, 1)->translatedFormat('F') . ' ' . $record->campaign_year
+                                    : '-'),
+
+                            TextEntry::make('close_date')
+                                ->label('Close Date')
+                                ->getStateUsing(fn() => $record->close_date?->translatedFormat('d M Y') ?? '-'),
+                        ]),
+
+                        TextEntry::make('meeting_notes')
+                            ->label('Meeting Notes / Progress')
+                            ->getStateUsing(fn() => $record->meeting_notes ?: '-')
+                            ->columnSpanFull(),
+
+                        // Komentar
+                        RepeatableEntry::make('salesComments')
+                            ->label('Komentar')
+                            ->getStateUsing(fn() => $record->salesComments->take(5)->toArray())
+                            ->schema([
+                                TextEntry::make('body')
+                                    ->label('')
+                                    ->columnSpanFull(),
+                                TextEntry::make('user.name')
+                                    ->label('')
+                                    ->getStateUsing(fn($state, $record) => ($record['user']['name'] ?? '-') . ' · ' . \Carbon\Carbon::parse($record['created_at'])->diffForHumans())
+                                    ->color('gray')
+                                    ->size(TextEntry\TextEntrySize::Small)
+                                    ->columnSpanFull(),
+                            ])
+                            ->columns(1)
+                            ->visible(fn() => $record->salesComments->isNotEmpty())
+                            ->columnSpanFull(),
+                    ])
+                    ->extraModalFooterActions(fn(Action $action): array => [
+                        \Filament\Actions\EditAction::make('edit_from_detail')
+                            ->label('Edit')
+                            ->icon('heroicon-o-pencil')
+                            ->model(BvSales::class)
+                            ->record(fn() => $action->getRecord())
+                            ->form(BvSalesForm::getFormComponents())
+                            ->modalWidth('4xl')
+                            ->modalHeading('Edit Sales Activity')
+                            ->slideOver()
+                            ->after(fn() => $action->cancel()),
+                    ]),
+
                 \Filament\Actions\EditAction::make()
                     ->model(BvSales::class)
                     ->form(BvSalesForm::getFormComponents())
@@ -168,7 +256,7 @@ class SalesKanban extends BoardPage implements HasTable
                     ])
                     ->modalFooter(fn($record) => view('filament.pages.partials.sales-comments-footer', ['record' => $record])),
             ])
-            ->cardAction('edit');
+            ->cardAction('view_detail');
     }
 
     public function table(Table $table): Table

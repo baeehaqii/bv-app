@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOneThrough;
 use Illuminate\Support\Str;
 
 class BvCampign extends Model
@@ -72,11 +73,31 @@ class BvCampign extends Model
     }
 
     /**
+     * Get the Media Plan Internal linked via Sales Activity
+     */
+    public function mediaPlan(): HasOneThrough
+    {
+        return $this->hasOneThrough(
+            MediaPlan::class,
+            BvSales::class,
+            'id',         // FK on bv_sales
+            'bv_sales_id', // FK on media_plans
+            'bv_sales_id', // local key on bv_campaigns
+            'id'          // local key on bv_sales
+        );
+    }
+
+    /**
      * Get all KOLs for this campaign
      */
     public function kols(): HasMany
     {
         return $this->hasMany(BvCampaignKol::class, 'campaign_id');
+    }
+
+    public function storylines(): HasMany
+    {
+        return $this->hasMany(CampaignStoryline::class, 'bv_campaign_id');
     }
 
     /**

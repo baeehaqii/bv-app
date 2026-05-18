@@ -314,7 +314,7 @@
         <div class="col-span-12 lg:col-span-6">
             <div class="rounded-2xl bg-white dark:bg-gray-900 p-5 shadow-sm border border-gray-100 dark:border-gray-800 h-full">
                 <div class="flex items-center justify-between mb-3 gap-2">
-                    <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">Pipeline Saya</h3>
+                    <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">Pipeline</h3>
                     <div class="flex items-center gap-2">
                         <a href="{{ url('/office/sales-activity') }}" class="inline-flex items-center rounded-full bg-gray-100 dark:bg-gray-800 px-3 py-1 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700">
                             Lihat Semua
