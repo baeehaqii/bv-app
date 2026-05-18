@@ -12,7 +12,7 @@ return new class extends Migration {
             // Kolom status sudah ada sebagai string default('pending')
             // Hanya perlu tambah kolom nego_notes
 
-            $table->text('nego_notes')->nullable()->after('rejection_notes');
+            $table->text('nego_notes')->nullable();
         });
     }
 
