@@ -64,16 +64,11 @@ jobs:
           ACTOR: ${{ github.actor }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
+          MSG=$(printf 'TESTS FAILED - Deploy Dibatalkan!\n\nRepo: %s\nBranch: %s\nBy: %s\n\nDetail error:\n%s' "$REPO" "$BRANCH" "$ACTOR" "$RUN_URL")
           curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
             -d "chat_id=${CHAT_ID}" \
             -d "parse_mode=HTML" \
-            --data-urlencode "text=❌ <b>TESTS FAILED — Deploy Dibatalkan!</b>
-
-📦 <b>Repo:</b> ${REPO}
-🌿 <b>Branch:</b> ${BRANCH}
-👤 <b>By:</b> ${ACTOR}
-
-🔍 <a href='${RUN_URL}'>Lihat detail error</a>"
+            --data-urlencode "text=${MSG}"
 
   deploy:
     name: Deploy to Server
@@ -102,17 +97,11 @@ jobs:
           ACTOR: ${{ github.actor }}
           COMMIT_MSG: ${{ github.event.head_commit.message }}
         run: |
+          MSG=$(printf 'DEPLOY BERHASIL!\n\nRepo: %s\nBranch: %s\nBy: %s\nCommit: %s\n\nAplikasi sudah live di server!' "$REPO" "$BRANCH" "$ACTOR" "$COMMIT_MSG")
           curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
             -d "chat_id=${CHAT_ID}" \
             -d "parse_mode=HTML" \
-            --data-urlencode "text=✅ <b>DEPLOY BERHASIL!</b>
-
-📦 <b>Repo:</b> ${REPO}
-🌿 <b>Branch:</b> ${BRANCH}
-👤 <b>By:</b> ${ACTOR}
-💬 <b>Commit:</b> ${COMMIT_MSG}
-
-🚀 Aplikasi sudah live di server!"
+            --data-urlencode "text=${MSG}"
 
       - name: Notify Telegram - Deploy Failed
         if: failure()
@@ -124,14 +113,8 @@ jobs:
           ACTOR: ${{ github.actor }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
+          MSG=$(printf 'DEPLOY GAGAL!\n\nRepo: %s\nBranch: %s\nBy: %s\n\nTests lulus tapi webhook deploy ke server gagal!\nDetail: %s' "$REPO" "$BRANCH" "$ACTOR" "$RUN_URL")
           curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
             -d "chat_id=${CHAT_ID}" \
             -d "parse_mode=HTML" \
-            --data-urlencode "text=⚠️ <b>DEPLOY GAGAL!</b>
-
-📦 <b>Repo:</b> ${REPO}
-🌿 <b>Branch:</b> ${BRANCH}
-👤 <b>By:</b> ${ACTOR}
-
-⚠️ Tests lulus tapi webhook deploy ke server gagal!
-🔍 <a href='${RUN_URL}'>Lihat detail error</a>"
+            --data-urlencode "text=${MSG}"
