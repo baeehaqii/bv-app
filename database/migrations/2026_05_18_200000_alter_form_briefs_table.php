@@ -17,14 +17,26 @@ return new class extends Migration {
         });
 
         // Migrasi data: konversi budget_main_kol ke budget (ambil nilai terbesar jika ada keduanya)
-        DB::statement("
-            UPDATE form_briefs
-            SET budget = GREATEST(
-                COALESCE(CAST(budget_main_kol AS UNSIGNED), 0),
-                COALESCE(CAST(budget_macro_kol AS UNSIGNED), 0)
-            )
-            WHERE budget_main_kol IS NOT NULL OR budget_macro_kol IS NOT NULL
-        ");
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement("
+                UPDATE form_briefs
+                SET budget = GREATEST(
+                    COALESCE(CAST(budget_main_kol AS UNSIGNED), 0),
+                    COALESCE(CAST(budget_macro_kol AS UNSIGNED), 0)
+                )
+                WHERE budget_main_kol IS NOT NULL OR budget_macro_kol IS NOT NULL
+            ");
+        } else {
+            DB::statement("
+                UPDATE form_briefs
+                SET budget = CASE
+                    WHEN CAST(budget_main_kol AS INTEGER) > CAST(budget_macro_kol AS INTEGER)
+                        THEN CAST(budget_main_kol AS INTEGER)
+                    ELSE CAST(budget_macro_kol AS INTEGER)
+                END
+                WHERE budget_main_kol IS NOT NULL OR budget_macro_kol IS NOT NULL
+            ");
+        }
 
         Schema::table('form_briefs', function (Blueprint $table) {
             // Hapus kolom budget lama setelah migrasi data
