@@ -20,53 +20,53 @@ class UserSeeder extends Seeder
         $salesBdRole = Role::firstOrCreate(['name' => 'Sales/BD']);
         $operationRole = Role::firstOrCreate(['name' => 'Operation KOL & Creative']);
 
-        // Data users — domain resmi @bvnetwork.com
+        // Data users — domain resmi @bvnetwork.net
         $users = [
             [
                 'name' => 'CEO',
-                'email' => 'ceo@bvnetwork.com',
+                'email' => 'ceo@bvnetwork.net',
                 'password' => 'Ap4sihya',
                 'role' => $superAdminRole,
             ],
             [
                 'name' => 'COO',
-                'email' => 'coo@bvnetwork.com',
+                'email' => 'coo@bvnetwork.net',
                 'password' => 'Ap4sihya',
                 'role' => $superAdminRole,
             ],
             [
                 'name' => 'Finance Team',
-                'email' => 'finance@bvnetwork.com',
+                'email' => 'finance@bvnetwork.net',
                 'password' => 'Ap4sihya',
                 'role' => $financeRole,
             ],
             [
                 'name' => 'Sales',
-                'email' => 'sales@bvnetwork.com',
+                'email' => 'sales@bvnetwork.net',
                 'password' => 'Ap4sihya',
                 'role' => $salesBdRole,
             ],
             [
                 'name' => 'BD Manager',
-                'email' => 'bd.manager@bvnetwork.com',
+                'email' => 'bd.manager@bvnetwork.net',
                 'password' => 'Ap4sihya',
                 'role' => $salesBdRole,
             ],
             [
                 'name' => 'Operation KOL Creative Team',
-                'email' => 'operation.kol@bvnetwork.com',
+                'email' => 'operation.kol@bvnetwork.net',
                 'password' => 'Ap4sihya',
                 'role' => $operationRole,
             ],
             [
                 'name' => 'Baehaqi',
-                'email' => 'baehaqi@bvnetwork.com',
+                'email' => 'baehaqi@bvnetwork.net',
                 'password' => 'Ap4sihya#@',
                 'role' => $superAdminRole,
             ],
         ];
 
-        // Migrasi email lama (@bv.com dan @bvnetwork tanpa .com) → @bvnetwork.com
+        // Migrasi email lama (@bv.com dan @bvnetwork tanpa .com) → @bvnetwork.net
         $oldDomains = ['@bv.com', '@bvnetwork'];
         foreach ($users as $userData) {
             $local = explode('@', $userData['email'])[0];
