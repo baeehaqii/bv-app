@@ -24,8 +24,8 @@ class EditBvEmploye extends EditRecord
     {
         if (!empty($data['position_id'])) {
             $position = Position::with('department.division')->find($data['position_id']);
-            $data['_division_id']    = $position?->department?->division?->id;
-            $data['_department_id']  = $position?->department?->id;
+            $data['_division_id'] = $position?->department?->division?->id;
+            $data['_department_id'] = $position?->department?->id;
         }
 
         return $data;
@@ -47,18 +47,18 @@ class EditBvEmploye extends EditRecord
     {
         $employe = $this->record->load('position.department.division');
 
-        if (! $employe->user_id) {
+        if (!$employe->user_id) {
             return;
         }
 
         $user = User::find($employe->user_id);
-        if (! $user) {
+        if (!$user) {
             return;
         }
 
         // Sync nama dan email user mengikuti perubahan data karyawan
         $user->update([
-            'name'  => $employe->nama_lengkap,
+            'name' => $employe->nama_lengkap,
             'email' => $employe->email,
         ]);
 

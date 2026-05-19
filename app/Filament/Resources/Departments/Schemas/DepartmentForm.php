@@ -28,7 +28,8 @@ class DepartmentForm
                     ->label('Nama Departemen')
                     ->required()
                     ->live(onBlur: true)
-                    ->afterStateUpdated(fn (string $operation, $state, callable $set) =>
+                    ->afterStateUpdated(
+                        fn(string $operation, $state, callable $set) =>
                         $operation === 'create' ? $set('slug', Str::slug($state)) : null
                     ),
 

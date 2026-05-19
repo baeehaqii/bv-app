@@ -17,44 +17,44 @@ use Illuminate\Database\Eloquent\Model;
 class BvEmployeForm
 {
     private const PROVINSI_INDONESIA = [
-        'Aceh'                    => 'Aceh',
-        'Bali'                    => 'Bali',
-        'Banten'                  => 'Banten',
-        'Bengkulu'                => 'Bengkulu',
-        'DI Yogyakarta'           => 'DI Yogyakarta',
-        'DKI Jakarta'             => 'DKI Jakarta',
-        'Gorontalo'               => 'Gorontalo',
-        'Jambi'                   => 'Jambi',
-        'Jawa Barat'              => 'Jawa Barat',
-        'Jawa Tengah'             => 'Jawa Tengah',
-        'Jawa Timur'              => 'Jawa Timur',
-        'Kalimantan Barat'        => 'Kalimantan Barat',
-        'Kalimantan Selatan'      => 'Kalimantan Selatan',
-        'Kalimantan Tengah'       => 'Kalimantan Tengah',
-        'Kalimantan Timur'        => 'Kalimantan Timur',
-        'Kalimantan Utara'        => 'Kalimantan Utara',
+        'Aceh' => 'Aceh',
+        'Bali' => 'Bali',
+        'Banten' => 'Banten',
+        'Bengkulu' => 'Bengkulu',
+        'DI Yogyakarta' => 'DI Yogyakarta',
+        'DKI Jakarta' => 'DKI Jakarta',
+        'Gorontalo' => 'Gorontalo',
+        'Jambi' => 'Jambi',
+        'Jawa Barat' => 'Jawa Barat',
+        'Jawa Tengah' => 'Jawa Tengah',
+        'Jawa Timur' => 'Jawa Timur',
+        'Kalimantan Barat' => 'Kalimantan Barat',
+        'Kalimantan Selatan' => 'Kalimantan Selatan',
+        'Kalimantan Tengah' => 'Kalimantan Tengah',
+        'Kalimantan Timur' => 'Kalimantan Timur',
+        'Kalimantan Utara' => 'Kalimantan Utara',
         'Kepulauan Bangka Belitung' => 'Kepulauan Bangka Belitung',
-        'Kepulauan Riau'          => 'Kepulauan Riau',
-        'Lampung'                 => 'Lampung',
-        'Maluku'                  => 'Maluku',
-        'Maluku Utara'            => 'Maluku Utara',
-        'Nusa Tenggara Barat'     => 'Nusa Tenggara Barat',
-        'Nusa Tenggara Timur'     => 'Nusa Tenggara Timur',
-        'Papua'                   => 'Papua',
-        'Papua Barat'             => 'Papua Barat',
-        'Papua Barat Daya'        => 'Papua Barat Daya',
-        'Papua Pegunungan'        => 'Papua Pegunungan',
-        'Papua Selatan'           => 'Papua Selatan',
-        'Papua Tengah'            => 'Papua Tengah',
-        'Riau'                    => 'Riau',
-        'Sulawesi Barat'          => 'Sulawesi Barat',
-        'Sulawesi Selatan'        => 'Sulawesi Selatan',
-        'Sulawesi Tengah'         => 'Sulawesi Tengah',
-        'Sulawesi Tenggara'       => 'Sulawesi Tenggara',
-        'Sulawesi Utara'          => 'Sulawesi Utara',
-        'Sumatera Barat'          => 'Sumatera Barat',
-        'Sumatera Selatan'        => 'Sumatera Selatan',
-        'Sumatera Utara'          => 'Sumatera Utara',
+        'Kepulauan Riau' => 'Kepulauan Riau',
+        'Lampung' => 'Lampung',
+        'Maluku' => 'Maluku',
+        'Maluku Utara' => 'Maluku Utara',
+        'Nusa Tenggara Barat' => 'Nusa Tenggara Barat',
+        'Nusa Tenggara Timur' => 'Nusa Tenggara Timur',
+        'Papua' => 'Papua',
+        'Papua Barat' => 'Papua Barat',
+        'Papua Barat Daya' => 'Papua Barat Daya',
+        'Papua Pegunungan' => 'Papua Pegunungan',
+        'Papua Selatan' => 'Papua Selatan',
+        'Papua Tengah' => 'Papua Tengah',
+        'Riau' => 'Riau',
+        'Sulawesi Barat' => 'Sulawesi Barat',
+        'Sulawesi Selatan' => 'Sulawesi Selatan',
+        'Sulawesi Tengah' => 'Sulawesi Tengah',
+        'Sulawesi Tenggara' => 'Sulawesi Tenggara',
+        'Sulawesi Utara' => 'Sulawesi Utara',
+        'Sumatera Barat' => 'Sumatera Barat',
+        'Sumatera Selatan' => 'Sumatera Selatan',
+        'Sumatera Utara' => 'Sumatera Utara',
     ];
 
     public static function configure(Schema $schema): Schema
@@ -77,14 +77,14 @@ class BvEmployeForm
                             ->required()
                             ->columnSpan(2)
                             ->formatStateUsing(
-                                fn (?string $state) => $state
-                                    ? preg_replace('/@bvnetwork\.net$/i', '', $state)
-                                    : $state
+                                fn(?string $state) => $state
+                                ? preg_replace('/@bvnetwork\.net$/i', '', $state)
+                                : $state
                             )
                             ->dehydrateStateUsing(
-                                fn (?string $state) => filled($state)
-                                    ? (str_contains($state, '@') ? $state : trim($state) . '@bvnetwork.net')
-                                    : $state
+                                fn(?string $state) => filled($state)
+                                ? (str_contains($state, '@') ? $state : trim($state) . '@bvnetwork.net')
+                                : $state
                             )
                             ->live(debounce: 600)
                             ->afterStateUpdated(function (?string $state, callable $set) {
@@ -103,7 +103,7 @@ class BvEmployeForm
                                         : trim($value) . '@bvnetwork.net';
 
                                     $exists = BvEmploye::where('email', $email)
-                                        ->when($record?->id, fn ($q) => $q->where('id', '!=', $record->id))
+                                        ->when($record?->id, fn($q) => $q->where('id', '!=', $record->id))
                                         ->exists();
 
                                     if ($exists) {
@@ -162,7 +162,7 @@ class BvEmployeForm
                             ->placeholder('Pilih departemen')
                             ->options(function (callable $get) {
                                 $divisionId = $get('_division_id');
-                                if (! $divisionId) {
+                                if (!$divisionId) {
                                     return Department::with('division')
                                         ->where('is_active', true)
                                         ->get()

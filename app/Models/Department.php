@@ -3,10 +3,13 @@
 namespace App\Models;
 
 use App\Enums\DivisionSyncType;
+use App\Observers\DepartmentObserver;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+#[ObservedBy(DepartmentObserver::class)]
 class Department extends Model
 {
     protected $guarded = [];
