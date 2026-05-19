@@ -37,4 +37,13 @@
     @apply block min-h-auto h-auto;
 }
 
+/* Responsive grid utilities for custom dashboard pages */
+@media (min-width: 64rem) {
+    .lg\:col-span-3 { grid-column: span 3 / span 3; }
+    .lg\:col-span-5 { grid-column: span 5 / span 5; }
+    .lg\:col-span-6 { grid-column: span 6 / span 6; }
+    .lg\:col-span-7 { grid-column: span 7 / span 7; }
+    .lg\:col-span-12 { grid-column: span 12 / span 12; }
+}
+
 
