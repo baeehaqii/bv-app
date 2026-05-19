@@ -40,9 +40,9 @@ class CreateBvEmploye extends CreateRecord
 
         // Buat akun user
         $user = User::create([
-            'name'              => $employe->nama_lengkap,
-            'email'             => $employe->email,
-            'password'          => Hash::make($this->data['password']),
+            'name' => $employe->nama_lengkap,
+            'email' => $employe->email,
+            'password' => Hash::make($this->data['password']),
             'email_verified_at' => now(),
         ]);
 
@@ -50,8 +50,8 @@ class CreateBvEmploye extends CreateRecord
             $user->syncRoles([$role]);
         }
 
-        // Hubungkan user ke karyawan
-        $employe->updateQuietly(['user_id' => $user->id]);
+        // Hubungkan user ke karyawan (gunakan update agar observer sync user_id ke sales list / BD)
+        $employe->update(['user_id' => $user->id]);
 
         Notification::make()
             ->title('Akun berhasil dibuat')

@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\Divisions\Schemas;
 
+use App\Enums\DivisionSyncType;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\Toggle;
@@ -18,7 +20,8 @@ class DivisionForm
                     ->label('Nama Divisi')
                     ->required()
                     ->live(onBlur: true)
-                    ->afterStateUpdated(fn (string $operation, $state, callable $set) =>
+                    ->afterStateUpdated(
+                        fn(string $operation, $state, callable $set) =>
                         $operation === 'create' ? $set('slug', Str::slug($state)) : null
                     ),
 
@@ -31,6 +34,13 @@ class DivisionForm
                     ->label('Deskripsi')
                     ->rows(3)
                     ->nullable(),
+
+                Select::make('sync_type')
+                    ->label('Sync Otomatis ke')
+                    ->options(DivisionSyncType::options())
+                    ->placeholder('— Tidak di-sync —')
+                    ->nullable()
+                    ->helperText('Karyawan di divisi ini akan otomatis muncul di list yang dipilih.'),
 
                 Toggle::make('is_active')
                     ->label('Aktif')

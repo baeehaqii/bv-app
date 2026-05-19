@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Divisions\Tables;
 
+use App\Enums\DivisionSyncType;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -29,8 +30,8 @@ class DivisionsTable
                     ->color('primary')
                     ->action(
                         Action::make('viewDepartments')
-                            ->modalHeading(fn ($record) => 'Departemen — ' . $record->name)
-                            ->modalContent(fn ($record) => view(
+                            ->modalHeading(fn($record) => 'Departemen — ' . $record->name)
+                            ->modalContent(fn($record) => view(
                                 'filament.modals.division-departments',
                                 ['division' => $record->load('departments.positions')]
                             ))
@@ -43,6 +44,16 @@ class DivisionsTable
                     ->label('Deskripsi')
                     ->limit(50)
                     ->toggleable(),
+
+                TextColumn::make('sync_type')
+                    ->label('Sync ke')
+                    ->badge()
+                    ->formatStateUsing(fn($state) => $state instanceof DivisionSyncType ? $state->label() : '—')
+                    ->color(fn($state) => match ($state) {
+                        DivisionSyncType::Sales => 'success',
+                        DivisionSyncType::BusinessDirector => 'info',
+                        default => 'gray',
+                    }),
 
                 IconColumn::make('is_active')
                     ->label('Aktif')
