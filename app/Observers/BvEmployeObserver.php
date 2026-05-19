@@ -11,17 +11,22 @@ class BvEmployeObserver
 {
     public function saved(BvEmploye $employe): void
     {
-        $employe->loadMissing('position.department.division');
+        $employe->load('position.department.division');
 
-        $division = $employe->position?->department?->division;
+        $department = $employe->position?->department;
+        $division   = $department?->division;
 
-        if (!$division?->sync_type) {
+        // Departemen punya sync_type sendiri → override divisi
+        // Jika tidak di-set, fallback ke sync_type divisi
+        $syncType = $department?->sync_type ?? $division?->sync_type;
+
+        if (! $syncType) {
             $this->detachFromLists($employe);
             return;
         }
 
-        match ($division->sync_type) {
-            DivisionSyncType::Sales => $this->syncToSalesList($employe),
+        match ($syncType) {
+            DivisionSyncType::Sales            => $this->syncToSalesList($employe),
             DivisionSyncType::BusinessDirector => $this->syncToBusinessDirector($employe),
         };
     }

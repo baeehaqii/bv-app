@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Departments\Schemas;
 
+use App\Enums\DivisionSyncType;
 use App\Models\Division;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -40,6 +41,13 @@ class DepartmentForm
                     ->label('Deskripsi')
                     ->rows(3)
                     ->nullable(),
+
+                Select::make('sync_type')
+                    ->label('Sync Otomatis ke')
+                    ->options(DivisionSyncType::options())
+                    ->placeholder('— Ikuti setting Divisi —')
+                    ->nullable()
+                    ->helperText('Isi jika departemen ini perlu sync berbeda dari divisinya.'),
 
                 Toggle::make('is_active')
                     ->label('Aktif')

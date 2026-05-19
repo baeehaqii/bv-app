@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Departments\Tables;
 
+use App\Enums\DivisionSyncType;
 use App\Models\Division;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
@@ -37,6 +38,16 @@ class DepartmentsTable
                     ->label('Deskripsi')
                     ->limit(50)
                     ->toggleable(),
+
+                TextColumn::make('sync_type')
+                    ->label('Sync ke')
+                    ->badge()
+                    ->formatStateUsing(fn ($state) => $state instanceof DivisionSyncType ? $state->label() : '—')
+                    ->color(fn ($state) => match ($state) {
+                        DivisionSyncType::Sales            => 'success',
+                        DivisionSyncType::BusinessDirector => 'info',
+                        default                            => 'gray',
+                    }),
 
                 IconColumn::make('is_active')
                     ->label('Aktif')
