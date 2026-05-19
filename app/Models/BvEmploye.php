@@ -10,6 +10,11 @@ class BvEmploye extends Model
 {
     protected $guarded = [];
 
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
     public function position(): BelongsTo
     {
         return $this->belongsTo(Position::class);
