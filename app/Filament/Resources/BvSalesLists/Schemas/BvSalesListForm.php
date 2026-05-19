@@ -26,7 +26,7 @@ class BvSalesListForm
                     ->nullable(),
                 Select::make('bv_bussines_director_id')
                     ->label('Business Director')
-                    ->options(fn() => BvBussinesDirector::where('status', 'aktif')->orderBy('nama_lengkap')->pluck('nama_lengkap', 'id'))
+                    ->options(fn() => BvBussinesDirector::orderBy('nama_lengkap')->pluck('nama_lengkap', 'id'))
                     ->searchable()
                     ->preload()
                     ->nullable(),
