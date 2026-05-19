@@ -7,9 +7,9 @@ use App\Models\Department;
 use App\Models\Division;
 use App\Models\Position;
 use Filament\Forms\Components\FileUpload;
-use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 
 class BvEmployeForm
