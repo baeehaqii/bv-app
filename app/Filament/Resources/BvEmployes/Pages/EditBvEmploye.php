@@ -20,9 +20,20 @@ class EditBvEmploye extends EditRecord
         ];
     }
 
+    protected function mutateFormDataBeforeFill(array $data): array
+    {
+        if (!empty($data['position_id'])) {
+            $position = Position::with('department.division')->find($data['position_id']);
+            $data['_division_id']    = $position?->department?->division?->id;
+            $data['_department_id']  = $position?->department?->id;
+        }
+
+        return $data;
+    }
+
     protected function mutateFormDataBeforeSave(array $data): array
     {
-        unset($data['_division_id']);
+        unset($data['_division_id'], $data['_department_id']);
 
         if (!empty($data['position_id'])) {
             $position = Position::with('department.division')->find($data['position_id']);
