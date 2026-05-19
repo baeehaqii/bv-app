@@ -79,16 +79,17 @@ jobs:
 
     steps:
       - name: Trigger aaPanel Webhook Deployment
+        id: webhook
         run: |
-          curl -k -X POST "${{ secrets.AAPANEL_WEBHOOK_URL }}" \
-            --max-time 60 \
-            --fail \
-            --silent \
-            --show-error
-          echo "Deploy triggered at $(date)"
+          RESPONSE=$(curl -k -s -w "\n%{http_code}" -X POST "${{ secrets.AAPANEL_WEBHOOK_URL }}" --max-time 60)
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | head -n-1)
+          echo "response=$BODY" >> $GITHUB_OUTPUT
+          echo "http_code=$HTTP_CODE" >> $GITHUB_OUTPUT
+          echo "Deploy triggered at $(date) | HTTP $HTTP_CODE | $BODY"
 
       - name: Notify Telegram - Deploy Success
-        if: success()
+        if: always()
         env:
           BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -96,24 +97,10 @@ jobs:
           BRANCH: ${{ github.ref_name }}
           ACTOR: ${{ github.actor }}
           COMMIT_MSG: ${{ github.event.head_commit.message }}
+          HTTP_CODE: ${{ steps.webhook.outputs.http_code }}
+          RESPONSE: ${{ steps.webhook.outputs.response }}
         run: |
           MSG=$(printf 'DEPLOY BERHASIL!\n\nRepo: %s\nBranch: %s\nBy: %s\nCommit: %s\n\nAplikasi sudah live di server!' "$REPO" "$BRANCH" "$ACTOR" "$COMMIT_MSG")
-          curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
-            -d "chat_id=${CHAT_ID}" \
-            -d "parse_mode=HTML" \
-            --data-urlencode "text=${MSG}"
-
-      - name: Notify Telegram - Deploy Failed
-        if: failure()
-        env:
-          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          REPO: ${{ github.repository }}
-          BRANCH: ${{ github.ref_name }}
-          ACTOR: ${{ github.actor }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          MSG=$(printf 'DEPLOY GAGAL!\n\nRepo: %s\nBranch: %s\nBy: %s\n\nTests lulus tapi webhook deploy ke server gagal!\nDetail: %s' "$REPO" "$BRANCH" "$ACTOR" "$RUN_URL")
           curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
             -d "chat_id=${CHAT_ID}" \
             -d "parse_mode=HTML" \
