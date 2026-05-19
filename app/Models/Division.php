@@ -2,9 +2,12 @@
 
 namespace App\Models;
 
+use App\Observers\DivisionObserver;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+#[ObservedBy(DivisionObserver::class)]
 class Division extends Model
 {
     protected $guarded = [];
