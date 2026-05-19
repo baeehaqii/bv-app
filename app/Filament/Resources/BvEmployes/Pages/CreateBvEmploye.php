@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\BvEmployes\Pages;
 
 use App\Filament\Resources\BvEmployes\BvEmployeResource;
+use App\Models\Position;
 use App\Models\User;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
@@ -15,8 +16,13 @@ class CreateBvEmploye extends CreateRecord
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        // Password tidak disimpan di tabel bv_employes, diproses di afterCreate
-        unset($data['password'], $data['password_confirmation']);
+        unset($data['password'], $data['password_confirmation'], $data['_division_id']);
+
+        if (!empty($data['position_id'])) {
+            $position = Position::with('department.division')->find($data['position_id']);
+            $data['divis'] = $position?->department?->division?->name;
+        }
+
         return $data;
     }
 

@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\BvEmployes\Pages;
 
 use App\Filament\Resources\BvEmployes\BvEmployeResource;
+use App\Models\Position;
 use App\Models\User;
 use Filament\Actions\DeleteAction;
 use Filament\Resources\Pages\EditRecord;
@@ -17,6 +18,18 @@ class EditBvEmploye extends EditRecord
         return [
             DeleteAction::make(),
         ];
+    }
+
+    protected function mutateFormDataBeforeSave(array $data): array
+    {
+        unset($data['_division_id']);
+
+        if (!empty($data['position_id'])) {
+            $position = Position::with('department.division')->find($data['position_id']);
+            $data['divis'] = $position?->department?->division?->name;
+        }
+
+        return $data;
     }
 
     protected function afterSave(): void
