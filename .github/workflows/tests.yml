@@ -61,14 +61,8 @@ jobs:
           CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          TEXT="TESTS FAILED - Deploy Dibatalkan!
-
-Repo: ${{ github.repository }}
-Branch: ${{ github.ref_name }}
-By: ${{ github.actor }}
-
-Detail error: ${RUN_URL}"
-
+          TEXT=$(printf "TESTS FAILED - Deploy Dibatalkan!\n\nRepo: %s\nBranch: %s\nBy: %s\n\nDetail: %s" \
+            "${{ github.repository }}" "${{ github.ref_name }}" "${{ github.actor }}" "${RUN_URL}")
           curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
             -d "chat_id=${CHAT_ID}" \
             --data-urlencode "text=${TEXT}"
@@ -97,14 +91,8 @@ Detail error: ${RUN_URL}"
           BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          TEXT="DEPLOY BERHASIL!
-
-Repo: ${{ github.repository }}
-Branch: ${{ github.ref_name }}
-By: ${{ github.actor }}
-
-Aplikasi sudah live di server!"
-
+          TEXT=$(printf "DEPLOY BERHASIL!\n\nRepo: %s\nBranch: %s\nBy: %s\n\nAplikasi sudah live di server!" \
+            "${{ github.repository }}" "${{ github.ref_name }}" "${{ github.actor }}")
           curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
             -d "chat_id=${CHAT_ID}" \
             --data-urlencode "text=${TEXT}"
