@@ -93,15 +93,17 @@ jobs:
         env:
           BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          REPO: ${{ github.repository }}
-          BRANCH: ${{ github.ref_name }}
-          ACTOR: ${{ github.actor }}
-          COMMIT_MSG: ${{ github.event.head_commit.message }}
-          HTTP_CODE: ${{ steps.webhook.outputs.http_code }}
-          RESPONSE: ${{ steps.webhook.outputs.response }}
         run: |
-          MSG=$(printf 'DEPLOY BERHASIL!\n\nRepo: %s\nBranch: %s\nBy: %s\nCommit: %s\n\nAplikasi sudah live di server!' "$REPO" "$BRANCH" "$ACTOR" "$COMMIT_MSG")
-          curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+          TEXT="DEPLOY BERHASIL!
+
+Repo: ${{ github.repository }}
+Branch: ${{ github.ref_name }}
+By: ${{ github.actor }}
+Commit: ${{ github.event.head_commit.message }}
+
+Aplikasi sudah live di server!"
+
+          curl -v -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
             -d "chat_id=${CHAT_ID}" \
             -d "parse_mode=HTML" \
-            --data-urlencode "text=${MSG}"
+            --data-urlencode "text=${TEXT}"
