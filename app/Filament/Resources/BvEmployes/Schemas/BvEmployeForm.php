@@ -10,7 +10,6 @@ use App\Models\Position;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
-use Filament\Forms\Get;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Illuminate\Database\Eloquent\Model;
@@ -94,7 +93,7 @@ class BvEmployeForm
                                     $set('email', preg_replace('/@.*$/', '', $state));
                                 }
                             })
-                            ->rule(function (Get $get, ?Model $record) {
+                            ->rule(function (?Model $record) {
                                 return function (string $attribute, mixed $value, \Closure $fail) use ($record) {
                                     if (blank($value)) {
                                         return;
