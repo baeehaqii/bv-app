@@ -16,19 +16,33 @@ class BvEmployeObserver
         $department = $employe->position?->department;
         $division   = $department?->division;
 
-        // Departemen punya sync_type sendiri → override divisi
-        // Jika tidak di-set, fallback ke sync_type divisi
-        $syncType = $department?->sync_type ?? $division?->sync_type;
+        // Kumpulkan sync targets dari departemen DAN divisi — keduanya bisa aktif sekaligus
+        $targets = array_values(array_filter(array_unique([
+            $department?->sync_type?->value,
+            $division?->sync_type?->value,
+        ])));
 
-        if (! $syncType) {
+        if (empty($targets)) {
             $this->detachFromLists($employe);
             return;
         }
 
-        match ($syncType) {
-            DivisionSyncType::Sales            => $this->syncToSalesList($employe),
-            DivisionSyncType::BusinessDirector => $this->syncToBusinessDirector($employe),
-        };
+        foreach ($targets as $type) {
+            match (DivisionSyncType::from($type)) {
+                DivisionSyncType::Sales            => $this->syncToSalesList($employe),
+                DivisionSyncType::BusinessDirector => $this->syncToBusinessDirector($employe),
+            };
+        }
+
+        // Lepaskan dari list yang tidak termasuk target saat ini
+        if (!in_array(DivisionSyncType::Sales->value, $targets)) {
+            BvSalesList::where('bv_employe_id', $employe->id)
+                ->update(['bv_employe_id' => null]);
+        }
+        if (!in_array(DivisionSyncType::BusinessDirector->value, $targets)) {
+            BvBussinesDirector::where('bv_employe_id', $employe->id)
+                ->update(['bv_employe_id' => null]);
+        }
     }
 
     public function deleted(BvEmploye $employe): void
@@ -43,10 +57,6 @@ class BvEmployeObserver
 
     private function syncToSalesList(BvEmploye $employe): void
     {
-        // Jika sebelumnya di-sync ke Business Director, lepaskan tautan (jangan delete)
-        BvBussinesDirector::where('bv_employe_id', $employe->id)
-            ->update(['bv_employe_id' => null]);
-
         BvSalesList::updateOrCreate(
             ['bv_employe_id' => $employe->id],
             [
@@ -59,10 +69,6 @@ class BvEmployeObserver
 
     private function syncToBusinessDirector(BvEmploye $employe): void
     {
-        // Jika sebelumnya di-sync ke Sales List, lepaskan tautan (jangan delete)
-        BvSalesList::where('bv_employe_id', $employe->id)
-            ->update(['bv_employe_id' => null]);
-
         BvBussinesDirector::updateOrCreate(
             ['bv_employe_id' => $employe->id],
             [
