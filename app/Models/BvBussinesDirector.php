@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class BvBussinesDirector extends Model
 {
     protected $fillable = [
+        'bv_employe_id',
         'nama_lengkap',
         'alamat_email',
         'no_wa',
