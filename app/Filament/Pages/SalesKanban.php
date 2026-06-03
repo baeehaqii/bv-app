@@ -14,7 +14,7 @@ use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Support\Enums\FontSize;
+use Filament\Support\Enums\TextSize;
 use Filament\Schemas\Components\Grid as InfolistGrid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
@@ -220,7 +220,7 @@ class SalesKanban extends BoardPage implements HasTable
                                     ->label('')
                                     ->getStateUsing(fn($state, $record) => ($record['user']['name'] ?? '-') . ' · ' . \Carbon\Carbon::parse($record['created_at'])->diffForHumans())
                                     ->color('gray')
-                                    ->size(FontSize::Small)
+                                    ->size(TextSize::Small)
                                     ->columnSpanFull(),
                             ])
                             ->columns(1)
