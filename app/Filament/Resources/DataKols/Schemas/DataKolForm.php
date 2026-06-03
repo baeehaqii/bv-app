@@ -49,14 +49,14 @@ class DataKolForm
                                 Select::make('channel')
                                     ->label('Channel')
                                     ->options([
-                                        'Instagram'       => 'Instagram',
-                                        'Tiktok'          => 'TikTok',
-                                        'Threads'         => 'Threads',
-                                        'Youtube Channels'=> 'YouTube Channels',
-                                        'Youtube Shorts'  => 'YouTube Shorts',
-                                        'Facebook'        => 'Facebook',
-                                        'Talent'          => 'Talent',
-                                        'X'               => 'X (Twitter)',
+                                        'Instagram' => 'Instagram',
+                                        'Tiktok' => 'TikTok',
+                                        'Threads' => 'Threads',
+                                        'Youtube Channels' => 'YouTube Channels',
+                                        'Youtube Shorts' => 'YouTube Shorts',
+                                        'Facebook' => 'Facebook',
+                                        'Talent' => 'Talent',
+                                        'X' => 'X (Twitter)',
                                     ])
                                     ->live()
                                     ->afterStateUpdated(fn(callable $set) => $set('master_sow_id', null))
@@ -65,9 +65,12 @@ class DataKolForm
                                 Select::make('master_sow_id')
                                     ->label('SOW')
                                     ->options(function (callable $get) {
-                                        return \App\Models\MasterSow::active()
-                                            ->ordered()
-                                            ->get()
+                                        $channel = $get('channel');
+                                        $query = \App\Models\MasterSow::active()->ordered();
+                                        if ($channel) {
+                                            $query->byChannel($channel);
+                                        }
+                                        return $query->get()
                                             ->mapWithKeys(fn($sow) => [
                                                 $sow->id => $sow->channel
                                                     ? "{$sow->name} ({$sow->channel})"
