@@ -123,7 +123,7 @@ class BvSales extends Model
             'campaign_period_start' => $this->start_date ? \Carbon\Carbon::parse($this->start_date)->format('Y-m-d') : null,
             'campaign_period_end' => $this->end_date ? \Carbon\Carbon::parse($this->end_date)->format('Y-m-d') : null,
             'status' => 'Planning',
-            'pic_campaign_id' => $this->bv_sales_list_id,
+            'pic_sales_bd_id' => $this->bv_sales_list_id,
         ]);
     }
 

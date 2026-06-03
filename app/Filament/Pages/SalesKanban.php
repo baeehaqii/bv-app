@@ -458,7 +458,7 @@ class SalesKanban extends BoardPage implements HasTable
                         );
                     })
                     ->indicateUsing(function (array $data): ?string {
-                        if (! ($data['client_type'] ?? null)) {
+                        if (!($data['client_type'] ?? null)) {
                             return null;
                         }
                         return 'Client Type: ' . match ($data['client_type']) {

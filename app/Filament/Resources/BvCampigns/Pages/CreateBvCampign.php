@@ -93,7 +93,7 @@ class CreateBvCampign extends CreateRecord
                     'campaign_period_end' => $record->end_date ? $record->end_date->format('d/m/Y') : now()->addMonths(1)->format('d/m/Y'),
                     'platform' => implode(', ', $record->media_platforms ?? ['Digital']),
                     'domisili' => '-',
-                    'pic_campaign_id' => $salesActivity?->bv_sales_list_id ?? null,
+                    'pic_sales_bd_id' => $salesActivity?->bv_sales_list_id ?? null,
                     'margin_type' => 'custom',
                     'use_global_margin' => true,
                 ]);

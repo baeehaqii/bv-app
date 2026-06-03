@@ -159,9 +159,8 @@
                 <h3 class="text-sm font-semibold text-gray-900 mb-4 uppercase tracking-wide">Budget</h3>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Budget Campaign (Rp)</label>
-                    <input type="number" name="budget"
-                        value="{{ old('budget', $brief->budget) }}" placeholder="e.g. 5000000"
-                        min="0" class="input-field">
+                    <input type="number" name="budget" value="{{ old('budget', $brief->budget) }}"
+                        placeholder="e.g. 5000000" min="0" class="input-field">
                 </div>
             </div>
 

@@ -65,19 +65,18 @@
         $iconHoverBg  = null;
         $iconTitle    = 'Form Brief belum tersedia';
 
-        if ($isBriefingColumn && $briefUrl) {
-            $iconHref    = $briefUrl;
-            $iconColor   = '#16a34a';
-            $iconHoverBg = '#f0fdf4';
-            $iconTitle   = 'Brief URL tersedia';
-        } elseif ($isBriefingColumn && $briefFormUrl) {
-            $iconHref    = $briefFormUrl;
-            $iconColor   = '#2563eb';
-            $iconHoverBg = '#eff6ff';
-            $iconTitle   = 'Buka Form Brief Client';
-        } elseif (!$isBriefingColumn && ($briefUrl || $briefFormUrl)) {
-            $iconColor = '#f59e0b';
-            $iconTitle = 'Link brief hanya bisa dibuka di kolom Briefing';
+        if ($isBriefingColumn) {
+            if ($briefUrl) {
+                $iconHref    = $briefUrl;
+                $iconColor   = '#16a34a';
+                $iconHoverBg = '#f0fdf4';
+                $iconTitle   = 'Brief URL tersedia';
+            } elseif ($briefFormUrl) {
+                $iconHref    = $briefFormUrl;
+                $iconColor   = '#2563eb';
+                $iconHoverBg = '#eff6ff';
+                $iconTitle   = 'Buka Form Brief Client';
+            }
         }
 
         $cardBorderColor = match ($columnId) {

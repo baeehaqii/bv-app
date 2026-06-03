@@ -551,10 +551,8 @@ class BvSalesForm
                                 $rows[] = ['label' => 'Criteria of KOL', 'value' => nl2br(e($brief->criteria_of_kol))];
                             if ($brief->sow)
                                 $rows[] = ['label' => 'Scope of Work', 'value' => nl2br(e($brief->sow))];
-                            if ($brief->budget_main_kol)
-                                $rows[] = ['label' => 'Budget Main KOL', 'value' => e($brief->budget_main_kol)];
-                            if ($brief->budget_macro_kol)
-                                $rows[] = ['label' => 'Budget Macro KOL', 'value' => e($brief->budget_macro_kol)];
+                            if ($brief->budget)
+                                $rows[] = ['label' => 'Budget Campaign', 'value' => 'Rp ' . number_format((float) $brief->budget, 0, ',', '.')];
                             if ($brief->deadline)
                                 $rows[] = ['label' => 'Deadline', 'value' => e($brief->deadline)];
                             if ($brief->additional_notes)
