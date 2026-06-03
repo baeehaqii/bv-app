@@ -157,19 +157,11 @@
             {{-- Budget --}}
             <div class="bg-white rounded-xl border border-gray-200 p-6">
                 <h3 class="text-sm font-semibold text-gray-900 mb-4 uppercase tracking-wide">Budget</h3>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Budget Main KOL</label>
-                        <input type="text" name="budget_main_kol"
-                            value="{{ old('budget_main_kol', $brief->budget_main_kol) }}" placeholder="e.g. 1M - 1,5M"
-                            class="input-field">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Budget Macro KOL</label>
-                        <input type="text" name="budget_macro_kol"
-                            value="{{ old('budget_macro_kol', $brief->budget_macro_kol) }}"
-                            placeholder="e.g. 250JT - 300JT" class="input-field">
-                    </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Budget Campaign (Rp)</label>
+                    <input type="number" name="budget"
+                        value="{{ old('budget', $brief->budget) }}" placeholder="e.g. 5000000"
+                        min="0" class="input-field">
                 </div>
             </div>
 

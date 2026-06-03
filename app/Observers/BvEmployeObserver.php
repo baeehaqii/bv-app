@@ -14,7 +14,7 @@ class BvEmployeObserver
         $employe->load('position.department.division');
 
         $department = $employe->position?->department;
-        $division   = $department?->division;
+        $division = $department?->division;
 
         // Kumpulkan sync targets dari departemen DAN divisi — keduanya bisa aktif sekaligus
         $targets = array_values(array_filter(array_unique([
@@ -29,7 +29,7 @@ class BvEmployeObserver
 
         foreach ($targets as $type) {
             match (DivisionSyncType::from($type)) {
-                DivisionSyncType::Sales            => $this->syncToSalesList($employe),
+                DivisionSyncType::Sales => $this->syncToSalesList($employe),
                 DivisionSyncType::BusinessDirector => $this->syncToBusinessDirector($employe),
             };
         }
