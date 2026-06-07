@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[ObservedBy(BvEmployeObserver::class)]
 class BvEmploye extends Model
@@ -21,6 +22,12 @@ class BvEmploye extends Model
     public function position(): BelongsTo
     {
         return $this->belongsTo(Position::class);
+    }
+
+    /** Data sales (pipeline) yang ter-sync dari karyawan ini */
+    public function salesList(): HasOne
+    {
+        return $this->hasOne(BvSalesList::class, 'bv_employe_id');
     }
 
     public function reportsTo(): BelongsTo

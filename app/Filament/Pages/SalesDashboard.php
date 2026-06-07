@@ -106,7 +106,8 @@ class SalesDashboard extends Page
             SalesStatus::INVOICING->value,
         ];
 
-        $myDeals = (clone $base)->whereNotIn('status', $closedStatuses)->count();
+        // My Deals: hanya campaign yang sudah selesai/deal (Campaign Live → Paid).
+        $myDeals = (clone $base)->whereIn('status', $this->wonStatuses())->count();
 
         $critical = (clone $base)
             ->whereNotIn('status', $closedStatuses)

@@ -293,7 +293,7 @@ class SalesKanban extends BoardPage implements HasTable
     public function table(Table $table): Table
     {
         return $table
-            ->query(BvSales::query()->with(['salesList', 'client']))
+            ->query(BvSales::query()->with(['salesList', 'client', 'formBrief']))
             ->columns([
                 TextColumn::make('event_name')
                     ->label('Event/Campaign')
@@ -442,6 +442,16 @@ class SalesKanban extends BoardPage implements HasTable
                     ->label('Close Date')
                     ->date('d M Y')
                     ->sortable(),
+
+                TextColumn::make('form_brief')
+                    ->label('Form Brief')
+                    ->badge()
+                    ->getStateUsing(fn (BvSales $record): string => $record->formBrief ? 'Buka Form Brief' : '—')
+                    ->color(fn (BvSales $record): string => $record->formBrief ? 'info' : 'gray')
+                    ->url(fn (BvSales $record): ?string => $record->formBrief
+                        ? FormBriefResource::getUrl('view', ['record' => $record->formBrief])
+                        : null)
+                    ->openUrlInNewTab(),
             ])
             ->filters([
                 SelectFilter::make('status')
@@ -514,15 +524,6 @@ class SalesKanban extends BoardPage implements HasTable
                     }),
             ])
             ->actions([
-                Action::make('formBrief')
-                    ->label('Form Brief')
-                    ->icon('heroicon-o-document-text')
-                    ->color('info')
-                    ->url(fn (BvSales $record): ?string => $record->formBrief
-                        ? FormBriefResource::getUrl('view', ['record' => $record->formBrief])
-                        : null)
-                    ->openUrlInNewTab()
-                    ->visible(fn (BvSales $record): bool => $record->formBrief !== null),
                 Action::make('isiLinkBrief')
                     ->label('Isi Link')
                     ->icon('heroicon-o-link')

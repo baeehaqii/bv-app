@@ -2,8 +2,16 @@
 
 namespace App\Filament\Widgets;
 
+use App\Models\BvCampign;
+use App\Models\DataClient;
 use Filament\Widgets\Widget;
 
+/**
+ * Widget: Top Spender Clients
+ *
+ * Data nyata dari client yang sudah melakukan pembayaran (cashflow bertipe income).
+ * Filter: Direct Client (type=direct) atau Agency (type=agency).
+ */
 class TopSpenderWidget extends Widget
 {
     protected string $view = 'filament.widgets.top-spender-widget';
@@ -15,215 +23,56 @@ class TopSpenderWidget extends Widget
     public bool $showFullList = false;
 
     public string $filter = 'client';
+
     public bool $campaignsModalOpen = false;
+
     public string $selectedClientName = '';
+
     public array $selectedClientCampaigns = [];
+
+    private ?array $cachedData = null;
 
     public function setFilter(string $filter): void
     {
         $this->filter = $filter;
-    }
-
-    public function openCampaignsModal(string $clientName): void
-    {
-        $this->selectedClientName = $clientName;
-        $this->campaignsModalOpen = true;
-
-        // Dummy campaigns data
-        $this->selectedClientCampaigns = [
-            [
-                'name' => 'Q1 Brand Awereness ' . date('Y'),
-                'status' => 'Ongoing',
-                'period' => 'Jan - Mar ' . date('Y'),
-                'budget' => 450000000,
-                'kol_count' => 12
-            ],
-            [
-                'name' => 'Ramadan Special Campaign',
-                'status' => 'Planning',
-                'period' => 'Mar - Apr ' . date('Y'),
-                'budget' => 850000000,
-                'kol_count' => 25
-            ],
-            [
-                'name' => 'New Product Launch',
-                'status' => 'Completed',
-                'period' => 'Dec ' . (date('Y') - 1),
-                'budget' => 350000000,
-                'kol_count' => 8
-            ],
-            [
-                'name' => 'Year End Sale Support',
-                'status' => 'Completed',
-                'period' => 'Nov - Dec ' . (date('Y') - 1),
-                'budget' => 600000000,
-                'kol_count' => 15
-            ],
-        ];
-    }
-
-    public function closeCampaignsModal(): void
-    {
-        $this->campaignsModalOpen = false;
-        $this->selectedClientName = '';
-        $this->selectedClientCampaigns = [];
-    }
-
-    public function getTopSpenderData(): array
-    {
-        return $this->filter === 'agency' ? $this->getAgencyData() : $this->getClientData();
-    }
-
-    protected function getAgencyData(): array
-    {
-        return [
-            [
-                'rank' => 1,
-                'client_name' => 'Dentsu Indonesia',
-                'industry' => 'Agency',
-                'total_campaigns' => 24,
-                'total_spent' => 4500000000,
-                'last_campaign' => 'Multi-brand Activation',
-                'status' => 'Active',
-            ],
-            [
-                'rank' => 2,
-                'client_name' => 'Ogilvy',
-                'industry' => 'Agency',
-                'total_campaigns' => 18,
-                'total_spent' => 3200000000,
-                'last_campaign' => 'Tech Giant Launch',
-                'status' => 'Active',
-            ],
-            [
-                'rank' => 3,
-                'client_name' => 'GroupM',
-                'industry' => 'Agency media',
-                'total_campaigns' => 15,
-                'total_spent' => 2800000000,
-                'last_campaign' => 'FMCG Q1 Push',
-                'status' => 'Active',
-            ],
-            [
-                'rank' => 4,
-                'client_name' => 'Havas Operations',
-                'industry' => 'Agency',
-                'total_campaigns' => 12,
-                'total_spent' => 2100000000,
-                'last_campaign' => 'Banking Digital',
-                'status' => 'Active',
-            ],
-            [
-                'rank' => 5,
-                'client_name' => 'Publicis Groupe',
-                'industry' => 'Agency',
-                'total_campaigns' => 10,
-                'total_spent' => 1800000000,
-                'last_campaign' => 'Beauty Care Promo',
-                'status' => 'Active',
-            ],
-        ];
-    }
-
-    protected function getClientData(): array
-    {
-        return [
-            [
-                'rank' => 1,
-                'client_name' => 'PT. Unilever Indonesia',
-                'industry' => 'FMCG',
-                'total_campaigns' => 12,
-                'total_spent' => 2500000000,
-                'last_campaign' => 'Beauty Campaign Q4',
-                'status' => 'Active',
-            ],
-            [
-                'rank' => 2,
-                'client_name' => 'Tokopedia',
-                'industry' => 'E-Commerce',
-                'total_campaigns' => 8,
-                'total_spent' => 1800000000,
-                'last_campaign' => 'Ramadan Sale',
-                'status' => 'Active',
-            ],
-            [
-                'rank' => 3,
-                'client_name' => 'Bank BCA',
-                'industry' => 'Banking',
-                'total_campaigns' => 6,
-                'total_spent' => 1500000000,
-                'last_campaign' => 'Digital Banking',
-                'status' => 'Active',
-            ],
-            [
-                'rank' => 4,
-                'client_name' => 'Samsung Indonesia',
-                'industry' => 'Technology',
-                'total_campaigns' => 5,
-                'total_spent' => 1200000000,
-                'last_campaign' => 'Galaxy Launch',
-                'status' => 'Active',
-            ],
-            [
-                'rank' => 5,
-                'client_name' => 'Grab Indonesia',
-                'industry' => 'Technology',
-                'total_campaigns' => 7,
-                'total_spent' => 980000000,
-                'last_campaign' => 'GrabFood Promo',
-                'status' => 'Active',
-            ],
-            [
-                'rank' => 6,
-                'client_name' => 'L\'Oreal Indonesia',
-                'industry' => 'Beauty',
-                'total_campaigns' => 4,
-                'total_spent' => 850000000,
-                'last_campaign' => 'Skincare Launch',
-                'status' => 'Inactive',
-            ],
-            [
-                'rank' => 7,
-                'client_name' => 'Telkomsel',
-                'industry' => 'Telco',
-                'total_campaigns' => 9,
-                'total_spent' => 780000000,
-                'last_campaign' => 'By.U Campaign',
-                'status' => 'Active',
-            ],
-            [
-                'rank' => 8,
-                'client_name' => 'Shopee Indonesia',
-                'industry' => 'E-Commerce',
-                'total_campaigns' => 10,
-                'total_spent' => 720000000,
-                'last_campaign' => '12.12 Sale',
-                'status' => 'Active',
-            ],
-            [
-                'rank' => 9,
-                'client_name' => 'Indofood',
-                'industry' => 'FMCG',
-                'total_campaigns' => 3,
-                'total_spent' => 650000000,
-                'last_campaign' => 'Indomie Campaign',
-                'status' => 'Active',
-            ],
-            [
-                'rank' => 10,
-                'client_name' => 'Gojek',
-                'industry' => 'Technology',
-                'total_campaigns' => 6,
-                'total_spent' => 580000000,
-                'last_campaign' => 'GoFood Festival',
-                'status' => 'Active',
-            ],
-        ];
+        $this->cachedData = null;
     }
 
     public function toggleFullList(): void
     {
-        $this->showFullList = !$this->showFullList;
+        $this->showFullList = ! $this->showFullList;
+        $this->cachedData = null;
+    }
+
+    public function getTopSpenderData(): array
+    {
+        return $this->cachedData ??= $this->buildTopSpenderData();
+    }
+
+    private function buildTopSpenderData(): array
+    {
+        $type = $this->filter === 'agency' ? 'agency' : 'direct';
+
+        return DataClient::query()
+            ->where('type', $type)
+            ->whereHas('cashflows', fn ($q) => $q->where('type', 'income'))
+            ->withSum(['cashflows as total_spent' => fn ($q) => $q->where('type', 'income')], 'amount')
+            ->withCount('campaigns')
+            ->with('latestCampaign:id,client_id,campaign_name')
+            ->orderByDesc('total_spent')
+            ->limit($this->showFullList ? 50 : 5)
+            ->get(['id', 'nama_brand', 'category', 'status_client'])
+            ->values()
+            ->map(fn (DataClient $client, int $i) => [
+                'rank' => $i + 1,
+                'client_name' => $client->nama_brand,
+                'industry' => $client->category ?: '-',
+                'total_campaigns' => $client->campaigns_count,
+                'total_spent' => (float) $client->total_spent,
+                'last_campaign' => $client->latestCampaign?->campaign_name ?? '-',
+                'status' => $client->status_client ?: 'Active',
+            ])
+            ->toArray();
     }
 
     public function getTotalRevenue(): float
@@ -234,5 +83,37 @@ class TopSpenderWidget extends Widget
     public function getActiveClients(): int
     {
         return collect($this->getTopSpenderData())->where('status', 'Active')->count();
+    }
+
+    public function openCampaignsModal(string $clientName): void
+    {
+        $this->selectedClientName = $clientName;
+        $this->campaignsModalOpen = true;
+
+        $client = DataClient::where('nama_brand', $clientName)->first();
+
+        $this->selectedClientCampaigns = $client
+            ? $client->campaigns()
+                ->withCount('kols')
+                ->orderByDesc('campaign_date')
+                ->get()
+                ->map(fn (BvCampign $campaign) => [
+                    'name' => $campaign->campaign_name ?? '-',
+                    'period' => $campaign->campaign_date
+                        ? $campaign->campaign_date->translatedFormat('M Y')
+                        : '-',
+                    'kol_count' => $campaign->kols_count,
+                    'budget' => (float) $campaign->deal_value,
+                    'status' => $campaign->status ?? '-',
+                ])
+                ->toArray()
+            : [];
+    }
+
+    public function closeCampaignsModal(): void
+    {
+        $this->campaignsModalOpen = false;
+        $this->selectedClientName = '';
+        $this->selectedClientCampaigns = [];
     }
 }

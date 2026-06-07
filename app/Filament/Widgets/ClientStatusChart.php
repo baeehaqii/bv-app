@@ -2,77 +2,65 @@
 
 namespace App\Filament\Widgets;
 
-use Carbon\Carbon;
+use App\Filament\Traits\HasDashboardFilter;
+use App\Models\DataClient;
 use Filament\Widgets\ChartWidget;
-use Livewire\Attributes\On;
 
 class ClientStatusChart extends ChartWidget
 {
+    use HasDashboardFilter;
+
     protected static ?int $sort = 2;
+
     protected int|string|array $columnSpan = 1;
+
     protected static bool $isLazy = false;
 
-    public string $dateFilter = 'today';
-
-    #[On('executiveDashboardFilterChanged')]
-    public function handleFilterChanged(string $dateFilter): void
-    {
-        $this->dateFilter = $dateFilter;
-    }
+    private const PALETTE = [
+        ['rgba(107, 114, 128, 0.8)', 'rgb(107, 114, 128)'],
+        ['rgba(59, 130, 246, 0.8)', 'rgb(59, 130, 246)'],
+        ['rgba(245, 158, 11, 0.8)', 'rgb(245, 158, 11)'],
+        ['rgba(16, 185, 129, 0.8)', 'rgb(16, 185, 129)'],
+        ['rgba(239, 68, 68, 0.8)', 'rgb(239, 68, 68)'],
+        ['rgba(139, 92, 246, 0.8)', 'rgb(139, 92, 246)'],
+    ];
 
     public function getHeading(): ?string
     {
-        $label = $this->getPeriodLabel($this->dateFilter);
-
-        return "Client Status Distribution - {$label}";
+        return "Client Status Distribution - {$this->dashboardPeriodLabel()}";
     }
 
     protected function getData(): array
     {
-        // Static demo data - adjusted based on filter range
-        $multiplier = match ($this->dateFilter) {
-            'today', 'yesterday' => 0.1,
-            '7d' => 0.5,
-            '30d' => 1,
-            '90d' => 3,
-            default => 1,
-        };
+        $range = $this->dashboardDateRange();
 
-        $data = [
-            (int) (12 * $multiplier),
-            (int) (8 * $multiplier),
-            (int) (6 * $multiplier),
-            (int) (5 * $multiplier),
-            (int) (3 * $multiplier),
-        ];
-        $labels = ['Draft', 'Upcoming', 'Ongoing', 'Completed', 'Cancelled'];
+        $rows = DataClient::query()
+            ->whereBetween('created_at', [$range['start'], $range['end']])
+            ->whereNotNull('status_client')
+            ->selectRaw('status_client, count(*) as total')
+            ->groupBy('status_client')
+            ->orderByDesc('total')
+            ->pluck('total', 'status_client');
 
-        $backgroundColors = [
-            'rgba(107, 114, 128, 0.8)',  // Gray (Draft)
-            'rgba(59, 130, 246, 0.8)',   // Blue (Upcoming)
-            'rgba(245, 158, 11, 0.8)',   // Amber (Ongoing)
-            'rgba(16, 185, 129, 0.8)',   // Green (Completed)
-            'rgba(239, 68, 68, 0.8)',    // Red (Cancelled)
-        ];
-        $borderColors = [
-            'rgb(107, 114, 128)',
-            'rgb(59, 130, 246)',
-            'rgb(245, 158, 11)',
-            'rgb(16, 185, 129)',
-            'rgb(239, 68, 68)',
-        ];
+        $backgroundColors = [];
+        $borderColors = [];
+        foreach ($rows->keys() as $i => $label) {
+            [$bg, $border] = self::PALETTE[$i % count(self::PALETTE)];
+            $backgroundColors[] = $bg;
+            $borderColors[] = $border;
+        }
 
         return [
             'datasets' => [
                 [
                     'label' => 'Total Clients',
-                    'data' => $data,
+                    'data' => $rows->values()->all(),
                     'backgroundColor' => $backgroundColors,
                     'borderColor' => $borderColors,
                     'borderWidth' => 1,
                 ],
             ],
-            'labels' => $labels,
+            'labels' => $rows->keys()->all(),
         ];
     }
 
@@ -89,11 +77,6 @@ class ClientStatusChart extends ChartWidget
                 'easing' => 'easeOutQuart',
                 'delay' => 0,
             ],
-            'animations' => [
-                'y' => [
-                    'from' => 500, // Start from bottom (high y value)
-                ],
-            ],
             'plugins' => [
                 'legend' => [
                     'display' => false,
@@ -109,16 +92,4 @@ class ClientStatusChart extends ChartWidget
             ],
         ];
     }
-
-    private function getPeriodLabel(string $filter): string
-    {
-        return match ($filter) {
-            'yesterday' => Carbon::yesterday()->translatedFormat('d F Y'),
-            '7d' => '7 Hari Terakhir',
-            '30d' => '30 Hari Terakhir',
-            '90d' => '90 Hari Terakhir',
-            default => 'Hari Ini',
-        };
-    }
 }
-
