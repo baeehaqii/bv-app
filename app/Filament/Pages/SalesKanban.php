@@ -4,22 +4,24 @@ namespace App\Filament\Pages;
 
 use App\Enums\SalesStatus;
 use App\Filament\Forms\BvSalesForm;
+use App\Filament\Resources\FormBriefs\FormBriefResource;
 use App\Models\BvSales;
-use App\Models\BvSalesList;
-use App\Models\DataClient;
 use BackedEnum;
+use Carbon\Carbon;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Support\Enums\TextSize;
+use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Grid as InfolistGrid;
-use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Support\Colors\Color;
 use Filament\Support\Enums\FontWeight;
+use Filament\Support\Enums\TextSize;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
@@ -64,7 +66,6 @@ class SalesKanban extends BoardPage implements HasTable
         ];
     }
 
-
     protected function getHeaderActions(): array
     {
         return [
@@ -72,15 +73,15 @@ class SalesKanban extends BoardPage implements HasTable
                 ->label('List')
                 ->icon('heroicon-o-list-bullet')
                 ->color('white')
-                ->outlined(fn() => $this->viewMode !== 'list')
-                ->action(fn() => $this->viewMode = 'list'),
+                ->outlined(fn () => $this->viewMode !== 'list')
+                ->action(fn () => $this->viewMode = 'list'),
 
             Action::make('kanban_view')
                 ->label('Kanban')
                 ->icon('heroicon-o-view-columns')
                 ->color('white')
-                ->outlined(fn() => $this->viewMode !== 'kanban')
-                ->action(fn() => $this->viewMode = 'kanban'),
+                ->outlined(fn () => $this->viewMode !== 'kanban')
+                ->action(fn () => $this->viewMode = 'kanban'),
 
             CreateAction::make()
                 ->label('Add Campaign')
@@ -95,9 +96,38 @@ class SalesKanban extends BoardPage implements HasTable
                 ->mutateFormDataUsing(function (array $data): array {
                     $data['status'] = $data['status'] ?? SalesStatus::NOT_STARTED->value;
                     $data['position'] = (int) BvSales::where('status', $data['status'])->max('position') + 1;
+
                     return $data;
                 }),
         ];
+    }
+
+    /**
+     * Lock kolom Briefing: campaign yang sudah punya brief tidak boleh dikembalikan ke tahap Briefing.
+     */
+    public function moveCard(
+        string $cardId,
+        string $targetColumnId,
+        ?string $afterCardId = null,
+        ?string $beforeCardId = null
+    ): void {
+        if ($targetColumnId === SalesStatus::BRIEFING->value) {
+            $card = BvSales::find($cardId);
+
+            if ($card?->hasBrief()) {
+                Notification::make()
+                    ->title('Tidak bisa kembali ke Briefing')
+                    ->body('Campaign ini sudah memiliki brief, jadi tidak bisa dikembalikan ke tahap Briefing.')
+                    ->warning()
+                    ->send();
+
+                $this->dispatch('$refresh');
+
+                return;
+            }
+        }
+
+        parent::moveCard($cardId, $targetColumnId, $afterCardId, $beforeCardId);
     }
 
     public function board(Board $board): Board
@@ -109,13 +139,13 @@ class SalesKanban extends BoardPage implements HasTable
             ->recordTitleAttribute('event_name')
             ->columns($this->getKanbanColumns())
             // Notion-style: card hanya tampil judul, metadata di-render langsung di card template
-            ->cardSchema(fn(Schema $schema) => $schema->components([]))
+            ->cardSchema(fn (Schema $schema) => $schema->components([]))
             ->searchable(['event_name', 'company_name', 'detail'])
             ->filters([
                 SelectFilter::make('campaign_year')
                     ->label('Campaign Year')
                     ->options(
-                        fn() => BvSales::query()
+                        fn () => BvSales::query()
                             ->whereNotNull('campaign_year')
                             ->distinct()
                             ->pluck('campaign_year', 'campaign_year')
@@ -124,9 +154,9 @@ class SalesKanban extends BoardPage implements HasTable
 
                 SelectFilter::make('campaign_month')
                     ->label('Campaign Month')
-                    ->options(fn() => collect(range(1, 12))
-                        ->mapWithKeys(fn($m) => [
-                            $m => \Carbon\Carbon::createFromDate(null, $m, 1)->translatedFormat('F'),
+                    ->options(fn () => collect(range(1, 12))
+                        ->mapWithKeys(fn ($m) => [
+                            $m => Carbon::createFromDate(null, $m, 1)->translatedFormat('F'),
                         ])->toArray()),
 
                 SelectFilter::make('bv_sales_list_id')
@@ -156,106 +186,106 @@ class SalesKanban extends BoardPage implements HasTable
                 Action::make('view_detail')
                     ->label('Lihat Detail')
                     ->icon('heroicon-o-eye')
-                    ->modalHeading(fn(BvSales $record) => $record->event_name)
+                    ->modalHeading(fn (BvSales $record) => $record->event_name)
                     ->modalSubmitAction(false)
                     ->modalCancelActionLabel('Tutup')
                     ->modalWidth('2xl')
-                    ->infolist(fn(BvSales $record): array => [
+                    ->infolist(fn (BvSales $record): array => [
                         InfolistGrid::make(2)->schema([
                             TextEntry::make('status')
                                 ->label('Status')
-                                ->getStateUsing(fn() => $record->status instanceof SalesStatus
+                                ->getStateUsing(fn () => $record->status instanceof SalesStatus
                                     ? $record->status->getLabel()
                                     : (SalesStatus::tryFrom($record->status)?->getLabel() ?? $record->status))
                                 ->badge()
-                                ->color(fn() => $record->status instanceof SalesStatus
+                                ->color(fn () => $record->status instanceof SalesStatus
                                     ? $record->status->getColor()
                                     : (SalesStatus::tryFrom((string) $record->status)?->getColor() ?? 'gray')),
 
                             TextEntry::make('company_name')
                                 ->label('Client / Brand')
-                                ->getStateUsing(fn() => $record->company_name ?: '-'),
+                                ->getStateUsing(fn () => $record->company_name ?: '-'),
                         ]),
 
                         InfolistGrid::make(2)->schema([
                             TextEntry::make('budget_propose')
                                 ->label('Budget Propose')
-                                ->getStateUsing(fn() => $record->budget_propose
-                                    ? 'Rp ' . number_format((float) $record->budget_propose, 0, ',', '.')
+                                ->getStateUsing(fn () => $record->budget_propose
+                                    ? 'Rp '.number_format((float) $record->budget_propose, 0, ',', '.')
                                     : '-'),
 
                             TextEntry::make('deal_value')
                                 ->label('Deal Value')
-                                ->getStateUsing(fn() => $record->deal_value
-                                    ? 'Rp ' . number_format((float) $record->deal_value, 0, ',', '.')
+                                ->getStateUsing(fn () => $record->deal_value
+                                    ? 'Rp '.number_format((float) $record->deal_value, 0, ',', '.')
                                     : '-'),
                         ]),
 
                         InfolistGrid::make(2)->schema([
                             TextEntry::make('period')
                                 ->label('Campaign Period')
-                                ->getStateUsing(fn() => $record->campaign_month && $record->campaign_year
-                                    ? \Carbon\Carbon::createFromDate(null, $record->campaign_month, 1)->translatedFormat('F') . ' ' . $record->campaign_year
+                                ->getStateUsing(fn () => $record->campaign_month && $record->campaign_year
+                                    ? Carbon::createFromDate(null, $record->campaign_month, 1)->translatedFormat('F').' '.$record->campaign_year
                                     : '-'),
 
                             TextEntry::make('close_date')
                                 ->label('Close Date')
-                                ->getStateUsing(fn() => $record->close_date?->translatedFormat('d M Y') ?? '-'),
+                                ->getStateUsing(fn () => $record->close_date?->translatedFormat('d M Y') ?? '-'),
                         ]),
 
                         TextEntry::make('meeting_notes')
                             ->label('Meeting Notes / Progress')
-                            ->getStateUsing(fn() => $record->meeting_notes ?: '-')
+                            ->getStateUsing(fn () => $record->meeting_notes ?: '-')
                             ->columnSpanFull(),
 
                         // Komentar
                         RepeatableEntry::make('salesComments')
                             ->label('Komentar')
-                            ->getStateUsing(fn() => $record->salesComments->take(5)->toArray())
+                            ->getStateUsing(fn () => $record->salesComments->take(5)->toArray())
                             ->schema([
                                 TextEntry::make('body')
                                     ->label('')
                                     ->columnSpanFull(),
                                 TextEntry::make('user.name')
                                     ->label('')
-                                    ->getStateUsing(fn($state, $record) => ($record['user']['name'] ?? '-') . ' · ' . \Carbon\Carbon::parse($record['created_at'])->diffForHumans())
+                                    ->getStateUsing(fn ($state, $record) => ($record['user']['name'] ?? '-').' · '.Carbon::parse($record['created_at'])->diffForHumans())
                                     ->color('gray')
                                     ->size(TextSize::Small)
                                     ->columnSpanFull(),
                             ])
                             ->columns(1)
-                            ->visible(fn() => $record->salesComments->isNotEmpty())
+                            ->visible(fn () => $record->salesComments->isNotEmpty())
                             ->columnSpanFull(),
                     ])
-                    ->extraModalFooterActions(fn(Action $action): array => [
-                        \Filament\Actions\EditAction::make('edit_from_detail')
+                    ->extraModalFooterActions(fn (Action $action): array => [
+                        EditAction::make('edit_from_detail')
                             ->label('Edit')
                             ->icon('heroicon-o-pencil')
                             ->model(BvSales::class)
-                            ->record(fn() => $action->getRecord())
+                            ->record(fn () => $action->getRecord())
                             ->form(BvSalesForm::getFormComponents())
                             ->modalWidth('4xl')
                             ->modalHeading('Edit Sales Activity')
                             ->slideOver()
-                            ->after(fn() => $action->cancel()),
+                            ->after(fn () => $action->cancel()),
                     ]),
 
-                \Filament\Actions\EditAction::make()
+                EditAction::make()
                     ->model(BvSales::class)
                     ->form(BvSalesForm::getFormComponents())
                     ->modalWidth('4xl')
                     ->modalHeading('Edit Sales Activity')
                     ->slideOver()
-                    ->extraModalFooterActions(fn(\Filament\Actions\EditAction $action): array => [
-                        \Filament\Actions\DeleteAction::make('delete_from_modal')
+                    ->extraModalFooterActions(fn (EditAction $action): array => [
+                        DeleteAction::make('delete_from_modal')
                             ->model(BvSales::class)
-                            ->record(fn() => $action->getRecord())
-                            ->hidden(fn() => $action->getRecord() === null)
+                            ->record(fn () => $action->getRecord())
+                            ->hidden(fn () => $action->getRecord() === null)
                             ->color('danger')
                             ->icon('heroicon-o-trash')
-                            ->after(fn() => $action->cancel()),
+                            ->after(fn () => $action->cancel()),
                     ])
-                    ->modalFooter(fn($record) => view('filament.pages.partials.sales-comments-footer', ['record' => $record])),
+                    ->modalFooter(fn ($record) => view('filament.pages.partials.sales-comments-footer', ['record' => $record])),
             ])
             ->cardAction('view_detail');
     }
@@ -284,30 +314,30 @@ class SalesKanban extends BoardPage implements HasTable
                 TextColumn::make('client.type')
                     ->label('Client Type')
                     ->badge()
-                    ->formatStateUsing(fn($state) => match ($state) {
+                    ->formatStateUsing(fn ($state) => match ($state) {
                         'agency' => 'Agency',
                         'direct' => 'Direct Brand',
                         default => null,
                     })
-                    ->color(fn($state) => match ($state) {
+                    ->color(fn ($state) => match ($state) {
                         'agency' => 'warning',
                         'direct' => 'info',
                         default => 'gray',
                     })
                     ->action(
                         Action::make('viewClientType')
-                            ->modalHeading(fn($record) => $record->client?->nama_brand ?? $record->company_name)
+                            ->modalHeading(fn ($record) => $record->client?->nama_brand ?? $record->company_name)
                             ->modalSubmitAction(false)
                             ->modalCancelActionLabel('Tutup')
                             ->modalWidth('lg')
-                            ->infolist(fn($record): array => [
+                            ->infolist(fn ($record): array => [
                                 InfolistGrid::make(3)
                                     ->schema([
                                         TextEntry::make('type')
                                             ->label('Client Type')
-                                            ->getStateUsing(fn() => $record->client?->type ? ucfirst($record->client->type) : '-')
+                                            ->getStateUsing(fn () => $record->client?->type ? ucfirst($record->client->type) : '-')
                                             ->badge()
-                                            ->color(fn() => match ($record->client?->type) {
+                                            ->color(fn () => match ($record->client?->type) {
                                                 'agency' => 'warning',
                                                 'direct' => 'info',
                                                 default => 'gray',
@@ -315,17 +345,17 @@ class SalesKanban extends BoardPage implements HasTable
 
                                         TextEntry::make('nama_brand')
                                             ->label('Nama Brand')
-                                            ->getStateUsing(fn() => $record->client?->nama_brand ?? '-'),
+                                            ->getStateUsing(fn () => $record->client?->nama_brand ?? '-'),
 
                                         TextEntry::make('parent_brand')
                                             ->label('Parent Brand')
-                                            ->getStateUsing(fn() => $record->client?->parent_brand ?: '-'),
+                                            ->getStateUsing(fn () => $record->client?->parent_brand ?: '-'),
                                     ]),
 
                                 RepeatableEntry::make('pics')
                                     ->label('List Agency')
-                                    ->getStateUsing(fn() => collect($record->client?->pics ?? [])
-                                        ->filter(fn($p) => !empty($p['agency']))
+                                    ->getStateUsing(fn () => collect($record->client?->pics ?? [])
+                                        ->filter(fn ($p) => ! empty($p['agency']))
                                         ->values()
                                         ->toArray())
                                     ->schema([
@@ -339,7 +369,7 @@ class SalesKanban extends BoardPage implements HasTable
                                             ->label('WhatsApp'),
                                     ])
                                     ->columns(4)
-                                    ->visible(fn() => collect($record->client?->pics ?? [])->filter(fn($p) => !empty($p['agency']))->isNotEmpty()),
+                                    ->visible(fn () => collect($record->client?->pics ?? [])->filter(fn ($p) => ! empty($p['agency']))->isNotEmpty()),
                             ])
                     ),
 
@@ -352,21 +382,21 @@ class SalesKanban extends BoardPage implements HasTable
                     ->label('Period')
                     ->formatStateUsing(function ($state, $record) {
                         return $state && $record->campaign_year
-                            ? \Carbon\Carbon::createFromDate(null, $state, 1)->translatedFormat('F') . ' ' . $record->campaign_year
+                            ? Carbon::createFromDate(null, $state, 1)->translatedFormat('F').' '.$record->campaign_year
                             : '-';
                     })
                     ->sortable(),
 
                 TextColumn::make('budget_propose')
                     ->label('Budget Propose')
-                    ->formatStateUsing(fn($state) => 'IDR ' . number_format((float) $state, 0, ',', '.'))
+                    ->formatStateUsing(fn ($state) => 'IDR '.number_format((float) $state, 0, ',', '.'))
                     ->sortable()
                     ->color('info')
                     ->toggleable(isToggledHiddenByDefault: false),
 
                 TextColumn::make('deal_value')
                     ->label('Deal Value')
-                    ->formatStateUsing(fn($state) => 'IDR ' . number_format((float) $state, 0, ',', '.'))
+                    ->formatStateUsing(fn ($state) => 'IDR '.number_format((float) $state, 0, ',', '.'))
                     ->sortable()
                     ->color('success'),
 
@@ -377,6 +407,18 @@ class SalesKanban extends BoardPage implements HasTable
                     ->badge()
                     ->color('warning'),
 
+                TextColumn::make('brief_link')
+                    ->label('Brief Link')
+                    ->badge()
+                    ->getStateUsing(fn (BvSales $record): string => ($record->brief_link ?: $record->formBrief?->sheet_link_external)
+                        ? 'Lihat Brief'
+                        : ($record->formBrief ? 'Form Brief' : '—'))
+                    ->color(fn (BvSales $record): string => ($record->brief_link || $record->formBrief) ? 'info' : 'gray')
+                    ->url(fn (BvSales $record): ?string => $record->brief_link
+                        ?: $record->formBrief?->sheet_link_external
+                        ?: $record->formBrief?->getPublicUrl())
+                    ->openUrlInNewTab(),
+
                 TextColumn::make('status')
                     ->label('Status')
                     ->badge()
@@ -384,12 +426,14 @@ class SalesKanban extends BoardPage implements HasTable
                         if ($state instanceof SalesStatus) {
                             return $state->getLabel();
                         }
+
                         return SalesStatus::tryFrom($state)?->getLabel() ?? $state;
                     })
                     ->color(function ($state) {
                         if ($state instanceof SalesStatus) {
                             return $state->getColor();
                         }
+
                         return SalesStatus::tryFrom($state)?->getColor() ?? 'gray';
                     })
                     ->sortable(),
@@ -407,7 +451,7 @@ class SalesKanban extends BoardPage implements HasTable
                 SelectFilter::make('campaign_year')
                     ->label('Campaign Year')
                     ->options(
-                        fn() => BvSales::query()
+                        fn () => BvSales::query()
                             ->whereNotNull('campaign_year')
                             ->distinct()
                             ->pluck('campaign_year', 'campaign_year')
@@ -416,9 +460,9 @@ class SalesKanban extends BoardPage implements HasTable
 
                 SelectFilter::make('campaign_month')
                     ->label('Campaign Month')
-                    ->options(fn() => collect(range(1, 12))
-                        ->mapWithKeys(fn($m) => [
-                            $m => \Carbon\Carbon::createFromDate(null, $m, 1)->translatedFormat('F'),
+                    ->options(fn () => collect(range(1, 12))
+                        ->mapWithKeys(fn ($m) => [
+                            $m => Carbon::createFromDate(null, $m, 1)->translatedFormat('F'),
                         ])->toArray()),
 
                 SelectFilter::make('bv_sales_list_id')
@@ -429,7 +473,7 @@ class SalesKanban extends BoardPage implements HasTable
                     ->label('Company / Client')
                     ->searchable()
                     ->options(
-                        fn() => BvSales::query()
+                        fn () => BvSales::query()
                             ->whereNotNull('company_name')
                             ->distinct()
                             ->orderBy('company_name')
@@ -440,7 +484,7 @@ class SalesKanban extends BoardPage implements HasTable
                 Filter::make('client_type')
                     ->label('Client Type')
                     ->form([
-                        \Filament\Forms\Components\Select::make('client_type')
+                        Select::make('client_type')
                             ->label('Client Type')
                             ->options([
                                 'direct' => 'Direct Brand',
@@ -451,17 +495,18 @@ class SalesKanban extends BoardPage implements HasTable
                     ->query(function (Builder $query, array $data): Builder {
                         return $query->when(
                             $data['client_type'] ?? null,
-                            fn(Builder $q, string $type) => $q->whereHas(
+                            fn (Builder $q, string $type) => $q->whereHas(
                                 'client',
-                                fn(Builder $cq) => $cq->where('type', $type)
+                                fn (Builder $cq) => $cq->where('type', $type)
                             )
                         );
                     })
                     ->indicateUsing(function (array $data): ?string {
-                        if (!($data['client_type'] ?? null)) {
+                        if (! ($data['client_type'] ?? null)) {
                             return null;
                         }
-                        return 'Client Type: ' . match ($data['client_type']) {
+
+                        return 'Client Type: '.match ($data['client_type']) {
                             'direct' => 'Direct Brand',
                             'agency' => 'Agency',
                             default => $data['client_type'],
@@ -469,11 +514,34 @@ class SalesKanban extends BoardPage implements HasTable
                     }),
             ])
             ->actions([
+                Action::make('formBrief')
+                    ->label('Form Brief')
+                    ->icon('heroicon-o-document-text')
+                    ->color('info')
+                    ->url(fn (BvSales $record): ?string => $record->formBrief
+                        ? FormBriefResource::getUrl('view', ['record' => $record->formBrief])
+                        : null)
+                    ->openUrlInNewTab()
+                    ->visible(fn (BvSales $record): bool => $record->formBrief !== null),
+                Action::make('isiLinkBrief')
+                    ->label('Isi Link')
+                    ->icon('heroicon-o-link')
+                    ->color('gray')
+                    ->fillForm(fn (BvSales $record): array => ['brief_link' => $record->brief_link])
+                    ->form([
+                        TextInput::make('brief_link')
+                            ->label('Link Brief')
+                            ->url()
+                            ->placeholder('https://...')
+                            ->helperText('Link spreadsheet / dokumen brief dari client.'),
+                    ])
+                    ->modalWidth('md')
+                    ->action(fn (BvSales $record, array $data) => $record->update(['brief_link' => $data['brief_link'] ?: null])),
                 EditAction::make()
                     ->form(BvSalesForm::getFormComponents())
                     ->modalWidth('2xl')
                     ->slideOver()
-                    ->modalFooter(fn($record) => view('filament.pages.partials.sales-comments-footer', ['record' => $record])),
+                    ->modalFooter(fn ($record) => view('filament.pages.partials.sales-comments-footer', ['record' => $record])),
                 DeleteAction::make(),
             ])
             ->defaultSort('created_at', 'desc')

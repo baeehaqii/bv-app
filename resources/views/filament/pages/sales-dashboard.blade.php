@@ -25,6 +25,25 @@
         ];
     @endphp
 
+    @if ($this->isExecutiveViewer())
+        <div class="mb-4 rounded-2xl bg-white dark:bg-gray-900 p-4 shadow-sm border border-gray-100 dark:border-gray-800">
+            <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+                <div class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-200">
+                    <x-filament::icon icon="heroicon-o-eye" class="h-5 w-5 text-primary-500" />
+                    Monitoring Sales
+                </div>
+                <select
+                    wire:model.live="selectedSalesId"
+                    class="w-full sm:w-72 rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 focus:border-primary-500 focus:ring-primary-500"
+                >
+                    @foreach ($this->getSalesOptions() as $id => $name)
+                        <option value="{{ $id }}">{{ $name }}</option>
+                    @endforeach
+                </select>
+            </div>
+        </div>
+    @endif
+
     <div class="grid grid-cols-12 gap-4">
         {{-- ────────────── ROW 1: Greeting + Quick Stats ────────────── --}}
         <div class="col-span-12 lg:col-span-7">

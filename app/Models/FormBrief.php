@@ -11,11 +11,13 @@ class FormBrief extends Model
     protected $guarded = [];
 
     protected $casts = [
-        'attachments'   => 'array',
-        'submitted_at'  => 'datetime',
-        'reviewed_at'   => 'datetime',
+        'attachments' => 'array',
+        'submitted_at' => 'datetime',
+        'reviewed_at' => 'datetime',
         'deadline_date' => 'date',
-        'budget'        => 'integer',
+        'date_issued' => 'date',
+        'delivery_date' => 'date',
+        'budget' => 'integer',
     ];
 
     // -------------------------------------------------------

@@ -42,15 +42,17 @@
         $picAgent  = null;
 
         if ($client) {
+            // pic_clients = array of object {name, role, email, ...} → ambil nama-nya saja
+            $extractPicNames = fn ($pics) => is_array($pics)
+                ? collect($pics)->map(fn ($p) => is_array($p) ? ($p['name'] ?? $p['nama_pic'] ?? null) : $p)->filter()->implode(', ')
+                : $pics;
+
             if ($client->type === 'agency' && !empty($client->pic_clients)) {
                 // Client sendiri adalah agency → pic_clients = kontak di agency tsb
-                $rawPic   = $client->pic_clients;
-                $picAgent = is_array($rawPic) ? implode(', ', array_filter($rawPic)) : $rawPic;
+                $picAgent = $extractPicNames($client->pic_clients);
             } elseif ($client->agency_client_id) {
                 // Direct brand yang dihandle agency → ambil pic_clients dari agency-nya
-                $agency   = $client->agency;
-                $rawPic   = $agency?->pic_clients ?? [];
-                $picAgent = is_array($rawPic) ? implode(', ', array_filter($rawPic)) : $rawPic;
+                $picAgent = $extractPicNames($client->agency?->pic_clients ?? []);
             }
         }
 
@@ -124,6 +126,71 @@
                 </div>
             @endif
         </div>
+
+        {{-- ═══════════════════════════════════════════════════════ --}}
+        {{-- ROW 1.5: Detail Campaign (format brief baru)           --}}
+        {{-- ═══════════════════════════════════════════════════════ --}}
+        @if($record->product || $record->background || $record->cta || $record->target_audience || $record->key_messages || $record->delivery_date)
+            <x-bv.card title="Detail Campaign" icon="heroicon-o-megaphone">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-5">
+                    <x-bv.field label="Product" :value="$record->product" />
+                    <x-bv.field label="Target Audience" :value="$record->target_audience" />
+                    <x-bv.field label="Call to Action" :value="$record->cta" />
+                    <x-bv.field label="Delivery Date" :value="$record->delivery_date?->translatedFormat('d M Y')" />
+                </div>
+                @if($record->background)
+                    <div class="mt-5 pt-5 border-t border-gray-100 dark:border-gray-800">
+                        <p class="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide font-medium mb-1">Background</p>
+                        <div class="prose prose-sm dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 leading-relaxed">{!! nl2br(e($record->background)) !!}</div>
+                    </div>
+                @endif
+                @if($record->key_messages)
+                    <div class="mt-5 pt-5 border-t border-gray-100 dark:border-gray-800">
+                        <p class="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide font-medium mb-1">Key Messages</p>
+                        <div class="prose prose-sm dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 leading-relaxed">{!! nl2br(e($record->key_messages)) !!}</div>
+                    </div>
+                @endif
+            </x-bv.card>
+        @endif
+
+        {{-- ═══════════════════════════════════════════════════════ --}}
+        {{-- ROW 1.6: Request KOL & Guideline (format brief baru)   --}}
+        {{-- ═══════════════════════════════════════════════════════ --}}
+        @if($record->request_kol || $record->persona_kol || $record->brief_do || $record->brief_dont || $record->kpi)
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <x-bv.card title="Request & Persona KOL" icon="heroicon-o-users">
+                    @if($record->request_kol)
+                        <p class="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide font-medium mb-1">Request KOL</p>
+                        <div class="prose prose-sm dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 leading-relaxed mb-4">{!! nl2br(e($record->request_kol)) !!}</div>
+                    @endif
+                    @if($record->persona_kol)
+                        <p class="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide font-medium mb-1">Persona KOL</p>
+                        <div class="prose prose-sm dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 leading-relaxed">{!! nl2br(e($record->persona_kol)) !!}</div>
+                    @endif
+                    @if(!$record->request_kol && !$record->persona_kol)
+                        <p class="text-gray-400 dark:text-gray-500 text-sm italic">Belum diisi</p>
+                    @endif
+                </x-bv.card>
+
+                <x-bv.card title="Guideline & KPI" icon="heroicon-o-check-badge">
+                    @if($record->brief_do)
+                        <p class="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide font-medium mb-1">Do</p>
+                        <div class="prose prose-sm dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 leading-relaxed mb-4">{!! nl2br(e($record->brief_do)) !!}</div>
+                    @endif
+                    @if($record->brief_dont)
+                        <p class="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide font-medium mb-1">Don'ts</p>
+                        <div class="prose prose-sm dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 leading-relaxed mb-4">{!! nl2br(e($record->brief_dont)) !!}</div>
+                    @endif
+                    @if($record->kpi)
+                        <p class="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide font-medium mb-1">KPI</p>
+                        <div class="prose prose-sm dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 leading-relaxed">{!! nl2br(e($record->kpi)) !!}</div>
+                    @endif
+                    @if(!$record->brief_do && !$record->brief_dont && !$record->kpi)
+                        <p class="text-gray-400 dark:text-gray-500 text-sm italic">Belum diisi</p>
+                    @endif
+                </x-bv.card>
+            </div>
+        @endif
 
         {{-- ═══════════════════════════════════════════════════════ --}}
         {{-- ROW 2: Criteria KOL  |  SOW                            --}}
@@ -217,6 +284,17 @@
                         <p class="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide font-medium mb-1">Sheet Link External</p>
                         @if($record->sheet_link_external)
                             <a href="{{ $record->sheet_link_external }}" target="_blank"
+                               class="text-sm text-violet-600 dark:text-violet-400 hover:underline truncate block max-w-full">
+                                Buka Link ↗
+                            </a>
+                        @else
+                            <p class="text-gray-400 dark:text-gray-500">—</p>
+                        @endif
+                    </div>
+                    <div>
+                        <p class="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide font-medium mb-1">Supporting Doc</p>
+                        @if($record->supporting_doc)
+                            <a href="{{ $record->supporting_doc }}" target="_blank"
                                class="text-sm text-violet-600 dark:text-violet-400 hover:underline truncate block max-w-full">
                                 Buka Link ↗
                             </a>

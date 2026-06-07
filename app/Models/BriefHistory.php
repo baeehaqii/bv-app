@@ -9,6 +9,11 @@ class BriefHistory extends Model
 {
     protected $guarded = [];
 
+    protected static function booted(): void
+    {
+        static::created(fn (BriefHistory $history) => $history->bvSales?->syncBriefStatus());
+    }
+
     public function bvSales(): BelongsTo
     {
         return $this->belongsTo(BvSales::class, 'bv_sales_id');

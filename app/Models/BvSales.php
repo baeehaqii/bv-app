@@ -3,13 +3,11 @@
 namespace App\Models;
 
 use App\Enums\SalesStatus;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
-use App\Models\BvCampign;
-use App\Models\DataClient;
-use App\Models\MediaPlan;
 
 class BvSales extends Model
 {
@@ -82,6 +80,50 @@ class BvSales extends Model
                 $sales->syncCampaignOngoingStatus();
             }
         });
+
+        static::saved(function (BvSales $sales) {
+            $sales->syncBriefStatus();
+        });
+    }
+
+    /**
+     * Apakah campaign ini sudah memiliki brief (upload dokumen, link, atau brief client tersubmit).
+     * FormBrief berstatus draft (dibuat otomatis saat briefing) tidak dihitung.
+     */
+    public function hasBrief(): bool
+    {
+        return filled($this->brief_link)
+            || filled($this->brief_files)
+            || $this->briefHistories()->exists()
+            || $this->formBrief()->where('status', '!=', 'draft')->exists();
+    }
+
+    /**
+     * Saat brief sudah terisi, otomatis maju ke Proposal Building.
+     * Hanya memajukan dari tahap awal (Not Started / Pitching / Briefing).
+     */
+    public function syncBriefStatus(): void
+    {
+        if (! $this->hasBrief()) {
+            return;
+        }
+
+        $earlyStages = [
+            SalesStatus::NOT_STARTED->value,
+            SalesStatus::PITCHING->value,
+            SalesStatus::BRIEFING->value,
+        ];
+
+        if (in_array($this->status?->value, $earlyStages, true)) {
+            // Update langsung via query builder agar aman dipanggil dari dalam event model
+            // (menghindari re-entrant save) dan tidak memicu ulang hook status.
+            $this->newQuery()->whereKey($this->getKey())->update([
+                'status' => SalesStatus::PROPOSAL_BUILDING->value,
+            ]);
+
+            $this->setAttribute('status', SalesStatus::PROPOSAL_BUILDING);
+            $this->syncOriginalAttribute('status');
+        }
     }
 
     /**
@@ -94,7 +136,7 @@ class BvSales extends Model
         }
 
         return $this->formBrief()->create([
-            'title' => 'Brief — ' . $this->event_name,
+            'title' => 'Brief — '.$this->event_name,
             'brand' => $this->company_name,
             'campaign_name' => $this->event_name,
         ]);
@@ -111,17 +153,17 @@ class BvSales extends Model
 
         $picInternal = $this->salesList?->nama_sales;
         $year = now()->year;
-        $count = \App\Models\MediaPlan::whereYear('created_at', $year)->count() + 1;
-        $quotationNumber = 'BV-' . $year . '-' . str_pad($count, 4, '0', STR_PAD_LEFT);
+        $count = MediaPlan::whereYear('created_at', $year)->count() + 1;
+        $quotationNumber = 'BV-'.$year.'-'.str_pad($count, 4, '0', STR_PAD_LEFT);
 
-        \App\Models\MediaPlan::create([
+        MediaPlan::create([
             'bv_sales_id' => $this->id,
             'brand' => $this->company_name,
             'pic_client' => $this->pic_media_plan ?? $picInternal ?? '-',
             'quotation_number' => $quotationNumber,
             'campaign_name' => $this->event_name,
-            'campaign_period_start' => $this->start_date ? \Carbon\Carbon::parse($this->start_date)->format('Y-m-d') : null,
-            'campaign_period_end' => $this->end_date ? \Carbon\Carbon::parse($this->end_date)->format('Y-m-d') : null,
+            'campaign_period_start' => $this->start_date ? Carbon::parse($this->start_date)->format('Y-m-d') : null,
+            'campaign_period_end' => $this->end_date ? Carbon::parse($this->end_date)->format('Y-m-d') : null,
             'status' => 'Planning',
             'pic_sales_bd_id' => $this->bv_sales_list_id,
         ]);
@@ -136,11 +178,11 @@ class BvSales extends Model
             return;
         }
 
-        $client = \App\Models\DataClient::where('nama_brand', $this->company_name)->first();
+        $client = DataClient::where('nama_brand', $this->company_name)->first();
         $picInternal = $this->salesList?->nama_sales;
         $agencyName = $client?->agency_name;
 
-        \App\Models\BvCampign::create([
+        BvCampign::create([
             'bv_sales_id' => $this->id,
             'form_brief_id' => $this->form_brief_id,
             'client_id' => $client?->id,
@@ -174,12 +216,12 @@ class BvSales extends Model
     public function syncCampaignOngoingStatus(): void
     {
         $campaign = $this->campaign;
-        if (!$campaign) {
+        if (! $campaign) {
             return;
         }
 
         $isLive = $this->status === SalesStatus::CAMPAIGN_LIVE;
-        $hasQuotationSign = !empty($this->quotation_sign);
+        $hasQuotationSign = ! empty($this->quotation_sign);
 
         if ($isLive && $hasQuotationSign) {
             $platforms = $campaign->kols()
@@ -244,16 +286,16 @@ class BvSales extends Model
 
     public function getFormattedBudgetProposeAttribute(): string
     {
-        return 'Rp ' . number_format((float) $this->budget_propose, 0, ',', '.');
+        return 'Rp '.number_format((float) $this->budget_propose, 0, ',', '.');
     }
 
     public function getFormattedDealValueAttribute(): string
     {
-        return 'Rp ' . number_format((float) $this->deal_value, 0, ',', '.');
+        return 'Rp '.number_format((float) $this->deal_value, 0, ',', '.');
     }
 
     public function getFormattedMarginAttribute(): string
     {
-        return number_format((float) $this->margin, 2) . '%';
+        return number_format((float) $this->margin, 2).'%';
     }
 }

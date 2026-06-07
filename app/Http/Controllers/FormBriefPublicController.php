@@ -23,7 +23,7 @@ class FormBriefPublicController extends Controller
         if ($picName) {
             $employee = BvEmploye::query()
                 ->where('nama_lengkap', $picName)
-                ->orWhere('nama_lengkap', 'like', '%' . $picName . '%')
+                ->orWhere('nama_lengkap', 'like', '%'.$picName.'%')
                 ->first();
 
             $salesWhatsapp = $employee?->whatsapp;
@@ -32,13 +32,13 @@ class FormBriefPublicController extends Controller
         $salesWhatsapp = preg_replace('/[^0-9]/', '', (string) $salesWhatsapp);
         if ($salesWhatsapp !== '') {
             if (str_starts_with($salesWhatsapp, '0')) {
-                $salesWhatsapp = '62' . substr($salesWhatsapp, 1);
-            } elseif (!str_starts_with($salesWhatsapp, '62')) {
-                $salesWhatsapp = '62' . $salesWhatsapp;
+                $salesWhatsapp = '62'.substr($salesWhatsapp, 1);
+            } elseif (! str_starts_with($salesWhatsapp, '62')) {
+                $salesWhatsapp = '62'.$salesWhatsapp;
             }
         }
 
-        $salesWhatsappUrl = $salesWhatsapp !== '' ? 'https://wa.me/' . $salesWhatsapp : null;
+        $salesWhatsappUrl = $salesWhatsapp !== '' ? 'https://wa.me/'.$salesWhatsapp : null;
 
         // Jika sudah disubmit, tampilkan halaman thank you
         if ($brief->isSubmitted()) {
@@ -64,11 +64,24 @@ class FormBriefPublicController extends Controller
         $validated = $request->validate([
             'submitted_by_name' => 'required|string|max:255',
             'submitted_by_email' => 'required|email|max:255',
+            'product' => 'nullable|string|max:255',
+            'background' => 'nullable|string',
             'campaign_objective' => 'nullable|string',
+            'cta' => 'nullable|string',
+            'target_audience' => 'nullable|string',
+            'key_messages' => 'nullable|string',
+            'request_kol' => 'nullable|string',
+            'persona_kol' => 'nullable|string',
             'criteria_of_kol' => 'nullable|string',
             'sow' => 'nullable|string',
+            'brief_do' => 'nullable|string',
+            'brief_dont' => 'nullable|string',
+            'kpi' => 'nullable|string',
             'budget' => 'nullable|numeric|min:0',
+            'timeline' => 'nullable|string|max:255',
+            'delivery_date' => 'nullable|date',
             'deadline' => 'nullable|string|max:255',
+            'supporting_doc' => 'nullable|url|max:255',
             'additional_notes' => 'nullable|string',
             'attachments' => 'nullable|array',
             'attachments.*' => 'file|max:10240',
@@ -85,10 +98,13 @@ class FormBriefPublicController extends Controller
 
         $brief->update([
             ...$validated,
-            'attachments' => !empty($attachments) ? $attachments : $brief->attachments,
+            'attachments' => ! empty($attachments) ? $attachments : $brief->attachments,
             'status' => 'submitted',
             'submitted_at' => now(),
         ]);
+
+        // Brief sudah terisi client → majukan status campaign ke Proposal Building
+        $brief->bvSales?->syncBriefStatus();
 
         return redirect()->route('form-brief.public', $token)
             ->with('success', 'Brief berhasil disubmit! Tim kami akan segera meninjau.');

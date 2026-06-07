@@ -25,6 +25,28 @@ class DataClientForm
         return $schema->columns(1)->components(self::getFormSchema());
     }
 
+    /** Daftar kategori: gabungan default + kategori existing di database */
+    private static function categoryOptions(): array
+    {
+        $defaults = [
+            'FMCG' => 'FMCG',
+            'E-Commerce & Tech' => 'E-Commerce & Tech',
+            'Fintech & Banking' => 'Fintech & Banking',
+            'Beauty & Skincare' => 'Beauty & Skincare',
+            'Automotive' => 'Automotive',
+            'Telecommunication' => 'Telecommunication',
+            'Pharmaceuticals' => 'Pharmaceuticals',
+            'Retail & Fashion' => 'Retail & Fashion',
+        ];
+
+        $existing = DataClient::whereNotNull('category')
+            ->distinct()
+            ->pluck('category', 'category')
+            ->all();
+
+        return array_merge($defaults, $existing);
+    }
+
     public static function getFormSchema(): array
     {
         return [
@@ -44,34 +66,16 @@ class DataClientForm
                         ->required(),
 
                     TextInput::make('nama_brand')
-                        ->label(fn(Get $get) => $get('type') === 'agency' ? 'Nama Agency' : 'Nama Brand')
-                        ->placeholder(fn(Get $get) => $get('type') === 'agency' ? 'Masukan nama agency...' : 'Masukan nama brand...')
-                        ->visible(fn(Get $get) => in_array($get('type'), ['direct', 'agency']))
-                        ->required(fn(Get $get) => in_array($get('type'), ['direct', 'agency'])),
+                        ->label(fn (Get $get) => $get('type') === 'agency' ? 'Nama Agency' : 'Nama Brand')
+                        ->placeholder(fn (Get $get) => $get('type') === 'agency' ? 'Masukan nama agency...' : 'Masukan nama brand...')
+                        ->visible(fn (Get $get) => in_array($get('type'), ['direct', 'agency']))
+                        ->required(fn (Get $get) => in_array($get('type'), ['direct', 'agency'])),
 
                     Select::make('category')
                         ->label('Kategori')
-                        ->visible(fn(Get $get) => $get('type') !== 'agency')
-                        ->required(fn(Get $get) => $get('type') === 'direct')
-                        ->options(function () {
-                            $defaults = [
-                                'FMCG' => 'FMCG',
-                                'E-Commerce & Tech' => 'E-Commerce & Tech',
-                                'Fintech & Banking' => 'Fintech & Banking',
-                                'Beauty & Skincare' => 'Beauty & Skincare',
-                                'Automotive' => 'Automotive',
-                                'Telecommunication' => 'Telecommunication',
-                                'Pharmaceuticals' => 'Pharmaceuticals',
-                                'Retail & Fashion' => 'Retail & Fashion',
-                            ];
-
-                            $existing = \App\Models\DataClient::whereNotNull('category')
-                                ->distinct()
-                                ->pluck('category', 'category')
-                                ->toArray();
-
-                            return array_merge($defaults, $existing);
-                        })
+                        ->visible(fn (Get $get) => $get('type') !== 'agency')
+                        ->required(fn (Get $get) => $get('type') === 'direct')
+                        ->options(fn () => self::categoryOptions())
                         ->searchable()
                         ->native(false)
                         ->createOptionForm([
@@ -79,10 +83,10 @@ class DataClientForm
                                 ->label('Kategori Baru')
                                 ->required(),
                         ])
-                        ->getOptionLabelUsing(fn($value) => $value)
-                        ->createOptionUsing(fn(array $data): string => $data['category'])
+                        ->getOptionLabelUsing(fn ($value) => $value)
+                        ->createOptionUsing(fn (array $data): string => $data['category'])
                         ->createOptionAction(
-                            fn($action) => $action
+                            fn ($action) => $action
                                 ->label('Tambah Kategori')
                                 ->modalHeading('Tambah Kategori Baru')
                                 ->modalWidth('md')
@@ -100,14 +104,15 @@ class DataClientForm
                     TextInput::make('website')
                         ->label('Website')->placeholder('https://www.contohwebsite.com')
                         ->url()
-                        ->required(fn(Get $get) => $get('type') === 'direct'),
+                        ->required(fn (Get $get) => $get('type') === 'direct'),
                     TextInput::make('parent_brand')
                         ->placeholder('Jika ini sub-brand, isi nama brand induknya')
                         ->label('Parent Brand')
-                        ->required(fn(Get $get) => $get('type') === 'direct'),
+                        ->visible(fn (Get $get) => $get('type') !== 'agency')
+                        ->required(fn (Get $get) => $get('type') === 'direct'),
                     TextInput::make('instagram')
                         ->label('Instagram')->placeholder('@contohbrand')
-                        ->required(fn(Get $get) => $get('type') === 'direct'),
+                        ->required(fn (Get $get) => $get('type') === 'direct'),
                     TextInput::make('tiktok')->placeholder('@contohbrand')
                         ->label('TikTok'),
                     TextInput::make('youtube')->placeholder('@contohchannel')
@@ -128,7 +133,7 @@ class DataClientForm
                     // ─── PIC (dipindah dari section terpisah) ────────────
                     Select::make('pic_internal_sales_id')
                         ->label('PIC Internal (Sales)')
-                        ->options(fn() => BvSalesList::orderBy('nama_sales')->pluck('nama_sales', 'id'))
+                        ->options(fn () => BvSalesList::orderBy('nama_sales')->pluck('nama_sales', 'id'))
                         ->searchable()
                         ->native(false)
                         ->nullable(),
@@ -171,15 +176,15 @@ class DataClientForm
 
                     Toggle::make('has_agency')
                         ->label('Memiliki Agency?')
-                        ->visible(fn(Get $get) => $get('type') === 'direct')
-                        ->live()
+                        ->visible(fn (Get $get) => $get('type') === 'direct')
+                        ->live(),
                 ])
                 ->collapsible()->columns(3),
 
             // ─── Detail Agency (hanya untuk Direct Brand yang memiliki agency) ─
             Section::make('Detail Agency')
                 ->description('Pilih agency existing dari database atau tambahkan agency baru')
-                ->visible(fn(Get $get) => $get('type') === 'direct' && (bool) $get('has_agency'))
+                ->visible(fn (Get $get) => $get('type') === 'direct' && (bool) $get('has_agency'))
                 ->schema([
                     ToggleButtons::make('agency_source')
                         ->label('Sumber Agency')
@@ -203,14 +208,14 @@ class DataClientForm
                             // Mode Existing: Select dropdown dari database
                             Select::make('agency')
                                 ->label('Nama Agency')
-                                ->options(fn() => DataClient::where('type', 'agency')
+                                ->options(fn () => DataClient::where('type', 'agency')
                                     ->orderBy('nama_brand')
                                     ->pluck('nama_brand', 'nama_brand'))
                                 ->searchable()
                                 ->native(false)
                                 ->live()
                                 ->afterStateUpdated(function (?string $state, Set $set) {
-                                    if (!$state) {
+                                    if (! $state) {
                                         return;
                                     }
 
@@ -218,7 +223,7 @@ class DataClientForm
                                         ->where('nama_brand', $state)
                                         ->first();
 
-                                    if (!$agency) {
+                                    if (! $agency) {
                                         return;
                                     }
 
@@ -230,15 +235,15 @@ class DataClientForm
                                     $set('wa_number', $firstPic['wa_number'] ?? null);
                                     $set('description', $firstPic['description'] ?? null);
                                 })
-                                ->required(fn(Get $get) => ($get('../../agency_source') ?? 'existing') === 'existing')
-                                ->visible(fn(Get $get) => ($get('../../agency_source') ?? 'existing') === 'existing'),
+                                ->required(fn (Get $get) => ($get('../../agency_source') ?? 'existing') === 'existing')
+                                ->visible(fn (Get $get) => ($get('../../agency_source') ?? 'existing') === 'existing'),
 
                             // Mode Baru: TextInput manual
                             TextInput::make('agency_new')
                                 ->label('Nama Agency')
                                 ->placeholder('Ketik nama agency...')
-                                ->required(fn(Get $get) => $get('../../agency_source') === 'baru')
-                                ->visible(fn(Get $get) => $get('../../agency_source') === 'baru')
+                                ->required(fn (Get $get) => $get('../../agency_source') === 'baru')
+                                ->visible(fn (Get $get) => $get('../../agency_source') === 'baru')
                                 ->dehydrated(false),
 
                             TextInput::make('name')
@@ -260,13 +265,13 @@ class DataClientForm
                         ])
                         ->columns(5)
                         ->mutateDehydratedStateUsing(function (?array $state) {
-                            if (!$state) {
+                            if (! $state) {
                                 return $state;
                             }
 
                             // Normalisasi: jika agency_new diisi (mode baru), copy ke agency
                             return collect($state)->map(function ($item) {
-                                if (!empty($item['agency_new'])) {
+                                if (! empty($item['agency_new'])) {
                                     $item['agency'] = $item['agency_new'];
                                 }
                                 unset($item['agency_new']);
@@ -284,14 +289,14 @@ class DataClientForm
             // ─── Brand yang Di-handle (Agency) ──────────────────────────────
             Section::make('Brand yang Di-handle')
                 ->description('Daftar brand yang di-handle oleh agency beserta PIC masing-masing brand')
-                ->visible(fn(Get $get) => $get('type') === 'agency')
+                ->visible(fn (Get $get) => $get('type') === 'agency')
                 ->schema([
                     Repeater::make('agency_brands')
                         ->hiddenLabel()
                         ->schema([
                             Select::make('nama_brand')
                                 ->label('Nama Brand')
-                                ->options(fn() => DataClient::where('type', 'direct')
+                                ->options(fn () => DataClient::where('type', 'direct')
                                     ->whereNotNull('nama_brand')
                                     ->orderBy('nama_brand')
                                     ->pluck('nama_brand', 'nama_brand'))
@@ -299,19 +304,21 @@ class DataClientForm
                                 ->native(false)
                                 ->live()
                                 ->afterStateUpdated(function (?string $state, Set $set) {
-                                    if (!$state) {
+                                    if (! $state) {
                                         $set('category', null);
                                         $set('nama_pic', null);
                                         $set('email', null);
                                         $set('wa_number', null);
                                         $set('description', null);
+
                                         return;
                                     }
                                     $client = DataClient::where('type', 'direct')
                                         ->where('nama_brand', $state)
                                         ->first();
-                                    if (!$client)
+                                    if (! $client) {
                                         return;
+                                    }
                                     $pic = collect($client->pic_clients)->first() ?? [];
                                     $set('category', $client->category);
                                     $set('nama_pic', $pic['name'] ?? $pic['nama_pic'] ?? null);
@@ -324,10 +331,10 @@ class DataClientForm
                                         ->label('Nama Brand Baru')
                                         ->required(),
                                 ])
-                                ->getOptionLabelUsing(fn($value) => $value)
-                                ->createOptionUsing(fn(array $data): string => $data['nama_brand'])
+                                ->getOptionLabelUsing(fn ($value) => $value)
+                                ->createOptionUsing(fn (array $data): string => $data['nama_brand'])
                                 ->createOptionAction(
-                                    fn($action) => $action
+                                    fn ($action) => $action
                                         ->label('Tambah Brand Baru')
                                         ->modalHeading('Tambah Brand Baru')
                                         ->modalWidth('sm')
@@ -336,39 +343,44 @@ class DataClientForm
 
                             Select::make('category')
                                 ->label('Kategori')
-                                ->options([
-                                    'FMCG' => 'FMCG',
-                                    'E-Commerce & Tech' => 'E-Commerce & Tech',
-                                    'Fintech & Banking' => 'Fintech & Banking',
-                                    'Beauty & Skincare' => 'Beauty & Skincare',
-                                    'Automotive' => 'Automotive',
-                                    'Telecommunication' => 'Telecommunication',
-                                    'Pharmaceuticals' => 'Pharmaceuticals',
-                                    'Retail & Fashion' => 'Retail & Fashion',
-                                ])
+                                ->prefixIcon('heroicon-o-tag')
+                                ->options(fn () => self::categoryOptions())
                                 ->searchable()
                                 ->native(false)
-                                ->disabled(fn(Get $get) => filled($get('nama_brand')) && DataClient::where('type', 'direct')->where('nama_brand', $get('nama_brand'))->exists())
+                                ->createOptionForm([
+                                    TextInput::make('category')
+                                        ->label('Kategori Baru')
+                                        ->required(),
+                                ])
+                                ->getOptionLabelUsing(fn ($value) => $value)
+                                ->createOptionUsing(fn (array $data): string => $data['category'])
+                                ->createOptionAction(
+                                    fn ($action) => $action
+                                        ->label('Tambah Kategori')
+                                        ->modalHeading('Tambah Kategori Baru')
+                                        ->modalWidth('md')
+                                )
+                                ->disabled(fn (Get $get) => filled($get('nama_brand')) && DataClient::where('type', 'direct')->where('nama_brand', $get('nama_brand'))->exists())
                                 ->dehydrated(),
                             TextInput::make('nama_pic')
                                 ->label('Nama PIC Brand')
                                 ->placeholder('Nama PIC brand...')
-                                ->readOnly(fn(Get $get) => filled($get('nama_brand')) && DataClient::where('type', 'direct')->where('nama_brand', $get('nama_brand'))->exists()),
+                                ->readOnly(fn (Get $get) => filled($get('nama_brand')) && DataClient::where('type', 'direct')->where('nama_brand', $get('nama_brand'))->exists()),
                             TextInput::make('email')
                                 ->label('Email PIC Brand')
                                 ->email()
                                 ->placeholder('email@contoh.com')
-                                ->readOnly(fn(Get $get) => filled($get('nama_brand')) && DataClient::where('type', 'direct')->where('nama_brand', $get('nama_brand'))->exists()),
+                                ->readOnly(fn (Get $get) => filled($get('nama_brand')) && DataClient::where('type', 'direct')->where('nama_brand', $get('nama_brand'))->exists()),
                             TextInput::make('wa_number')
                                 ->label('No WhatsApp PIC Brand')
                                 ->tel()
                                 ->placeholder('081234567890')
-                                ->readOnly(fn(Get $get) => filled($get('nama_brand')) && DataClient::where('type', 'direct')->where('nama_brand', $get('nama_brand'))->exists()),
+                                ->readOnly(fn (Get $get) => filled($get('nama_brand')) && DataClient::where('type', 'direct')->where('nama_brand', $get('nama_brand'))->exists()),
                             Textarea::make('description')
                                 ->label('Deskripsi')
                                 ->placeholder('Deskripsi brand atau catatan tambahan...')
                                 ->rows(1)
-                                ->readOnly(fn(Get $get) => filled($get('nama_brand')) && DataClient::where('type', 'direct')->where('nama_brand', $get('nama_brand'))->exists()),
+                                ->readOnly(fn (Get $get) => filled($get('nama_brand')) && DataClient::where('type', 'direct')->where('nama_brand', $get('nama_brand'))->exists()),
                         ])
                         ->table([
                             TableColumn::make('Nama Brand'),
@@ -388,7 +400,7 @@ class DataClientForm
             // ─── PIC Agency (Agency Only) ────────────────────────────────────
             Section::make('PIC Agency')
                 ->description('Informasi Person in Charge dari sisi agency')
-                ->visible(fn(Get $get) => $get('type') === 'agency')
+                ->visible(fn (Get $get) => $get('type') === 'agency')
                 ->schema([
                     Repeater::make('pic_clients')
                         ->hiddenLabel()
@@ -430,7 +442,7 @@ class DataClientForm
             // ─── PIC Client (Direct Brand Only) ─────────────────────────────
             Section::make('PIC Client')
                 ->description('Informasi Person in Charge dari sisi client')
-                ->visible(fn(Get $get) => $get('type') === 'direct')
+                ->visible(fn (Get $get) => $get('type') === 'direct')
                 ->schema([
                     Repeater::make('pic_clients')
                         ->hiddenLabel()
@@ -475,8 +487,8 @@ class DataClientForm
                 ->schema([
                     Select::make('status')
                         ->label('Status Campaign')->required()
-                        ->options(fn() => collect(SalesStatus::cases())->mapWithKeys(
-                            fn(SalesStatus $s) => [$s->value => $s->getLabel()]
+                        ->options(fn () => collect(SalesStatus::cases())->mapWithKeys(
+                            fn (SalesStatus $s) => [$s->value => $s->getLabel()]
                         ))
                         ->default(SalesStatus::NOT_STARTED->value)
                         ->live()
@@ -485,7 +497,7 @@ class DataClientForm
                         ->label('Tanggal Outreach')->required()->default(now()),
                     DatePicker::make('date_follow_up')
                         ->label('Tanggal Follow Up')
-                        ->visible(fn(Get $get) => in_array($get('status'), ['draft', 'upcoming', 'ongoing'])),
+                        ->visible(fn (Get $get) => in_array($get('status'), ['draft', 'upcoming', 'ongoing'])),
                     Textarea::make('notes')
                         ->label('Catatan')->columnSpanFull()
                         ->placeholder('Catatan tambahan mengenai client, hasil meeting, dll...'),
