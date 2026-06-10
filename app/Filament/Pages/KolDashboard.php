@@ -40,7 +40,7 @@ class KolDashboard extends Page
     }
 
     /**
-     * Ambil BvSalesList ID untuk user yang login (dipakai di pic_project_internal_ids)
+     * Ambil BvSalesList ID untuk user yang login (dipakai di pic_am_id)
      */
     private function getSalesListId(): ?int
     {
@@ -48,39 +48,51 @@ class KolDashboard extends Page
     }
 
     /**
-     * Media Plans dimana user ini adalah PIC Project Internal (KOL Specialist)
+     * Ambil BvEmploye ID untuk user yang login (dipakai di pic_project_internal_ids)
      */
-    private function myMediaPlans()
+    private function getEmployeId(): ?int
     {
-        $salesListId = $this->getSalesListId();
-        if (!$salesListId) {
-            return MediaPlan::whereRaw('0=1'); // empty query
-        }
-
-        return MediaPlan::whereJsonContains('pic_project_internal_ids', $salesListId);
+        return \App\Models\BvEmploye::where('user_id', auth()->id())->value('id');
     }
 
     /**
-     * Campaign Ongoing (BvCampign) dimana user ini adalah PIC AM — via mediaPlan
+     * Media Plans dimana user ini adalah Project Internal (KOL Specialist)
+     */
+    private function myMediaPlans()
+    {
+        $employeId = $this->getEmployeId();
+        if (!$employeId) {
+            return MediaPlan::whereRaw('0=1'); // empty query
+        }
+
+        return MediaPlan::whereJsonContains('pic_project_internal_ids', $employeId);
+    }
+
+    /**
+     * Campaign Ongoing (BvCampign) dimana user ini adalah Project Internal atau AM — via mediaPlan
      */
     private function myOngoingCampaigns()
     {
+        $employeId = $this->getEmployeId();
         $salesListId = $this->getSalesListId();
-        if (!$salesListId) {
+        if (!$employeId && !$salesListId) {
             return BvCampign::whereRaw('0=1');
         }
 
-        return BvCampign::whereHas('mediaPlan', function ($q) use ($salesListId) {
-            $q->whereJsonContains('pic_project_internal_ids', $salesListId)
-              ->orWhere('pic_am_id', $salesListId);
+        return BvCampign::whereHas('mediaPlan', function ($q) use ($employeId, $salesListId) {
+            $q->whereRaw('0=1');
+            if ($employeId) {
+                $q->orWhereJsonContains('pic_project_internal_ids', $employeId);
+            }
+            if ($salesListId) {
+                $q->orWhere('pic_am_id', $salesListId);
+            }
         });
     }
 
     public function getQuickStats(): array
     {
-        $salesListId = $this->getSalesListId();
-
-        if (!$salesListId) {
+        if (!$this->getEmployeId() && !$this->getSalesListId()) {
             return [
                 ['label' => 'Campaign Assigned', 'value' => 0, 'color' => 'primary',  'icon' => 'heroicon-m-megaphone'],
                 ['label' => 'Sedang Berjalan',   'value' => 0, 'color' => 'success',  'icon' => 'heroicon-m-play-circle'],

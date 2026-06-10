@@ -97,9 +97,29 @@
                 <p class="text-xs text-gray-400 dark:text-gray-500">Scope of Work</p>
                 <p class="mt-0.5 text-sm font-semibold text-gray-800 dark:text-gray-200">{{ $scope_items ?: '—' }}</p>
             </div>
+        </div>
+    </div>
+
+    {{-- Info KOL dari Database --}}
+    <div class="py-5">
+        <p class="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">Info KOL
+        </p>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-4">
             <div>
-                <p class="text-xs text-gray-400 dark:text-gray-500">Rate (nego)</p>
-                <p class="mt-0.5 text-sm font-semibold text-gray-800 dark:text-gray-200">{{ $rate }}</p>
+                <p class="text-xs text-gray-400 dark:text-gray-500">Nama PIC KOL</p>
+                <p class="mt-0.5 text-sm font-semibold text-gray-800 dark:text-gray-200">{{ $kol_pic_name }}</p>
+            </div>
+            <div>
+                <p class="text-xs text-gray-400 dark:text-gray-500">Email</p>
+                <p class="mt-0.5 text-sm font-semibold text-gray-800 dark:text-gray-200">{{ $kol_email }}</p>
+            </div>
+            <div>
+                <p class="text-xs text-gray-400 dark:text-gray-500">No WhatsApp</p>
+                <p class="mt-0.5 text-sm font-semibold text-gray-800 dark:text-gray-200">{{ $kol_wa }}</p>
+            </div>
+            <div>
+                <p class="text-xs text-gray-400 dark:text-gray-500">Category</p>
+                <p class="mt-0.5 text-sm font-semibold text-gray-800 dark:text-gray-200">{{ $kol_category }}</p>
             </div>
         </div>
     </div>
@@ -109,10 +129,6 @@
         <p class="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">Pembayaran
         </p>
         <div class="grid grid-cols-3 gap-4">
-            <div>
-                <p class="text-xs text-gray-400 dark:text-gray-500">After Nego</p>
-                <p class="mt-0.5 text-sm font-semibold text-gray-800 dark:text-gray-200">{{ $after_nego }}</p>
-            </div>
             <div>
                 <p class="text-xs text-gray-400 dark:text-gray-500">Jadwal Payment</p>
                 <p class="mt-0.5 text-sm font-semibold text-gray-800 dark:text-gray-200">{{ $payment_date }}</p>
@@ -201,12 +217,14 @@
     @if($rate_cards->isNotEmpty())
         <div class="py-5">
             <p class="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">Rate Card
-                per Channel</p>
+                per SOW</p>
             <div class="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <table class="min-w-full text-sm">
                     <thead>
                         <tr class="bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700">
                             <th class="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400">Channel
+                            </th>
+                            <th class="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400">SOW
                             </th>
                             <th class="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400">Rate
                             </th>
@@ -223,6 +241,9 @@
                             <tr class="hover:bg-gray-50/70 dark:hover:bg-gray-800/40 transition-colors">
                                 <td class="px-4 py-3 font-medium text-gray-800 dark:text-gray-200 text-sm">
                                     {{ $rc->channel ?? '—' }}
+                                </td>
+                                <td class="px-4 py-3 text-gray-700 dark:text-gray-300 text-sm">
+                                    {{ $rc->sow_label }}
                                 </td>
                                 <td class="px-4 py-3 text-gray-700 dark:text-gray-300 text-sm font-mono">
                                     {{ $rc->rate ? 'Rp ' . number_format((float) $rc->rate, 0, ',', '.') : '—' }}

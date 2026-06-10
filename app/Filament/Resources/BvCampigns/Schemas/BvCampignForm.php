@@ -602,20 +602,20 @@ class BvCampignForm
                                             }
 
                                             $pics = [
-                                                ['role' => 'PIC Sales / BD',              'name' => $mediaPlan->picSalesBd?->nama_sales],
-                                                ['role' => 'PIC Leads Project (Manager)', 'name' => $mediaPlan->picLeadsProject?->nama_sales],
-                                                ['role' => 'PIC Account Manager (AM)',    'name' => $mediaPlan->picAm?->nama_sales],
+                                                ['role' => 'Sales / BD',              'name' => $mediaPlan->picSalesBd?->nama_sales],
+                                                ['role' => 'Lead Project (Manager)',  'name' => $mediaPlan->picLeadsProject?->nama_sales],
+                                                ['role' => 'Account Management (AM)', 'name' => $mediaPlan->picAm?->nama_sales],
                                             ];
 
-                                            // PIC Project Internal bisa lebih dari 1
+                                            // Project Internal bisa lebih dari 1 (referensi ke karyawan)
                                             $internalIds = $mediaPlan->pic_project_internal_ids ?? [];
                                             if (!empty($internalIds)) {
-                                                $names = \App\Models\BvSalesList::whereIn('id', $internalIds)
-                                                    ->pluck('nama_sales')
+                                                $names = \App\Models\BvEmploye::whereIn('id', $internalIds)
+                                                    ->pluck('nama_lengkap')
                                                     ->join(', ');
-                                                $pics[] = ['role' => 'PIC Project Internal (KOL Specialist)', 'name' => $names ?: '-'];
+                                                $pics[] = ['role' => 'Project Internal (KOL Specialist)', 'name' => $names ?: '-'];
                                             } else {
-                                                $pics[] = ['role' => 'PIC Project Internal (KOL Specialist)', 'name' => '-'];
+                                                $pics[] = ['role' => 'Project Internal (KOL Specialist)', 'name' => '-'];
                                             }
 
                                             $rows = '';

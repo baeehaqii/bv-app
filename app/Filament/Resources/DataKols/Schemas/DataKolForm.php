@@ -121,6 +121,7 @@ class DataKolForm
                             ->table([
                                 TableColumn::make('Channel'),
                                 TableColumn::make('SOW'),
+                                TableColumn::make('SOW Custom'),
                                 TableColumn::make('Rate Card'),
                                 TableColumn::make('Berlaku Dari'),
                                 TableColumn::make('Catatan'),
@@ -321,28 +322,37 @@ class DataKolForm
                             ->prefixIcon('heroicon-o-at-symbol'),
 
                         Select::make('category')
-                            ->options([
-                                'Gamers & Lifestyle' => 'Gamers & Lifestyle',
-                                'Lifestyle' => 'Lifestyle',
-                                'Techno' => 'Techno',
-                                'Beauty' => 'Beauty',
-                                'Kpop' => 'Kpop',
-                                'Otomotif' => 'Otomotif',
-                                'Sport' => 'Sport',
-                                'Family' => 'Family',
-                                'Comedy' => 'Comedy',
-                                'Sport & Lifestyle' => 'Sport & Lifestyle',
-                                'Fashion & Lifestyle' => 'Fashion & Lifestyle',
-                                'DIY' => 'DIY',
-                                'Travel' => 'Travel',
-                                'Home Living' => 'Home Living',
-                                'Photography' => 'Photography',
-                                'Beauty & Lifestyle' => 'Beauty & Lifestyle',
-                                'Music' => 'Music',
-                                'Home Cook' => 'Home Cook',
-                                'Couple' => 'Couple',
-                                'Foodies' => 'Foodies',
-                            ])
+                            ->options(function (callable $get) {
+                                $options = [
+                                    'Gamers & Lifestyle' => 'Gamers & Lifestyle',
+                                    'Lifestyle' => 'Lifestyle',
+                                    'Techno' => 'Techno',
+                                    'Beauty' => 'Beauty',
+                                    'Kpop' => 'Kpop',
+                                    'Otomotif' => 'Otomotif',
+                                    'Sport' => 'Sport',
+                                    'Family' => 'Family',
+                                    'Comedy' => 'Comedy',
+                                    'Sport & Lifestyle' => 'Sport & Lifestyle',
+                                    'Fashion & Lifestyle' => 'Fashion & Lifestyle',
+                                    'DIY' => 'DIY',
+                                    'Travel' => 'Travel',
+                                    'Home Living' => 'Home Living',
+                                    'Photography' => 'Photography',
+                                    'Beauty & Lifestyle' => 'Beauty & Lifestyle',
+                                    'Music' => 'Music',
+                                    'Home Cook' => 'Home Cook',
+                                    'Couple' => 'Couple',
+                                    'Foodies' => 'Foodies',
+                                ];
+
+                                // Sertakan kategori hasil fetch API agar lolos validasi & tersimpan
+                                foreach (array_filter((array) $get('category')) as $cat) {
+                                    $options[$cat] = $cat;
+                                }
+
+                                return $options;
+                            })
                             ->multiple()
                             ->label('Category')
                             ->searchable(),
