@@ -20,7 +20,23 @@ class EditMediaPlan extends EditRecord
     protected function mutateFormDataBeforeFill(array $data): array
     {
         // Load KOLs relationship data
-        $data['kols'] = $this->record->kols->map(function ($kol) {
+        $data['kols'] = $this->record->kols()->with('dataKol')->get()->map(function ($kol) {
+            // Backfill ER & rate dari database KOL jika belum tersimpan di baris
+            $erPercent = $kol->er_percent;
+            if (!(float) $erPercent && $kol->dataKol) {
+                $erPercent = (float) $kol->dataKol->engagement_rate;
+            }
+
+            $rate = (float) $kol->rate;
+            if (!$rate && !empty($kol->scope_items)) {
+                $rate = round(\App\Filament\Resources\MediaPlans\Schemas\MediaPlanForm::computeRateFromSow(
+                    $kol->data_kol_id,
+                    $kol->name,
+                    $kol->channel,
+                    $kol->scope_items ?? []
+                ));
+            }
+
             return [
                 'id' => $kol->id,
                 'is_selected' => $kol->is_selected,
@@ -36,11 +52,11 @@ class EditMediaPlan extends EditRecord
                 'links' => $kol->links ?? [],
                 'followers' => $kol->followers,
                 'tier' => $kol->tier,
-                'er_percent' => $kol->er_percent,
+                'er_percent' => $erPercent,
                 'impression' => $kol->impression,
                 'engagement' => $kol->engagement,
                 'scope_items' => $kol->scope_items ?? [],
-                'rate' => $kol->rate,
+                'rate' => $rate,
                 'cpi_cpv' => $kol->cpi_cpv,
                 'cpe' => $kol->cpe,
                 'notes' => $kol->notes,

@@ -112,7 +112,7 @@ class MediaPlanForm
      * Hitung total rate otomatis dari rate card per SOW milik KOL.
      * Rate card terbaru (valid_from terakhir) per SOW yang dipakai.
      */
-    private static function computeRateFromSow($dataKolId, ?string $name, ?string $channel, array $scopeItems): float
+    public static function computeRateFromSow($dataKolId, ?string $name, ?string $channel, array $scopeItems): float
     {
         if (empty($scopeItems)) {
             return 0;
@@ -468,7 +468,7 @@ class MediaPlanForm
                                 ->hiddenLabel()
                                 ->content(new \Illuminate\Support\HtmlString('<style>
                                     #kol-list-repeater { overflow-x: auto; padding-bottom: 340px; margin-bottom: -340px; }
-                                    #kol-list-repeater table { min-width: 1900px; }
+                                    #kol-list-repeater table { min-width: 2150px; }
                                 </style>'))
                                 ->columnSpanFull(),
 
@@ -546,13 +546,13 @@ class MediaPlanForm
                                                 'channel' => $item['channel'] ?? null,
                                                 'name' => $item['name'] ?? null,
                                                 'domisili' => $item['domisili'] ?? null,
-                                                'links' => $item['links'] ?? [],
+                                                'links' => $item['links'] ?? null,
                                                 'tipe_pajak_kol' => $item['tipe_pajak_kol'] ?? null,
-                                                'followers' => $item['followers'] ?? null,
+                                                'followers' => filled($item['followers'] ?? null) ? (int) self::parseNumber($item['followers']) : null,
                                                 'tier' => $item['tier'] ?? null,
                                                 'er_percent' => $item['er_percent'] ?? null,
-                                                'impression' => $item['impression'] ?? null,
-                                                'engagement' => $item['engagement'] ?? null,
+                                                'impression' => filled($item['impression'] ?? null) ? (int) self::parseNumber($item['impression']) : null,
+                                                'engagement' => filled($item['engagement'] ?? null) ? (int) self::parseNumber($item['engagement']) : null,
                                                 'scope_items' => $item['scope_items'] ?? [],
                                                 'after_nego' => $item['after_nego'] ?? null,
                                                 'payment_date' => $item['payment_date'] ?? null,
@@ -580,9 +580,13 @@ class MediaPlanForm
                                                         ->label('Domisili')
                                                         ->placeholder('Jakarta'),
 
-                                                    TagsInput::make('links')
+                                                    TextInput::make('links')
                                                         ->label('Links')
-                                                        ->placeholder('URL'),
+                                                        ->placeholder('URL')
+                                                        ->formatStateUsing(fn($state) => is_array($state) ? implode(', ', array_filter($state)) : $state)
+                                                        ->dehydrateStateUsing(fn($state) => is_array($state)
+                                                            ? array_values(array_filter($state))
+                                                            : array_values(array_filter(array_map('trim', explode(',', (string) $state))))),
 
                                                     Select::make('tipe_pajak_kol')
                                                         ->label('Golongan Pajak')
@@ -740,15 +744,15 @@ class MediaPlanForm
                                 ->table([
                                     TableColumn::make('PIC')->width('220px'),
                                     TableColumn::make('Status')->width('150px'),
-                                    TableColumn::make('Username')->width('230px'),
-                                    TableColumn::make('Link')->width('210px'),
+                                    TableColumn::make('Username')->width('280px'),
+                                    TableColumn::make('Link')->width('260px'),
                                     TableColumn::make('Channel')->width('150px'),
                                     TableColumn::make('Followers')->width('110px'),
                                     TableColumn::make('Tier')->width('90px'),
                                     TableColumn::make('ER %')->width('100px'),
                                     TableColumn::make('Avg Views')->width('110px'),
                                     TableColumn::make('Engagement')->width('110px'),
-                                    TableColumn::make('SOW (Request)')->width('260px'),
+                                    TableColumn::make('SOW (Request)')->width('320px'),
                                     TableColumn::make('Rate')->width('150px'),
                                     TableColumn::make('Quotation')->width('90px'),
                                 ])
@@ -807,18 +811,18 @@ class MediaPlanForm
 
                                             $set('data_kol_id', $kol->id);
                                             $set('channel', $kol->channel);
-                                            $set('links', array_values(array_filter([$kol->link_userprofile])));
-                                            $set('followers', (int) $kol->followers);
+                                            $set('links', $kol->link_userprofile);
+                                            $set('followers', number_format((int) $kol->followers, 0, '.', ','));
                                             $set('tier', $kol->tier);
                                             $set('er_percent', (float) $kol->engagement_rate);
-                                            $set('impression', (int) $kol->impressions);
-                                            $set('engagement', intval($kol->followers * ($kol->engagement_rate / 100)));
-                                            $set('rate', round(self::computeRateFromSow(
+                                            $set('impression', number_format((int) $kol->impressions, 0, '.', ','));
+                                            $set('engagement', number_format(intval($kol->followers * ($kol->engagement_rate / 100)), 0, '.', ','));
+                                            $set('rate', number_format(round(self::computeRateFromSow(
                                                 $kol->id,
                                                 $kol->username,
                                                 $kol->channel,
                                                 (array) $get('scope_items')
-                                            )));
+                                            )), 0, '.', ','));
                                         })
                                         ->suffixAction(
                                             Action::make('tambah_kol')
@@ -1221,12 +1225,12 @@ class MediaPlanForm
                                                         $set('data_kol_id', $kol->id);
                                                         $set('name', $kol->username);
                                                         $set('channel', $kol->channel);
-                                                        $set('links', array_values(array_filter([$kol->link_userprofile])));
-                                                        $set('followers', (int) $kol->followers);
+                                                        $set('links', $kol->link_userprofile);
+                                                        $set('followers', number_format((int) $kol->followers, 0, '.', ','));
                                                         $set('tier', $kol->tier);
                                                         $set('er_percent', (float) $kol->engagement_rate);
-                                                        $set('impression', (int) $kol->impressions);
-                                                        $set('engagement', intval($kol->followers * ($kol->engagement_rate / 100)));
+                                                        $set('impression', number_format((int) $kol->impressions, 0, '.', ','));
+                                                        $set('engagement', number_format(intval($kol->followers * ($kol->engagement_rate / 100)), 0, '.', ','));
 
                                                         Notification::make()
                                                             ->success()
@@ -1237,9 +1241,13 @@ class MediaPlanForm
                                                 ])
                                         ),
 
-                                    TagsInput::make('links')
+                                    TextInput::make('links')
                                         ->label('Link')
-                                        ->placeholder('URL'),
+                                        ->placeholder('URL')
+                                        ->formatStateUsing(fn($state) => is_array($state) ? implode(', ', array_filter($state)) : $state)
+                                        ->dehydrateStateUsing(fn($state) => is_array($state)
+                                            ? array_values(array_filter($state))
+                                            : array_values(array_filter(array_map('trim', explode(',', (string) $state))))),
 
                                     Select::make('channel')
                                         ->label('Channel')
@@ -1248,12 +1256,14 @@ class MediaPlanForm
 
                                     TextInput::make('followers')
                                         ->label('Followers')
-                                        ->numeric()
+                                        ->mask(RawJs::make('$money($input)'))
+                                        ->formatStateUsing(fn($state) => $state !== null && $state !== '' ? number_format((int) self::parseNumber($state), 0, '.', ',') : null)
+                                        ->dehydrateStateUsing(fn($state) => (int) self::parseNumber($state))
                                         ->live(onBlur: true)
                                         ->afterStateUpdated(function ($state, callable $set, callable $get) {
-                                            $followers = (int) $state;
+                                            $followers = (int) self::parseNumber($state);
                                             $set('tier', \App\Models\MediaPlanKol::calculateTier($followers));
-                                            $set('engagement', intval($followers * (((float) $get('er_percent')) / 100)));
+                                            $set('engagement', number_format(intval($followers * (((float) self::parseNumber($get('er_percent'))) / 100)), 0, '.', ','));
                                         }),
 
                                     TextInput::make('tier')
@@ -1268,17 +1278,21 @@ class MediaPlanForm
                                         ->suffix('%')
                                         ->live(onBlur: true)
                                         ->afterStateUpdated(function ($state, callable $set, callable $get) {
-                                            $set('engagement', intval(((int) $get('followers')) * (((float) $state) / 100)));
+                                            $followers = (int) self::parseNumber($get('followers'));
+                                            $set('engagement', number_format(intval($followers * (((float) $state) / 100)), 0, '.', ','));
                                         }),
 
                                     TextInput::make('impression')
                                         ->label('Avg Views')
-                                        ->numeric()
+                                        ->mask(RawJs::make('$money($input)'))
+                                        ->formatStateUsing(fn($state) => $state !== null && $state !== '' ? number_format((int) self::parseNumber($state), 0, '.', ',') : null)
+                                        ->dehydrateStateUsing(fn($state) => (int) self::parseNumber($state))
                                         ->live(onBlur: true),
 
                                     TextInput::make('engagement')
                                         ->label('Engagement')
-                                        ->numeric()
+                                        ->formatStateUsing(fn($state) => $state !== null && $state !== '' ? number_format((int) self::parseNumber($state), 0, '.', ',') : null)
+                                        ->dehydrateStateUsing(fn($state) => (int) self::parseNumber($state))
                                         ->readOnly()
                                         ->dehydrated(),
 
@@ -1304,12 +1318,12 @@ class MediaPlanForm
                                         ->live()
                                         ->default([])
                                         ->afterStateUpdated(function ($state, callable $set, callable $get) {
-                                            $set('rate', round(self::computeRateFromSow(
+                                            $set('rate', number_format(round(self::computeRateFromSow(
                                                 $get('data_kol_id'),
                                                 $get('name'),
                                                 $get('channel'),
                                                 (array) $state
-                                            )));
+                                            )), 0, '.', ','));
                                         }),
 
                                     TextInput::make('rate')
