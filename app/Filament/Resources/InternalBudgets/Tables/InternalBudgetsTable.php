@@ -68,22 +68,7 @@ class InternalBudgetsTable
                     ->color('success')
                     ->description('Client Price'),
 
-                // Profit column
-                TextColumn::make('profit')
-                    ->label('Profit')
-                    ->state(fn($record) => $record->total_rounded - $record->total_mu_pph)
-                    ->numeric(decimalPlaces: 0, thousandsSeparator: ',')
-                    ->prefix('IDR ')
-                    ->color('info')
-                    ->sortable(query: fn($query, $direction) => $query->orderByRaw('total_rounded - total_mu_pph ' . $direction)),
-
-                TextColumn::make('average_margin_percent')
-                    ->label('Avg Margin')
-                    ->numeric(decimalPlaces: 2, thousandsSeparator: ',')
-                    ->suffix('%')
-                    ->sortable()
-                    ->color(fn($state) => ($state ?? 0) < 30 ? 'danger' : 'success')
-                    ->weight('bold'),
+                // Profit & Avg Margin disembunyikan di Media Plan External (data internal saja).
 
                 TextColumn::make('warnings')
                     ->label('⚠️')
@@ -109,10 +94,6 @@ class InternalBudgetsTable
                 Filter::make('has_warnings')
                     ->label('Has Warnings')
                     ->query(fn($query) => $query->whereNotNull('warnings')),
-
-                Filter::make('low_margin')
-                    ->label('Low Margin (<30%)')
-                    ->query(fn($query) => $query->where('average_margin_percent', '<', 30)->where('average_margin_percent', '>', 0)),
             ])
             ->recordActions([
                 EditAction::make(),

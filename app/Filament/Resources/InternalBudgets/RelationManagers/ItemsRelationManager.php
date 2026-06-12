@@ -10,7 +10,6 @@ use Filament\Schemas\Components\Grid;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
-use Filament\Forms\Components\Placeholder;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -173,19 +172,7 @@ class ItemsRelationManager extends RelationManager
                                     }),
                             ]),
 
-                        // Profit placeholder
-                        Placeholder::make('item_profit')
-                            ->label('Item Profit')
-                            ->content(function ($record) {
-                                if (!$record)
-                                    return 'Will be calculated after save';
-
-                                $rounded = (float) ($record->rounded ?? 0);
-                                $muPph = (float) ($record->mu_pph ?? 0);
-                                $profit = $rounded - $muPph;
-
-                                return 'Rp ' . number_format($profit, 0, ',', '.');
-                            }),
+                        // Item Profit disembunyikan di Media Plan External (data internal saja).
                     ]),
 
                 Section::make('Notes')
@@ -247,12 +234,6 @@ class ItemsRelationManager extends RelationManager
                     ->color('danger')
                     ->toggleable(isToggledHiddenByDefault: true),
 
-                Tables\Columns\TextColumn::make('target_margin_percent')
-                    ->label('Target %')
-                    ->suffix('%')
-                    ->alignCenter()
-                    ->toggleable(isToggledHiddenByDefault: true),
-
                 Tables\Columns\TextColumn::make('published_rate')
                     ->label('Published')
                     ->money('IDR')
@@ -265,20 +246,11 @@ class ItemsRelationManager extends RelationManager
                     ->weight('bold')
                     ->color('success'),
 
-                Tables\Columns\TextColumn::make('actual_margin_percent')
-                    ->label('Actual Margin')
-                    ->suffix('%')
-                    ->sortable()
-                    ->color(fn($state) => ($state ?? 0) < 30 ? 'danger' : 'success')
-                    ->weight('bold'),
+                // Target % & Actual Margin disembunyikan di Media Plan External (data internal saja).
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('vendor_tax_type')
                     ->options(InternalBudgetItem::VENDOR_TAX_TYPES),
-
-                Tables\Filters\Filter::make('low_margin')
-                    ->label('Low Margin (<30%)')
-                    ->query(fn($query) => $query->where('actual_margin_percent', '<', 30)->where('actual_margin_percent', '>', 0)),
             ])
             ->headerActions([
                 Tables\Actions\CreateAction::make()

@@ -337,10 +337,9 @@ class InternalBudgetForm
 
                                 $cost = number_format($record->total_mu_pph ?? 0, 0, ',', '.');
                                 $budget = number_format($record->total_rounded ?? 0, 0, ',', '.');
-                                $profit = number_format(($record->total_rounded ?? 0) - ($record->total_mu_pph ?? 0), 0, ',', '.');
-                                $margin = number_format($record->average_margin_percent ?? 0, 2, ',', '.');
 
-                                return "Cost: Rp {$cost} | Budget: Rp {$budget} | Profit: Rp {$profit} | Margin: {$margin}%";
+                                // Profit & Margin disembunyikan di Media Plan External (data internal saja).
+                                return "Cost: Rp {$cost} | Budget: Rp {$budget}";
                             })
                             ->columnSpan(1),
 
@@ -735,16 +734,7 @@ class InternalBudgetForm
                             ->label('Total Budget')
                             ->content(fn($record) => 'Rp ' . number_format($record?->total_rounded ?? 0, 0, ',', '.')),
 
-                        Placeholder::make('profit_display')
-                            ->label('Profit')
-                            ->content(function ($record) {
-                                $profit = ($record?->total_rounded ?? 0) - ($record?->total_mu_pph ?? 0);
-                                return 'Rp ' . number_format($profit, 0, ',', '.');
-                            }),
-
-                        Placeholder::make('margin_display')
-                            ->label('Avg Margin')
-                            ->content(fn($record) => number_format($record?->average_margin_percent ?? 0, 2, ',', '.') . '%'),
+                        // Profit & Avg Margin disembunyikan di Media Plan External (data internal saja).
 
                         // Hidden fields for database
                         TextInput::make('total_rate')->hidden()->numeric()->default(0),
@@ -754,7 +744,7 @@ class InternalBudgetForm
                         TextInput::make('total_rounded')->hidden()->numeric()->default(0),
                         TextInput::make('average_margin_percent')->hidden()->numeric()->default(0),
                     ])
-                    ->columns(5)
+                    ->columns(3)
                     ->collapsible()
                     ->columnSpanFull(),
 

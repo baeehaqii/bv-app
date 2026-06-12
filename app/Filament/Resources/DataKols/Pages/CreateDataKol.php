@@ -4,6 +4,8 @@ namespace App\Filament\Resources\DataKols\Pages;
 
 use App\Filament\Resources\DataKols\DataKolResource;
 use App\Filament\Resources\DataKols\Schemas\DataKolForm;
+use App\Models\DataKol;
+use Illuminate\Database\Eloquent\Model;
 use Filament\Resources\Pages\CreateRecord;
 use Filament\Schemas\Schema;
 use Filament\Notifications\Notification;
@@ -15,6 +17,28 @@ class CreateDataKol extends CreateRecord
     public function form(Schema $schema): Schema
     {
         return DataKolForm::configure($schema);
+    }
+
+    protected function handleRecordCreation(array $data): Model
+    {
+        // Cegah duplikasi: 1 username pada channel yang sama hanya 1 baris.
+        $existing = DataKol::where('username', $data['username'])
+            ->where('channel', $data['channel'] ?? null)
+            ->first();
+
+        if ($existing) {
+            $existing->update($data);
+
+            Notification::make()
+                ->info()
+                ->title('Data KOL diperbarui')
+                ->body("@{$data['username']} pada {$data['channel']} sudah ada — datanya diperbarui.")
+                ->send();
+
+            return $existing;
+        }
+
+        return static::getModel()::create($data);
     }
 
     protected function mutateFormDataBeforeCreate(array $data): array

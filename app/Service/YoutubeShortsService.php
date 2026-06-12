@@ -8,6 +8,8 @@ use Exception;
 
 class YoutubeShortsService
 {
+    use \App\Service\Concerns\CalculatesEngagementRate;
+
     protected string $apiKey;
     protected string $baseUrl = 'https://api.scrapecreators.com/v1/youtube';
 
@@ -388,11 +390,17 @@ class YoutubeShortsService
         $totalReposts = 0;  // YouTube doesn't have repost feature
         $totalViews = 0;
         $shortsCount = count($validShorts);
+        $perPostEngagement = [];
 
         foreach ($validShorts as $index => $short) {
             $likes = $short['likeCountInt'] ?? 0;
             $comments = $short['commentCountInt'] ?? 0;
             $views = $short['viewCountInt'] ?? 0;
+
+            $perPostEngagement[] = [
+                'engagement' => $likes + $comments,
+                'views' => $views,
+            ];
 
             // These fields are not currently provided by YouTube API
             // but we include them for future-proofing and consistency with other platforms
@@ -430,10 +438,8 @@ class YoutubeShortsService
         // Average Engagement per Short (untuk ER% calculation)
         $averageEngagementPerShort = $shortsCount > 0 ? $totalEngagements / $shortsCount : 0;
 
-        // ER% = (Average Engagement per Short / Subscribers) × 100%
-        $engagementRate = $subscriberCount > 0
-            ? round(($averageEngagementPerShort / $subscriberCount) * 100, 2)
-            : 0;
+        // ER% standar: Shorts = konten video, basis views (reach), bukan subscribers
+        $engagementRate = $this->averageEngagementRate($perPostEngagement, $subscriberCount);
 
         // Avg Views = AVERAGE dari total views 9 shorts
         $averageImpressions = $shortsCount > 0 ? round($totalViews / $shortsCount) : 0;

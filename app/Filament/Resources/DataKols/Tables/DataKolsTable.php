@@ -9,7 +9,6 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Columns\BadgeColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
-use Filament\Tables\Columns\SelectColumn;
 
 class DataKolsTable
 {
@@ -103,11 +102,6 @@ class DataKolsTable
                     ->sortable()
                     ->toggleable(),
 
-                TextColumn::make('status')
-                    ->label('Status')
-                    ->searchable()
-                    ->sortable(),
-
                 TextColumn::make('contact')
                     ->label('Contact')
                     ->searchable()
@@ -151,15 +145,6 @@ class DataKolsTable
                         'TikTok' => 'TikTok',
                         'YouTube' => 'YouTube',
                         'Twitter' => 'Twitter',
-                    ])
-                    ->multiple(),
-
-                SelectFilter::make('status')
-                    ->label('Filter by Status')
-                    ->options([
-                        'Active' => 'Active',
-                        'Pending' => 'Pending',
-                        'Inactive' => 'Inactive',
                     ])
                     ->multiple(),
             ])

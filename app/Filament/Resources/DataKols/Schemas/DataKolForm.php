@@ -36,12 +36,41 @@ class DataKolForm
 
     public static function configure(Schema $schema): Schema
     {
-        return $schema
-            ->components([
-                Section::make('Rate Card Per Channel')
+        $rateCardSection = Section::make('Rate Card Per Channel')
                     ->description('Input rate card untuk setiap channel.')
                     ->columnSpanFull()
+                    ->afterHeader([
+                        Action::make('upload_rate_card_file')
+                            ->label('Upload Rate Card')
+                            ->icon('heroicon-o-arrow-up-tray')
+                            ->color('gray')
+                            ->modalHeading('Upload File Rate Card')
+                            ->modalSubmitActionLabel('Simpan')
+                            ->modalWidth('md')
+                            ->schema([
+                                FileUpload::make('rate_card_file')
+                                    ->label('File Rate Card')
+                                    ->helperText('PDF — maks. 2MB')
+                                    ->acceptedFileTypes(['application/pdf'])
+                                    ->maxSize(2048)
+                                    ->directory('kol-rate-cards')
+                                    ->downloadable()
+                                    ->openable()
+                                    ->required(),
+                            ])
+                            ->fillForm(fn(callable $get): array => [
+                                'rate_card_file' => $get('rate_card_file'),
+                            ])
+                            ->action(fn(array $data, callable $set) => $set('rate_card_file', $data['rate_card_file'])),
+                    ])
                     ->schema([
+                        FileUpload::make('rate_card_file')
+                            ->acceptedFileTypes(['application/pdf'])
+                            ->maxSize(2048)
+                            ->directory('kol-rate-cards')
+                            ->hidden()
+                            ->dehydrated(),
+
                         Repeater::make('rateCards')
                             ->label('Rate cards')
                             ->relationship('rateCards')
@@ -72,33 +101,39 @@ class DataKolForm
                                         }
                                         return $query->get()
                                             ->mapWithKeys(fn($sow) => [
-                                                $sow->id => $sow->channel
-                                                    ? "{$sow->name} ({$sow->channel})"
-                                                    : $sow->name,
+                                                $sow->id => $sow->option_label,
                                             ]);
                                     })
+                                    ->getOptionLabelUsing(fn($value) => \App\Models\MasterSow::find($value)?->option_label)
                                     ->searchable()
+                                    ->preload()
                                     ->placeholder('Pilih SOW')
-                                    ->live()
-                                    ->afterStateUpdated(function ($state, callable $set) {
-                                        $sow = \App\Models\MasterSow::find($state);
-                                        if ($sow && !$sow->is_custom) {
-                                            $set('custom_sow_name', null);
-                                        }
-                                    })
-                                    ->nullable(),
+                                    ->suffixAction(
+                                        Action::make('addCustomSow')
+                                            ->icon('heroicon-m-plus')
+                                            ->tooltip('Tambah SOW custom')
+                                            ->modalHeading('Tambah SOW Custom')
+                                            ->modalSubmitActionLabel('Simpan SOW')
+                                            ->modalWidth('md')
+                                            ->schema([
+                                                TextInput::make('name')
+                                                    ->label('Nama SOW')
+                                                    ->placeholder('e.g. IG Collab Post + Story')
+                                                    ->required()
+                                                    ->maxLength(255),
+                                            ])
+                                            ->action(function (array $data, callable $get, callable $set): void {
+                                                $sow = \App\Models\MasterSow::create([
+                                                    'name' => $data['name'],
+                                                    'channel' => $get('channel'),
+                                                    'is_custom' => true,
+                                                    'is_active' => true,
+                                                    'sort_order' => 0,
+                                                ]);
 
-                                TextInput::make('custom_sow_name')
-                                    ->label('SOW Custom (Tulis Manual)')
-                                    ->placeholder('e.g. IG Collab Post + Story')
-                                    ->visible(function (callable $get) {
-                                        $sowId = $get('master_sow_id');
-                                        if (!$sowId) {
-                                            return false;
-                                        }
-                                        $sow = \App\Models\MasterSow::find($sowId);
-                                        return $sow?->is_custom === true;
-                                    })
+                                                $set('master_sow_id', $sow->id);
+                                            })
+                                    )
                                     ->nullable(),
 
                                 TextInput::make('rate')
@@ -121,44 +156,21 @@ class DataKolForm
                             ->table([
                                 TableColumn::make('Channel'),
                                 TableColumn::make('SOW'),
-                                TableColumn::make('SOW Custom'),
                                 TableColumn::make('Rate Card'),
                                 TableColumn::make('Berlaku Dari'),
                                 TableColumn::make('Catatan'),
                             ])
-                            ->extraItemActions([
-                                Action::make('upload_file')
-                                    ->icon('heroicon-o-paper-clip')
-                                    ->label('')
-                                    ->tooltip('Upload File Rate Card')
-                                    ->modalHeading('Upload File Rate Card')
-                                    ->form([
-                                        FileUpload::make('file_path')
-                                            ->label('File Rate Card')
-                                            ->helperText('PDF, JPG, PNG, JPEG — maks. 2MB')
-                                            ->acceptedFileTypes(['application/pdf', 'image/jpeg', 'image/png'])
-                                            ->maxSize(2048)
-                                            ->directory('kol-rate-cards')
-                                            ->downloadable()
-                                            ->openable(),
-                                    ])
-                                    ->fillForm(function (array $arguments, Repeater $component): array {
-                                        return [
-                                            'file_path' => $component->getState()[$arguments['item']]['file_path'] ?? null,
-                                        ];
-                                    })
-                                    ->action(function (array $arguments, array $data, Repeater $component): void {
-                                        $items = $component->getState();
-                                        $items[$arguments['item']]['file_path'] = $data['file_path'];
-                                        $component->state($items);
-                                    }),
-                            ])
                             ->addActionLabel('+ Tambah Rate Card')
                             ->defaultItems(0)
                             ->reorderable(false),
-                    ]),
+                    ]);
 
-                Section::make('Social Media Data')
+        return $schema
+            ->components([
+                Section::make('socialMediaData')
+                    ->heading(fn(callable $get) => filled($get('username'))
+                        ? "Social Media Data - @{$get('username')}"
+                        : 'Social Media Data')
                     ->columnSpanFull()
                     ->schema([
                         Select::make('channel')
@@ -227,10 +239,10 @@ class DataKolForm
                                     $set('engagements', $profile['total_engagements']);
                                     $set('impressions', $profile['average_impressions']);
 
-                                    if (!empty($profile['business_category_name']) && $profile['business_category_name'] !== 'None') {
-                                        $set('category', [$profile['category_name'] ?? $profile['business_category_name']]);
-                                    } elseif (!empty($profile['category_name'])) {
-                                        $set('category', [$profile['category_name']]);
+                                    $categoryName = $profile['category_name']
+                                        ?: ($profile['business_category_name'] !== 'None' ? $profile['business_category_name'] : null);
+                                    if (!empty($categoryName)) {
+                                        $set('category', [$categoryName]);
                                     }
 
                                     // Auto-fill contact fields
@@ -368,25 +380,28 @@ class DataKolForm
 
                         TextInput::make('engagements')
                             ->label('Total Engagements')
-                            ->numeric()
                             ->readOnly()
                             ->dehydrated()
+                            ->formatStateUsing(fn($state) => $state !== null && $state !== '' ? number_format((int) $state) : null)
+                            ->dehydrateStateUsing(fn($state) => $state !== null && $state !== '' ? (int) preg_replace('/[^\d]/', '', $state) : null)
                             ->hintIcon('heroicon-m-question-mark-circle', tooltip: 'Total likes + comments dari 12 post terakhir')
                             ->prefixIcon('heroicon-o-heart'),
 
                         TextInput::make('impressions')
                             ->label('Avg Impressions')
-                            ->numeric()
                             ->readOnly()
                             ->dehydrated()
+                            ->formatStateUsing(fn($state) => $state !== null && $state !== '' ? number_format((int) $state) : null)
+                            ->dehydrateStateUsing(fn($state) => $state !== null && $state !== '' ? (int) preg_replace('/[^\d]/', '', $state) : null)
                             ->hintIcon('heroicon-m-question-mark-circle', tooltip: 'Otomatis dari video views atau estimasi 2.5x engagement')
                             ->prefixIcon('heroicon-o-eye'),
 
                         TextInput::make('followers')
                             ->label('Followers')
-                            ->numeric()
                             ->readOnly()
                             ->dehydrated()
+                            ->formatStateUsing(fn($state) => $state !== null && $state !== '' ? number_format((int) $state) : null)
+                            ->dehydrateStateUsing(fn($state) => $state !== null && $state !== '' ? (int) preg_replace('/[^\d]/', '', $state) : null)
                             ->prefixIcon('heroicon-o-users'),
 
                         TextInput::make('tier')
@@ -405,23 +420,25 @@ class DataKolForm
                                 }
                             ]),
 
-                        Select::make('status')
-                            ->label('Status')
-                            ->options([
-                                'New List' => 'New List',
-                                'Approching ' => 'Approching',
-                                'Waiting Feedback' => 'Waiting Feedback',
-                                'Not Available' => 'Not Available',
-                            ])
-                            ->placeholder('Pilih Status'),
+                        // Select::make('status')
+                        //     ->label('Status')
+                        //     ->options([
+                        //         'New List' => 'New List',
+                        //         'Approching ' => 'Approching',
+                        //         'Waiting Feedback' => 'Waiting Feedback',
+                        //         'Not Available' => 'Not Available',
+                        //     ])
+                        //     ->placeholder('Pilih Status'),
                     ])->columns(3),
+
+                $rateCardSection,
 
                 Section::make('Additional Info')
                     ->columnSpanFull()
                     ->schema([
                         TextInput::make('full_name')
-                            ->label('Nama Lengkap KOL')
-                            ->placeholder('Nama asli / nama lengkap')
+                            ->label('Nama Lengkap PIC')
+                            ->placeholder('Nama lengkap PIC / penanggung jawab KOL')
                             ->prefixIcon('heroicon-o-user'),
 
                         TextInput::make('email')
@@ -435,6 +452,20 @@ class DataKolForm
                             ->tel()
                             ->placeholder('08xxxxxxxxxx')
                             ->prefixIcon('heroicon-o-phone'),
+
+                        Select::make('tipe_pajak_kol')
+                            ->label('Golongan Pajak')
+                            ->options(fn() => \App\Models\MasterPph::active()
+                                ->ordered()
+                                ->get()
+                                ->mapWithKeys(fn($pph) => [
+                                    $pph->id => $pph->include_ppn
+                                        ? "{$pph->name} ({$pph->coefficient} + PPN {$pph->ppn_percent}%)"
+                                        : "{$pph->name} ({$pph->coefficient})",
+                                ]))
+                            ->searchable()
+                            ->placeholder('Pilih golongan pajak')
+                            ->prefixIcon('heroicon-o-receipt-percent'),
 
                         TextInput::make('contact')
                             ->label('Contact (Legacy)')

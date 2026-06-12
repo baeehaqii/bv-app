@@ -817,6 +817,10 @@ class MediaPlanForm
                                             $set('er_percent', (float) $kol->engagement_rate);
                                             $set('impression', number_format((int) $kol->impressions, 0, '.', ','));
                                             $set('engagement', number_format(intval($kol->followers * ($kol->engagement_rate / 100)), 0, '.', ','));
+                                            // Tax: ambil golongan pajak dari detail KOL agar otomatis di budget items
+                                            if ($kol->tipe_pajak_kol) {
+                                                $set('tipe_pajak_kol', $kol->tipe_pajak_kol);
+                                            }
                                             $set('rate', number_format(round(self::computeRateFromSow(
                                                 $kol->id,
                                                 $kol->username,
@@ -1529,7 +1533,8 @@ class MediaPlanForm
                                                 ->label('Rate (Base)')
                                                 ->prefix('Rp')
                                                 ->placeholder('Harga pokok KOL')
-                                                ->mask(RawJs::make('$money($input)'))
+                                                ->mask(RawJs::make("\$money(\$input, '.', ',', 0)"))
+                                                ->stripCharacters(',')
                                                 ->dehydrateStateUsing(fn($state) => self::parseNumber($state))
                                                 ->live(debounce: 500)
                                                 ->afterStateUpdated(fn($get, $set, $livewire) => self::calculateBudgetItem($get, $set, $livewire->record)),
@@ -1544,34 +1549,37 @@ class MediaPlanForm
                                             TextInput::make('mu_pph')
                                                 ->label('🔴 Cost (MU PPh)')
                                                 ->prefix('Rp')
-                                                ->mask(RawJs::make('$money($input)'))
+                                                ->mask(RawJs::make("\$money(\$input, '.', ',', 0)"))
+                                                ->stripCharacters(',')
                                                 ->dehydrateStateUsing(fn($state) => self::parseNumber($state))
                                                 ->readOnly(),
 
                                             TextInput::make('rounded')
                                                 ->label('🟢 Client Price')
                                                 ->prefix('Rp')
-                                                ->mask(RawJs::make('$money($input)'))
+                                                ->mask(RawJs::make("\$money(\$input, '.', ',', 0)"))
+                                                ->stripCharacters(',')
                                                 ->dehydrateStateUsing(fn($state) => self::parseNumber($state))
                                                 ->readOnly(),
 
                                             TextInput::make('actual_margin_percent')
                                                 ->label('Margin %')
                                                 ->suffix('%')
-                                                ->readOnly(),
+                                                ->numeric()
+                                                ->minValue(0)
+                                                ->maxValue(99)
+                                                ->live(debounce: 500)
+                                                ->afterStateUpdated(fn($get, $set) => self::recalcBudgetItemFromMargin($get, $set))
+                                                ->helperText('Bisa diedit manual'),
 
                                             Textarea::make('notes')
                                                 ->label('Notes')
                                                 ->rows(1)
                                                 ->placeholder('Optional...'),
 
-                                            TextInput::make('status')
+                                            TextInput::make('kol_status')
                                                 ->label('Status')
-                                                ->formatStateUsing(fn($state) => match ($state) {
-                                                    'approved' => 'Approved',
-                                                    'rejected' => 'Rejected',
-                                                    default => 'Pending',
-                                                })
+                                                ->placeholder('—')
                                                 ->readOnly()
                                                 ->dehydrated(false),
 
@@ -1707,6 +1715,32 @@ class MediaPlanForm
 
         $set('subtotal', round($subtotal));
         $set('mu_pph', $fmt($muPph));
+        $set('mu_target', round($muTarget));
+        $set('published_rate', $fmt($muTarget));
+        $set('rounded', $fmt($rounded));
+        $set('actual_margin_percent', round($actualMargin, 2));
+    }
+
+    /**
+     * Recalkulasi Client Price dari margin yang diedit manual.
+     * Cost (MU PPh) tetap; Client Price (rounded) dihitung ulang dari margin baru.
+     */
+    private static function recalcBudgetItemFromMargin(callable $get, callable $set): void
+    {
+        $muPph = self::parseNumber($get('mu_pph') ?? 0);
+        $margin = (float) ($get('actual_margin_percent') ?? 0);
+
+        if ($muPph <= 0) {
+            return;
+        }
+
+        $marginDecimal = min(max($margin, 0), 99) / 100;
+        $muTarget = $marginDecimal >= 1 ? $muPph : $muPph / (1 - $marginDecimal);
+        $rounded = ceil($muTarget / 100000) * 100000;
+        $actualMargin = $rounded > 0 ? (($rounded - $muPph) / $rounded) * 100 : 0;
+
+        $fmt = fn($v) => number_format(round($v), 0, '.', ',');
+
         $set('mu_target', round($muTarget));
         $set('published_rate', $fmt($muTarget));
         $set('rounded', $fmt($rounded));

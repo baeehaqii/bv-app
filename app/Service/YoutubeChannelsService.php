@@ -8,6 +8,8 @@ use Exception;
 
 class YoutubeChannelsService
 {
+    use \App\Service\Concerns\CalculatesEngagementRate;
+
     protected string $apiKey;
     protected string $baseUrl = 'https://api.scrapecreators.com/v1/youtube';
 
@@ -401,11 +403,17 @@ class YoutubeChannelsService
         $totalReposts = 0;  // YouTube doesn't have repost feature
         $totalViews = 0;
         $videoCount = count($validVideos);
+        $perPostEngagement = [];
 
         foreach ($validVideos as $index => $video) {
             $likes = $video['likeCountInt'] ?? 0;
             $comments = $video['commentCountInt'] ?? 0;
             $views = $video['viewCountInt'] ?? 0;
+
+            $perPostEngagement[] = [
+                'engagement' => $likes + $comments,
+                'views' => $views,
+            ];
 
             // These fields are not currently provided by YouTube API
             // but we include them for future-proofing and consistency with other platforms
@@ -444,10 +452,8 @@ class YoutubeChannelsService
         // Average Engagement per Video (untuk ER% calculation)
         $averageEngagementPerVideo = $videoCount > 0 ? $totalEngagements / $videoCount : 0;
 
-        // ER% = (Average Engagement per Video / Subscribers) × 100%
-        $engagementRate = $subscriberCount > 0
-            ? round(($averageEngagementPerVideo / $subscriberCount) * 100, 2)
-            : 0;
+        // ER% standar: YouTube = konten video, basis views (reach), bukan subscribers
+        $engagementRate = $this->averageEngagementRate($perPostEngagement, $subscriberCount);
 
         // Avg Views = AVERAGE dari total views 9 videos
         $averageImpressions = $videoCount > 0 ? round($totalViews / $videoCount) : 0;

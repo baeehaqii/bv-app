@@ -8,6 +8,8 @@ use Exception;
 
 class InstagramService
 {
+    use \App\Service\Concerns\CalculatesEngagementRate;
+
     protected string $apiKey;
     protected string $baseUrl = 'https://api.scrapecreators.com/v1/instagram';
 
@@ -510,6 +512,7 @@ class InstagramService
         $photoPostCount = 0;
         $carouselPostCount = 0;
         $totalPhotoImpressions = 0;
+        $perPostEngagement = [];
 
         Log::info('📈 Starting Instagram Engagement Calculation', [
             'posts_count' => $postCount,
@@ -613,7 +616,14 @@ class InstagramService
             }
 
             // Total engagement = likes + comments + saves + shares + reposts
-            $totalEngagement += $likes + $comments + $saves + $shares + $reposts;
+            $postEngagement = $likes + $comments + $saves + $shares + $reposts;
+            $totalEngagement += $postEngagement;
+
+            // Per-post: views dipakai sebagai basis ER bila konten video; foto pakai followers
+            $perPostEngagement[] = [
+                'engagement' => $postEngagement,
+                'views' => ($isVideo || $isCarousel) ? $views : 0,
+            ];
         }
 
         Log::info('📊 Post Type Summary', [
@@ -661,10 +671,8 @@ class InstagramService
         // Average Engagement per Post
         $averageEngagementPerPost = $postCount > 0 ? $totalEngagement / $postCount : 0;
 
-        // ER% = (Average Engagement per Post / Followers) × 100
-        $engagementRate = $followersCount > 0
-            ? round(($averageEngagementPerPost / $followersCount) * 100, 2)
-            : 0;
+        // ER% standar: basis views untuk video, basis followers untuk foto (per-post lalu dirata-rata)
+        $engagementRate = $this->averageEngagementRate($perPostEngagement, $followersCount);
 
         Log::info('✅ Final Instagram Engagement Metrics', [
             'postCount' => $postCount,
@@ -713,6 +721,7 @@ class InstagramService
         $totalViews = 0;
         $postCount = 0;
         $videoCount = 0;
+        $perPostEngagement = [];
 
         // Calculate from recent posts (max 9 posts as requested)
         // Note: Public API only provides Likes and Comments. Saves/Shares are not available.
@@ -727,10 +736,17 @@ class InstagramService
             $postCount++;
 
             // Track video views
+            $postViews = 0;
             if (isset($node['video_view_count']) && $node['video_view_count'] > 0) {
-                $totalViews += $node['video_view_count'];
+                $postViews = (int) $node['video_view_count'];
+                $totalViews += $postViews;
                 $videoCount++;
             }
+
+            $perPostEngagement[] = [
+                'engagement' => $likes + $comments,
+                'views' => $postViews,
+            ];
         }
 
         if ($postCount === 0) {
@@ -748,9 +764,8 @@ class InstagramService
         $averageComments = $totalComments / $postCount;
         $averageEngagement = $averageLikes + $averageComments;
 
-        // Engagement Rate Formula: (Average Engagement / Followers) * 100
-        // Using Average Engagement ensures the rate is per-post standard
-        $engagementRate = ($averageEngagement / $followersCount) * 100;
+        // ER% standar: basis views untuk video, basis followers untuk foto
+        $engagementRate = $this->averageEngagementRate($perPostEngagement, $followersCount);
 
         // Average Impressions / Views
         // Formula: Average of total views from 9 posts

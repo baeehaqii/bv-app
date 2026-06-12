@@ -45,6 +45,21 @@ class MediaPlan extends Model
     }
 
     /**
+     * Rate dasar 1 scope: utamakan rate card SOW milik KOL; fallback ke rate rata.
+     */
+    private static function rateBaseForScope(MediaPlanKol $kol, string $scope, float $fallback): float
+    {
+        $rate = \App\Filament\Resources\MediaPlans\Schemas\MediaPlanForm::computeRateFromSow(
+            $kol->data_kol_id,
+            $kol->name,
+            $kol->channel,
+            [$scope],
+        );
+
+        return $rate > 0 ? $rate : $fallback;
+    }
+
+    /**
      * Auto-generate InternalBudget + InternalBudgetItems dari selected KOLs.
      * Hanya dibuat jika belum ada. Setiap scope_item per KOL menjadi 1 item budget.
      */
@@ -79,7 +94,7 @@ class MediaPlan extends Model
                     'master_pph_id' => $kol->tipe_pajak_kol ?? null,
                     'qty' => 1,
                     'scope_item' => $scope,
-                    'rate_base' => $ratePerScope,
+                    'rate_base' => self::rateBaseForScope($kol, $scope, $ratePerScope),
                     'sort_order' => $sortOrder++,
                 ]);
             }
@@ -158,7 +173,7 @@ class MediaPlan extends Model
                     'master_pph_id' => $kol->tipe_pajak_kol ?? null,
                     'qty' => 1,
                     'scope_item' => $scope,
-                    'rate_base' => $ratePerScope,
+                    'rate_base' => self::rateBaseForScope($kol, $scope, $ratePerScope),
                     'sort_order' => $sortOrder++,
                 ]);
             }

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class DataKol extends Model
@@ -16,5 +17,10 @@ class DataKol extends Model
     public function rateCards(): HasMany
     {
         return $this->hasMany(KolRateCard::class)->orderByDesc('valid_from');
+    }
+
+    public function tipePajakKol(): BelongsTo
+    {
+        return $this->belongsTo(MasterPph::class, 'tipe_pajak_kol');
     }
 }

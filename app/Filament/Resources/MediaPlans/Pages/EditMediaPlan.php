@@ -73,6 +73,7 @@ class EditMediaPlan extends EditRecord
                 ->map(fn($item) => [
                     'id' => $item->id,
                     'kol_name' => $item->mediaPlanKol?->name ?? '—',
+                    'kol_status' => $item->mediaPlanKol?->status ?? '—',
                     'scope_item' => $item->scope_item,
                     'qty' => $item->qty,
                     'rate_base' => $item->rate_base,
@@ -170,7 +171,7 @@ class EditMediaPlan extends EditRecord
                                 'media_plan_kol_id' => $mediaPlanKol->id,
                                 'scope_item' => $scopeItem,
                                 'qty' => 1,
-                                'rate_base' => 0,
+                                'rate_base' => $this->rateForScope($mediaPlanKol, $scopeItem),
                                 'master_pph_id' => $mediaPlanKol->tipe_pajak_kol ?? \App\Models\MasterPph::where('name', 'Pribadi')->value('id'),
                                 'sort_order' => ++$sortOrder,
                             ]);
@@ -196,7 +197,7 @@ class EditMediaPlan extends EditRecord
                         'media_plan_kol_id' => $mediaPlanKol->id,
                         'scope_item' => $scopeItem,
                         'qty' => 1,
-                        'rate_base' => 0,
+                        'rate_base' => $this->rateForScope($mediaPlanKol, $scopeItem),
                         'master_pph_id' => $mediaPlanKol->tipe_pajak_kol ?? \App\Models\MasterPph::where('name', 'Pribadi')->value('id'),
                         'sort_order' => ++$sortOrder,
                     ]);
@@ -253,6 +254,19 @@ class EditMediaPlan extends EditRecord
                 Log::warning('[EditMediaPlan] Notifikasi WA PIC assigned gagal: ' . $e->getMessage());
             }
         }
+    }
+
+    /**
+     * Rate dasar 1 scope item, diambil dari rate card SOW milik KOL tersebut.
+     */
+    private function rateForScope(\App\Models\MediaPlanKol $kol, string $scopeItem): float
+    {
+        return \App\Filament\Resources\MediaPlans\Schemas\MediaPlanForm::computeRateFromSow(
+            $kol->data_kol_id,
+            $kol->name,
+            $kol->channel,
+            [$scopeItem],
+        );
     }
 
     protected function getHeaderActions(): array

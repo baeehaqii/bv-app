@@ -8,6 +8,8 @@ use Exception;
 
 class TiktokService
 {
+    use \App\Service\Concerns\CalculatesEngagementRate;
+
     protected string $apiKey;
     protected string $baseUrl = 'https://api.scrapecreators.com/v1/tiktok';
 
@@ -361,6 +363,7 @@ class TiktokService
         $totalSaves = 0;
         $totalViews = 0;
         $videoCount = count($validVideos);
+        $perPostEngagement = [];
 
         foreach ($validVideos as $index => $video) {
             // Get stats from video statistics object (v3 API structure)
@@ -371,6 +374,11 @@ class TiktokService
             $shares = $stats['share_count'] ?? 0;
             $saves = $stats['collect_count'] ?? 0;
             $views = $stats['play_count'] ?? 0;
+
+            $perPostEngagement[] = [
+                'engagement' => $likes + $comments + $shares + $saves,
+                'views' => $views,
+            ];
 
             Log::info("📊 Video #{$index} Stats", [
                 'aweme_id' => $video['aweme_id'] ?? 'unknown',
@@ -399,11 +407,8 @@ class TiktokService
         // Average Engagement per Video (untuk ER% calculation)
         $averageEngagementPerVideo = $videoCount > 0 ? $totalEngagements / $videoCount : 0;
 
-        // ER% = (Average Engagement per Video / Followers) × 100%
-        // Formula standard industri menggunakan AVERAGE, bukan TOTAL
-        $engagementRate = $followerCount > 0
-            ? round(($averageEngagementPerVideo / $followerCount) * 100, 2)
-            : 0;
+        // ER% standar: TikTok = konten video, basis views (reach), bukan followers
+        $engagementRate = $this->averageEngagementRate($perPostEngagement, $followerCount);
 
         // Avg Views = AVERAGE dari total views 9 videos
         $averageImpressions = $videoCount > 0 ? round($totalViews / $videoCount) : 0;
@@ -457,7 +462,8 @@ class TiktokService
             ? $totalHearts / $videoCount
             : $totalHearts;
 
-        $engagementRate = ($averageLikesPerVideo / $followerCount) * 100;
+        // Fallback tanpa data per-video views → basis followers, di-clamp via helper
+        $engagementRate = $this->engagementRateForPost((float) $averageLikesPerVideo, 0.0, $followerCount) ?? 0.0;
 
         // Estimate total engagements from average of 9 videos
         // Assume 15-20% of likes are comments/shares/saves
