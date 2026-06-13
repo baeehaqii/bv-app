@@ -129,8 +129,8 @@ class MediaPlan extends Model
             return;
         }
 
-        // Jangan sync jika sudah approved — budget sudah final
-        if ($budget->status === 'approved') {
+        // Jangan sync jika budget sudah final (Approve Client / Approve AM)
+        if (in_array($budget->status, InternalBudget::STATUS_FINAL, true)) {
             return;
         }
 
@@ -213,7 +213,7 @@ class MediaPlan extends Model
         }
 
         $internalBudget = $this->internalBudget;
-        if ($internalBudget?->status !== 'approved' || $this->status !== 'Ongoing') {
+        if ($internalBudget?->status !== 'approve_am' || $this->status !== 'Ongoing') {
             return;
         }
 

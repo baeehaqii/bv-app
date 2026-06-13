@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\BvCampigns\Schemas;
 
+use App\Models\BvCampaignKol;
+use App\Models\BvCampign;
 use App\Models\BvSales;
 use App\Models\DataClient;
 use App\Models\FormBrief;
@@ -342,8 +344,17 @@ class BvCampignForm
                         ->icon('heroicon-o-device-phone-mobile')
                         ->description('Tambahkan creator dan pilih channel')
                         ->schema([
+                            // Campaign INTERNAL: daftar creator otomatis dari "Select KOL" di
+                            // Media Plan Internal (read-only). Kelola brief & revisi di tab bawah.
+                            Placeholder::make('kol_list_internal')
+                                ->label('Creator / KOL List')
+                                ->columnSpanFull()
+                                ->visible(fn(?BvCampign $record) => $record?->campaign_type === BvCampign::TYPE_INTERNAL)
+                                ->content(fn(?BvCampign $record) => self::renderInternalKolList($record)),
+
                             Repeater::make('kol_entries')
                                 ->label('Creator / KOL List')
+                                ->visible(fn(?BvCampign $record) => $record?->campaign_type !== BvCampign::TYPE_INTERNAL)
                                 ->addActionLabel('+ Add Creator')
                                 ->defaultItems(0)
                                 ->reorderable()
@@ -396,6 +407,7 @@ class BvCampignForm
 
                             Actions::make([
                                 Action::make('bulkImportKols')
+                                    ->visible(fn(?BvCampign $record) => $record?->campaign_type !== BvCampign::TYPE_INTERNAL)
                                     ->label('Bulk Import CSV')
                                     ->icon('heroicon-o-arrow-up-tray')
                                     ->color('gray')
@@ -644,4 +656,51 @@ class BvCampignForm
             ]);
     }
 
+    /**
+     * Render daftar KOL campaign internal sebagai list berurutan read-only
+     * (sumber: Select KOL Media Plan Internal). Mirip tampilan KOL List.
+     */
+    public static function renderInternalKolList(?BvCampign $record): \Illuminate\Support\HtmlString
+    {
+        $kols = $record ? $record->kols()->orderBy('id')->get() : collect();
+
+        if ($kols->isEmpty()) {
+            return new \Illuminate\Support\HtmlString(
+                '<div style="padding:14px;border:1px dashed #d1d5db;border-radius:12px;color:#6b7280;font-size:13px;">'
+                . 'Belum ada KOL. Daftar ini otomatis dari <strong>Select KOL</strong> di Media Plan Internal.</div>'
+            );
+        }
+
+        $body = '';
+        foreach ($kols as $i => $kol) {
+            $platform = BvCampaignKol::PLATFORMS[$kol->platform] ?? ucfirst((string) $kol->platform);
+            $content  = BvCampaignKol::CONTENT_TYPES[$kol->platform][$kol->content_type] ?? $kol->content_type;
+            $status   = BvCampaignKol::STATUSES[$kol->status] ?? ucfirst((string) $kol->status);
+            $link     = $kol->post_url
+                ? '<a href="' . e($kol->post_url) . '" target="_blank" style="color:#7c3aed;text-decoration:underline;">Lihat</a>'
+                : '<span style="color:#9ca3af;">—</span>';
+
+            $body .= '<tr style="border-top:1px solid #f0edf5;">'
+                . '<td style="padding:9px 12px;color:#9ca3af;">' . ($i + 1) . '</td>'
+                . '<td style="padding:9px 12px;font-weight:600;color:#1f2937;">' . e($kol->creator_name) . '</td>'
+                . '<td style="padding:9px 12px;color:#4b5563;">' . e($platform) . ' • ' . e($content) . '</td>'
+                . '<td style="padding:9px 12px;">' . $link . '</td>'
+                . '<td style="padding:9px 12px;color:#4b5563;">' . e($status) . '</td>'
+                . '</tr>';
+        }
+
+        $html = '<div style="border:1px solid #ece8f3;border-radius:12px;overflow:hidden;background:#fff;">'
+            . '<table style="width:100%;border-collapse:collapse;font-size:13px;">'
+            . '<thead><tr style="background:#faf8fd;color:#6b7280;text-align:left;">'
+            . '<th style="padding:9px 12px;width:48px;">No</th>'
+            . '<th style="padding:9px 12px;">Creator</th>'
+            . '<th style="padding:9px 12px;">Channel</th>'
+            . '<th style="padding:9px 12px;">Post URL</th>'
+            . '<th style="padding:9px 12px;">Status</th>'
+            . '</tr></thead><tbody>' . $body . '</tbody></table></div>'
+            . '<p style="margin-top:8px;font-size:12px;color:#9ca3af;">Otomatis dari <strong>Select KOL</strong> di Media Plan Internal. '
+            . 'Kelola brief, event &amp; revisi di tab bawah.</p>';
+
+        return new \Illuminate\Support\HtmlString($html);
+    }
 }

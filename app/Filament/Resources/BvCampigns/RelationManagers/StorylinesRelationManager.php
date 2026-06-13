@@ -3,11 +3,13 @@
 namespace App\Filament\Resources\BvCampigns\RelationManagers;
 
 use App\Models\CampaignStoryline;
+use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
+use Filament\Notifications\Notification;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -139,6 +141,27 @@ class StorylinesRelationManager extends RelationManager
                     })
                     ->formatStateUsing(fn($state) => CampaignStoryline::STATUSES[$state] ?? ucfirst($state)),
 
+                TextColumn::make('client_choice')
+                    ->label('Pilihan Client')
+                    ->badge()
+                    ->color(fn($state) => match ($state) {
+                        'approved' => 'success',
+                        'revision' => 'danger',
+                        default    => 'gray',
+                    })
+                    ->formatStateUsing(fn($state) => match ($state) {
+                        'approved' => '✓ Approve',
+                        'revision' => '↻ Revisi',
+                        default    => '—',
+                    }),
+
+                TextColumn::make('client_feedback')
+                    ->label('Feedback Client')
+                    ->limit(40)
+                    ->tooltip(fn($record) => $record->client_feedback)
+                    ->placeholder('—')
+                    ->toggleable(),
+
                 TextColumn::make('notes')
                     ->label('Catatan')
                     ->limit(40)
@@ -164,6 +187,24 @@ class StorylinesRelationManager extends RelationManager
                     ->label('Tambah Storyline'),
             ])
             ->actions([
+                Action::make('send_to_client')
+                    ->label('Kirim ke Client')
+                    ->icon('heroicon-m-paper-airplane')
+                    ->color('warning')
+                    ->tooltip('Tandai draft ini "Waiting Approval" agar muncul di Link Approval Konten')
+                    ->visible(fn($record) => in_array($record->status, ['draft', 'revision'], true))
+                    ->requiresConfirmation()
+                    ->modalHeading('Kirim Draft ke Client')
+                    ->modalDescription('Draft ini akan ditandai "Waiting Approval" dan muncul di Link Approval Konten. Buat/Buka link approval dari tombol header. Lanjutkan?')
+                    ->action(function ($record) {
+                        $record->update(['status' => 'waiting_approval']);
+                        Notification::make()
+                            ->title('Draft siap di-review client')
+                            ->body('Gunakan tombol "Buat Link Approval Konten" di header untuk membagikan tautannya.')
+                            ->success()
+                            ->send();
+                    }),
+
                 EditAction::make(),
                 DeleteAction::make(),
             ])

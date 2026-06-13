@@ -254,11 +254,7 @@ class KolPerformance extends Page implements HasTable
                                     $money($input, ',', '.', 0)
                                 JS))
                                 ->dehydrateStateUsing(fn($state) => (double) str_replace(['.', ','], '', $state ?? '0')),
-                            Select::make('status')->options([
-                                'pending' => 'Pending',
-                                'posted' => 'Posted',
-                                'completed' => 'Completed',
-                            ])->default('pending'),
+                            Select::make('status')->options(\App\Models\BvCampaignKol::STATUSES)->default('pending'),
                         ]),
                     ]),
                 DeleteAction::make(),

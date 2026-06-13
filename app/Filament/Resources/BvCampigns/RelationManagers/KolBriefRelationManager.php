@@ -13,6 +13,7 @@ use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Components\Grid;
@@ -20,6 +21,7 @@ use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Support\Enums\FontWeight;
 use Filament\Tables\Columns\BadgeColumn;
+use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -86,6 +88,11 @@ class KolBriefRelationManager extends RelationManager
                         ->label('Status Visit')
                         ->options(BvCampaignKol::VISIT_STATUSES)
                         ->native(false),
+
+                    Toggle::make('event_attendance')
+                        ->label('Hadir Event')
+                        ->helperText('Item SOW "Event Attendance" (acuan sheet Tracker).')
+                        ->inline(false),
                 ]),
 
             Section::make('Konten & Review')
@@ -181,6 +188,11 @@ class KolBriefRelationManager extends RelationManager
                         default     => 'gray',
                     })
                     ->formatStateUsing(fn($state) => BvCampaignKol::VISIT_STATUSES[$state] ?? '-'),
+
+                IconColumn::make('event_attendance')
+                    ->label('Event')
+                    ->boolean()
+                    ->toggleable(),
 
                 TextColumn::make('content_drive_link')
                     ->label('Drive Konten')

@@ -8,8 +8,8 @@ use App\Filament\Resources\CampaignExternals\RelationManagers\StorylinesExternal
 use App\Filament\Resources\CampaignExternals\Tables\CampaignExternalsTable;
 use App\Models\BvCampign;
 use BackedEnum;
-use Filament\Infolists\Components\Section;
 use Filament\Infolists\Components\TextEntry;
+use Filament\Schemas\Components\Section;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Enums\FontWeight;

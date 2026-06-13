@@ -4,17 +4,38 @@ namespace App\Filament\Resources\BvCampigns\Pages;
 
 use App\Filament\Resources\BvCampigns\BvCampignResource;
 use App\Jobs\ScrapeKolMetricsJob;
-use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
-use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
+use Filament\Schemas\Schema;
 
 class EditBvCampign extends EditRecord
 {
     protected static string $resource = BvCampignResource::class;
 
+    /**
+     * Taruh RelationManager (KOL Brief, KOL Performance, Storyline, Revisi Konten) DI ATAS
+     * sebelum wizard form. Default Filament: form dulu baru relation managers.
+     */
+    public function content(Schema $schema): Schema
+    {
+        if ($this->hasCombinedRelationManagerTabsWithContent()) {
+            return parent::content($schema);
+        }
+
+        return $schema->components([
+            $this->getRelationManagersContentComponent(),
+            $this->getFormContentComponent(),
+        ]);
+    }
+
     protected function mutateFormDataBeforeFill(array $data): array
     {
+        // Campaign internal: KOL bersumber dari Media Plan Internal (read-only di sini).
+        // Jangan isi kol_entries — tab "KOL Brief"/"Revisi Konten" yang mengelolanya.
+        if ($this->record->isInternal()) {
+            return $data;
+        }
+
         $data['kol_entries'] = $this->record->kols
             ->map(fn($kol) => [
                 'creator_name' => $kol->creator_name,
@@ -29,6 +50,13 @@ class EditBvCampign extends EditRecord
 
     protected function mutateFormDataBeforeSave(array $data): array
     {
+        // Campaign internal: jangan hitung ulang media_platforms/total_cost dari form
+        // (di-set oleh sync Media Plan). Cukup buang kol_entries bila ada.
+        if ($this->record->isInternal()) {
+            unset($data['kol_entries']);
+            return $data;
+        }
+
         $entries = $data['kol_entries'] ?? [];
 
         $data['media_platforms'] = collect($entries)
@@ -54,6 +82,12 @@ class EditBvCampign extends EditRecord
 
     protected function afterSave(): void
     {
+        // Campaign internal: KOL dikelola dari Media Plan Internal + tab brief/revisi.
+        // JANGAN hapus & buat ulang (akan menghancurkan brief tracker, event, & tautan revisi).
+        if ($this->record->isInternal()) {
+            return;
+        }
+
         $this->record->kols()->delete();
 
         foreach ($this->data['kol_entries'] ?? [] as $entry) {
@@ -85,52 +119,10 @@ class EditBvCampign extends EditRecord
 
     protected function getHeaderActions(): array
     {
+        // Modul Internal = workspace tim internal saja. Semua interaksi client
+        // (link progress External & Link Approval Konten) ditangani di modul
+        // "Campaign Ongoing External" (lihat ViewCampaignExternal).
         return [
-            Action::make('share_external')
-                ->label(fn() => $this->record->is_public ? 'External Link Aktif' : 'Bagikan ke External')
-                ->icon(fn() => $this->record->is_public ? 'heroicon-o-link' : 'heroicon-o-share')
-                ->color(fn() => $this->record->is_public ? 'success' : 'info')
-                ->requiresConfirmation(fn() => !$this->record->is_public)
-                ->modalHeading('Buat Link External')
-                ->modalDescription('Link publik akan dibuat untuk campaign ini. Client dapat melihat progress tanpa login.')
-                ->modalSubmitActionLabel('Buat Link')
-                ->action(function () {
-                    if ($this->record->is_public) {
-                        $url = $this->record->public_url;
-                        Notification::make()
-                            ->title('Link External Campaign')
-                            ->body($url)
-                            ->info()
-                            ->persistent()
-                            ->send();
-                    } else {
-                        $this->record->generatePublicToken();
-                        $url = $this->record->fresh()->public_url;
-                        Notification::make()
-                            ->title('Link external berhasil dibuat!')
-                            ->body($url)
-                            ->success()
-                            ->persistent()
-                            ->send();
-                    }
-                }),
-
-            Action::make('revoke_external')
-                ->label('Cabut Akses External')
-                ->icon('heroicon-o-lock-closed')
-                ->color('danger')
-                ->visible(fn() => $this->record->is_public)
-                ->requiresConfirmation()
-                ->modalHeading('Cabut Akses External?')
-                ->modalDescription('Link publik akan dinonaktifkan. Client tidak bisa lagi mengakses halaman ini.')
-                ->action(function () {
-                    $this->record->revokePublicToken();
-                    Notification::make()
-                        ->title('Akses external dicabut')
-                        ->success()
-                        ->send();
-                }),
-
             DeleteAction::make(),
         ];
     }

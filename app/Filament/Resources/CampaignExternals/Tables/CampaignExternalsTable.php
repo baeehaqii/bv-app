@@ -19,7 +19,14 @@ class CampaignExternalsTable
     public static function configure(Table $table): Table
     {
         return $table
-            ->query(BvCampign::query()->where('status', 'ongoing')->with(['client', 'kols']))
+            ->query(
+                // Tampilkan SEMUA campaign ongoing (internal & external). Campaign internal
+                // dari pipeline Media Plan juga muncul di sini agar client bisa preview/revisi
+                // lewat modul External (Internal = workspace tim, External = sisi client).
+                BvCampign::query()
+                    ->where('status', 'ongoing')
+                    ->with(['client', 'kols'])
+            )
             ->columns([
                 ImageColumn::make('campaign_image')
                     ->label('')
@@ -33,6 +40,12 @@ class CampaignExternalsTable
                     ->searchable()
                     ->sortable()
                     ->description(fn($record) => $record->client?->nama_brand ?? '-'),
+
+                TextColumn::make('campaign_type')
+                    ->label('Tipe')
+                    ->badge()
+                    ->color(fn($state) => $state === BvCampign::TYPE_INTERNAL ? 'info' : 'success')
+                    ->formatStateUsing(fn($state) => $state === BvCampign::TYPE_INTERNAL ? 'Internal' : 'External'),
 
                 TextColumn::make('start_date')
                     ->label('Timeline')

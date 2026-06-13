@@ -7,6 +7,7 @@ use App\Filament\Resources\BvCampigns\Pages\EditBvCampign;
 use App\Filament\Resources\BvCampigns\Pages\ListBvCampigns;
 use App\Filament\Resources\BvCampigns\RelationManagers\KolBriefRelationManager;
 use App\Filament\Resources\BvCampigns\RelationManagers\KolsRelationManager;
+use App\Filament\Resources\BvCampigns\RelationManagers\RevisionsRelationManager;
 use App\Filament\Resources\BvCampigns\RelationManagers\StorylinesRelationManager;
 use App\Filament\Resources\BvCampigns\Schemas\BvCampignForm;
 use App\Filament\Resources\BvCampigns\Tables\BvCampignsTable;
@@ -47,6 +48,7 @@ class BvCampignResource extends Resource
             KolBriefRelationManager::class,
             KolsRelationManager::class,
             StorylinesRelationManager::class,
+            RevisionsRelationManager::class,
         ];
     }
 

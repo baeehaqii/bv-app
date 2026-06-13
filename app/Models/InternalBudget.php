@@ -6,32 +6,47 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Str;
 
 class InternalBudget extends Model
 {
     protected $guarded = [];
 
     protected $casts = [
+        'review_is_public' => 'boolean',
+        'review_submitted_at' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
 
     /**
-     * Status options
+     * Status options (alur Media Plan External)
+     *
+     * draft           → BV menyusun Budget Items (hasil sync dari Media Plan Internal)
+     * review_client   → dikirim ke client lewat Link Review Client
+     * approve_client  → BV finalisasi hasil feedback client (Generate Quotation muncul)
+     * approve_am      → Account Manager approve → auto-create Campaign On Going Internal
+     * rejected        → ditolak
      */
     const STATUS_OPTIONS = [
         'draft' => 'Draft',
-        'pending' => 'Pending Review',
-        'approved' => 'Approved',
+        'review_client' => 'Review ke Client',
+        'approve_client' => 'Approve Client',
+        'approve_am' => 'Approve AM',
         'rejected' => 'Rejected',
     ];
 
     /**
-     * Approve budget, sync deal_value ke BvSales, dan trigger aktivasi campaign
+     * Status yang menandai budget sudah final secara internal (siap quotation / campaign).
+     */
+    const STATUS_FINAL = ['approve_client', 'approve_am'];
+
+    /**
+     * Approve budget (Approve AM), sync deal_value ke BvSales, dan trigger aktivasi campaign
      */
     public function approve(): void
     {
-        $this->update(['status' => 'approved', 'rejection_notes' => null]);
+        $this->update(['status' => 'approve_am', 'rejection_notes' => null]);
 
         // 4.4 — Sync deal_value ke BvSales berdasarkan total_rounded (harga client setelah markup)
         $bvSales = $this->mediaPlan?->bvSales;
@@ -62,6 +77,41 @@ class InternalBudget extends Model
                 \Illuminate\Support\Facades\Log::warning('[InternalBudget] Notifikasi WA reject gagal: ' . $e->getMessage());
             }
         }
+    }
+
+    /**
+     * Generate (atau ambil ulang) token publik untuk Link Review Client.
+     */
+    public function generateReviewToken(): string
+    {
+        if (!$this->review_token) {
+            $this->review_token = Str::random(48);
+        }
+        $this->review_is_public = true;
+        $this->saveQuietly();
+
+        return $this->review_token;
+    }
+
+    /**
+     * Cabut akses publik Link Review Client (token tetap disimpan untuk arsip).
+     */
+    public function revokeReviewToken(): void
+    {
+        $this->review_is_public = false;
+        $this->saveQuietly();
+    }
+
+    /**
+     * URL publik Link Review Client (null jika belum di-generate).
+     */
+    public function getReviewUrlAttribute(): ?string
+    {
+        if (!$this->review_token) {
+            return null;
+        }
+
+        return route('media-plan-external.review', ['token' => $this->review_token]);
     }
 
     /**
@@ -227,7 +277,7 @@ class InternalBudget extends Model
             ]);
         }
 
-        // Update campaign totals & media platforms
+        // Update campaign totals & media platforms; tandai sebagai campaign internal
         $platforms = $approvedItems
             ->map(fn($item) => self::parseScopeItemToChannel($item->scope_item ?? '')['platform'])
             ->unique()
@@ -235,10 +285,50 @@ class InternalBudget extends Model
             ->toArray();
 
         $campaign->update([
+            'campaign_type' => \App\Models\BvCampign::TYPE_INTERNAL,
             'deal_value' => $this->total_rounded ?? 0,
             'total_cost' => $this->total_mu_pph ?? 0,
             'media_platforms' => $platforms,
         ]);
+
+        // Seed draft Content Planning (storylines) untuk tiap KOL/SOW yang di-approve.
+        // PIC Campaign mengisi draft di sini sebelum dikirim ke client & sebelum KOL Performance terisi.
+        $this->seedContentPlanningDrafts($campaign, $approvedItems);
+    }
+
+    /**
+     * Buat draft storyline (Content Planning) untuk tiap approved budget item bila belum ada.
+     * Idempotent: tidak menduplikasi storyline untuk pasangan (KOL, SOW) yang sama.
+     */
+    protected function seedContentPlanningDrafts($campaign, $approvedItems): void
+    {
+        $existing = $campaign->storylines()
+            ->get(['kol_name', 'sow'])
+            ->map(fn($s) => $s->kol_name . '|' . $s->sow)
+            ->flip()
+            ->all();
+
+        foreach ($approvedItems as $item) {
+            $kolName = $item->mediaPlanKol?->name ?? '—';
+            $sow = $item->scope_item ?? '';
+            $key = $kolName . '|' . $sow;
+
+            if (isset($existing[$key])) {
+                continue;
+            }
+
+            ['platform' => $platform] = self::parseScopeItemToChannel($sow);
+
+            \App\Models\CampaignStoryline::create([
+                'bv_campaign_id' => $campaign->id,
+                'kol_name' => $kolName,
+                'platform' => $platform,
+                'sow' => $sow,
+                'status' => 'draft',
+            ]);
+
+            $existing[$key] = true; // hindari duplikat dalam loop yang sama
+        }
     }
 
     /**
@@ -338,8 +428,8 @@ class InternalBudget extends Model
     protected static function booted(): void
     {
         static::updated(function (InternalBudget $budget) {
-            // Only proceed if status is approved and was changed
-            if ($budget->status !== 'approved' || !$budget->wasChanged('status')) {
+            // Hanya lanjut jika status berubah menjadi "Approve AM"
+            if ($budget->status !== 'approve_am' || !$budget->wasChanged('status')) {
                 return;
             }
 
@@ -401,6 +491,7 @@ class InternalBudget extends Model
                 'client_id' => $client?->id,
                 'campaign_name' => $mediaPlan->campaign_name,
                 'campaign_description' => $mediaPlan->notes ?? 'Auto-generated from Media Plan',
+                'campaign_type' => \App\Models\BvCampign::TYPE_INTERNAL,
                 'start_date' => $startDate,
                 'end_date' => $endDate,
                 'status' => $campaignStatus,

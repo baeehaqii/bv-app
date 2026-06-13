@@ -4,7 +4,6 @@ namespace App\Filament\Resources\InternalBudgets\Schemas;
 
 use App\Models\MediaPlanKol;
 use App\Models\InternalBudgetItem;
-use App\Filament\Resources\BvQuotations\BvQuotationResource;
 use Filament\Schemas\Schema;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -281,17 +280,13 @@ class InternalBudgetForm
 
                         Select::make('status')
                             ->label('Status')
-                            ->options([
-                                'draft' => 'Draft',
-                                'pending' => 'Pending Review',
-                                'approved' => 'Approved',
-                                'rejected' => 'Rejected',
-                            ])
+                            ->options(\App\Models\InternalBudget::STATUS_OPTIONS)
                             ->default('draft')
                             ->required()
                             ->live()
                             ->afterStateUpdated(function ($state, $record) {
-                                if ($state !== 'approved' || !$record) {
+                                // Aktivasi campaign hanya saat status final "Approve AM"
+                                if ($state !== 'approve_am' || !$record) {
                                     return;
                                 }
 
@@ -374,7 +369,17 @@ class InternalBudgetForm
 
                 // Section 2: BUDGET ITEMS (Read-only — dikonfigurasi dari Media Plan Internal)
                 Section::make('💰 Budget Items')
-                    ->description('Items otomatis dari Media Plan Internal. Gunakan tombol "Sync from Media Plan" untuk memperbarui.')
+                    ->description(function ($record): string {
+                        // Setelah client submit Link Review, ubah keterangan section.
+                        if ($record?->review_submitted_at) {
+                            $tanggal = $record->review_submitted_at->format('d M Y, H:i');
+                            return "✅ Telah disubmit oleh client pada {$tanggal}. "
+                                . 'Lihat kolom "Pilihan Client" & "Feedback Client" pada tiap item untuk keputusan KOL/SOW yang dipakai. '
+                                . 'Setelah difinalisasi, ubah status ke "Approve Client".';
+                        }
+
+                        return 'Items otomatis dari Media Plan Internal. Gunakan tombol "Sync from Media Plan" untuk memperbarui.';
+                    })
                     ->schema([
                         Placeholder::make('budget_items_sticky_css')
                             ->label('')
@@ -479,10 +484,30 @@ class InternalBudgetForm
                                     ->rows(1)
                                     ->disabled(),
 
+                                Placeholder::make('client_choice_badge')
+                                    ->label('Pilihan Client')
+                                    ->content(function ($get): \Illuminate\Support\HtmlString {
+                                        $choice = $get('client_choice');
+                                        [$label, $class] = match ($choice) {
+                                            'approved' => ['✓ Dipakai', 'bg-green-100 text-green-800'],
+                                            'rejected' => ['✗ Tidak', 'bg-red-100 text-red-800'],
+                                            default    => ['— Belum', 'bg-gray-100 text-gray-600'],
+                                        };
+                                        return new \Illuminate\Support\HtmlString(
+                                            "<span class=\"inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {$class}\">{$label}</span>"
+                                        );
+                                    }),
+
+                                Textarea::make('client_feedback')
+                                    ->label('Feedback Client')
+                                    ->rows(1)
+                                    ->disabled(),
+
                                 Hidden::make('id'),
                                 Hidden::make('status')->default('pending'),
                                 Hidden::make('rejection_notes'),
                                 Hidden::make('nego_notes'),
+                                Hidden::make('client_choice'),
 
                                 Placeholder::make('status_badge')
                                     ->label('Status')
@@ -524,6 +549,8 @@ class InternalBudgetForm
                                 TableColumn::make('🟢 Client Price')->width('170px'),
                                 TableColumn::make('Margin %')->width('130px'),
                                 TableColumn::make('Notes')->width('180px'),
+                                TableColumn::make('Pilihan Client')->width('120px'),
+                                TableColumn::make('Feedback Client')->width('180px'),
                                 TableColumn::make('Status')->width('110px'),
                             ])
                             ->extraItemActions([
@@ -579,30 +606,10 @@ class InternalBudgetForm
                                             ->success()
                                             ->send();
 
-                                        // Cek apakah semua item sudah approved
-                                        $budget = $item->internalBudget;
-                                        if ($budget) {
-                                            $allApproved = $budget->items()->where('status', '!=', 'approved')->doesntExist();
-                                            if ($allApproved) {
-                                                $budget->approve();
-
-                                                // Sync approved items → Campaign Ongoing KOL list
-                                                $budget->syncCampaignKolsFromApprovedBudget();
-
-                                                // Auto-generate quotation dari budget yang sudah approved
-                                                $quotation = $budget->generateQuotation();
-
-                                                Notification::make()
-                                                    ->title('Budget Fully Approved')
-                                                    ->body("Semua item telah di-approve. Quotation #{$quotation->quotation_number} berhasil dibuat.")
-                                                    ->success()
-                                                    ->send();
-
-                                                $livewire->redirect(BvQuotationResource::getUrl('edit', ['record' => $quotation->id]));
-                                                return;
-                                            }
-                                        }
-
+                                        // Catatan: approve item HANYA menyetujui SOW per item (penyesuaian BV).
+                                        // Promosi status budget (Review → Approve Client → Approve AM) dan
+                                        // pembuatan quotation dilakukan manual oleh BV/AM via dropdown Status
+                                        // dan tombol "Generate Quotation". Tidak ada auto-jump di sini.
                                         $component->clearCachedExistingRecords();
                                         $livewire->refreshFormData(['items']);
                                     }),

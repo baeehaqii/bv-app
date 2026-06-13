@@ -18,7 +18,9 @@ class EditInternalBudget extends EditRecord
                 ->label('Generate Quotation')
                 ->icon('heroicon-m-document-arrow-down')
                 ->color('success')
-                ->visible(fn($record) => $record->quotation === null)
+                // Hanya muncul setelah client approve (Approve Client / Approve AM) & belum ada quotation
+                ->visible(fn($record) => $record->quotation === null
+                    && in_array($record->status, \App\Models\InternalBudget::STATUS_FINAL, true))
                 ->requiresConfirmation()
                 ->modalHeading('Generate Quotation')
                 ->modalDescription('Generate quotation baru dari data budget ini. Quotation akan dibuat dengan status Draft.')
@@ -76,6 +78,34 @@ class EditInternalBudget extends EditRecord
 
                     $this->refreshFormData(['items']);
                 }),
+
+            Actions\Action::make('link_review_client')
+                ->label('Link Review Client')
+                ->icon('heroicon-m-link')
+                ->color('info')
+                // Muncul saat status "Review ke Client"
+                ->visible(fn($record) => $record->status === 'review_client')
+                ->modalHeading('Link Review Client')
+                ->modalDescription('Bagikan tautan berikut ke client. Client dapat menandai SOW mana yang dipakai (✓ / ✗) dan memberi feedback per item.')
+                ->modalSubmitAction(false)
+                ->modalCancelActionLabel('Tutup')
+                ->fillForm(function ($record) {
+                    $record->generateReviewToken();
+
+                    return ['review_url' => $record->review_url];
+                })
+                ->form([
+                    \Filament\Forms\Components\TextInput::make('review_url')
+                        ->label('Tautan Review Client')
+                        ->readOnly()
+                        ->suffixAction(
+                            \Filament\Forms\Components\Actions\Action::make('open')
+                                ->icon('heroicon-m-arrow-top-right-on-square')
+                                ->label('Buka')
+                                ->url(fn($record) => $record->review_url, shouldOpenInNewTab: true)
+                        )
+                        ->helperText('Salin tautan ini dan kirim ke client.'),
+                ]),
 
             Actions\Action::make('view_media_plan')
                 ->label('View Media Plan Internal')

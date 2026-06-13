@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class BvCampaignKol extends Model
 {
@@ -12,12 +13,13 @@ class BvCampaignKol extends Model
     protected $guarded = [];
 
     protected $casts = [
-        'price'           => 'double',
-        'engagement_rate' => 'decimal:4',
-        'posted_at'       => 'datetime',
-        'last_fetched_at' => 'datetime',
-        'visit_date'      => 'date',
-        'posting_date'    => 'date',
+        'price'            => 'double',
+        'engagement_rate'  => 'decimal:4',
+        'posted_at'        => 'datetime',
+        'last_fetched_at'  => 'datetime',
+        'visit_date'       => 'date',
+        'posting_date'     => 'date',
+        'event_attendance' => 'boolean',
     ];
 
     public const PLATFORMS = [
@@ -79,11 +81,20 @@ class BvCampaignKol extends Model
         'pending' => 'Pending',
         'posted' => 'Posted',
         'completed' => 'Completed',
+        'canceled' => 'Canceled', // KOL batal (acuan: "KOL Cancel" di sheet Tracker)
     ];
 
     public function campaign(): BelongsTo
     {
         return $this->belongsTo(BvCampign::class, 'campaign_id');
+    }
+
+    /**
+     * Riwayat revisi konten (storyline/video/caption) untuk KOL ini.
+     */
+    public function revisions(): HasMany
+    {
+        return $this->hasMany(CampaignKolRevision::class, 'bv_campaign_kol_id');
     }
 
     /**

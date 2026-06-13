@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\CampaignContentReviewController;
 use App\Http\Controllers\CampaignPublicController;
 use App\Http\Controllers\FormBriefPublicController;
 use App\Http\Controllers\QuotationPublicController;
@@ -8,6 +9,7 @@ use App\Http\Controllers\KolImportTemplateController;
 use App\Http\Controllers\MediaPlanPdfController;
 use App\Http\Controllers\MediaPlanExcelController;
 use App\Http\Controllers\InternalBudgetPdfController;
+use App\Http\Controllers\InternalBudgetReviewController;
 use App\Http\Controllers\QuotationController;
 use Illuminate\Support\Facades\Route;
 
@@ -24,6 +26,14 @@ Route::get('/campaign/{token}', [CampaignPublicController::class, 'show'])->name
 
 // Quotation Public Review — no auth required
 Route::get('/quotation-review/{token}', [QuotationPublicController::class, 'show'])->name('quotation.public');
+
+// Media Plan External — Link Review Client (public, no auth)
+Route::get('/media-plan-review/{token}', [InternalBudgetReviewController::class, 'show'])->name('media-plan-external.review');
+Route::post('/media-plan-review/{token}', [InternalBudgetReviewController::class, 'submit'])->name('media-plan-external.review.submit');
+
+// Campaign On Going Internal — Link Approval Konten (public, no auth)
+Route::get('/campaign-content-review/{token}', [CampaignContentReviewController::class, 'show'])->name('campaign-internal.content-review');
+Route::post('/campaign-content-review/{token}', [CampaignContentReviewController::class, 'submit'])->name('campaign-internal.content-review.submit');
 
 // Media Plan PDF Routes (require auth)
 Route::middleware(['auth'])->group(function () {

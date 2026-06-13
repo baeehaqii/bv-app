@@ -26,7 +26,19 @@ class BvCampign extends Model
         'deal_value' => 'decimal:2',
         'campaign_month' => 'integer',
         'is_public' => 'boolean',
+        'content_review_is_public' => 'boolean',
+        'content_review_submitted_at' => 'datetime',
     ];
+
+    /**
+     * Tandai campaign sebagai internal (Campaign On Going Internal).
+     */
+    public const TYPE_INTERNAL = 'internal';
+
+    public function isInternal(): bool
+    {
+        return $this->campaign_type === self::TYPE_INTERNAL;
+    }
 
     public function generatePublicToken(): string
     {
@@ -46,6 +58,34 @@ class BvCampign extends Model
             return null;
         }
         return route('campaign.public', $this->public_token);
+    }
+
+    /**
+     * Link Approval Konten (internal) — token TERPISAH dari public_token external.
+     */
+    public function generateContentReviewToken(): string
+    {
+        if (!$this->content_review_token) {
+            $this->content_review_token = Str::random(48);
+        }
+        $this->content_review_is_public = true;
+        $this->saveQuietly();
+
+        return $this->content_review_token;
+    }
+
+    public function revokeContentReviewToken(): void
+    {
+        $this->content_review_is_public = false;
+        $this->saveQuietly();
+    }
+
+    public function getContentReviewUrlAttribute(): ?string
+    {
+        if (!$this->content_review_token) {
+            return null;
+        }
+        return route('campaign-internal.content-review', ['token' => $this->content_review_token]);
     }
 
     /**
@@ -98,6 +138,14 @@ class BvCampign extends Model
     public function storylines(): HasMany
     {
         return $this->hasMany(CampaignStoryline::class, 'bv_campaign_id');
+    }
+
+    /**
+     * Riwayat revisi konten (storyline/video/caption) lintas KOL pada campaign ini.
+     */
+    public function revisions(): HasMany
+    {
+        return $this->hasMany(CampaignKolRevision::class, 'bv_campaign_id');
     }
 
     /**
