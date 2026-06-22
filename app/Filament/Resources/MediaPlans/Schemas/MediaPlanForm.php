@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\MediaPlans\Schemas;
 
 use Filament\Schemas\Schema;
+use App\Enums\MediaPlanKolStatus;
 use App\Models\DataKol;
 use App\Models\MasterPph;
 use App\Service\InstagramService;
@@ -91,21 +92,169 @@ class MediaPlanForm
     }
 
     /**
-     * Options PIC KOL (BvSalesList). Nilai legacy yang menyimpan user ID
-     * ikut di-resolve ke nama agar tidak tampil sebagai angka.
+     * Tampilkan PIC KOL. Data baru menyimpan nama PIC KOL (string) langsung.
+     * Data legacy bisa menyimpan ID BvSalesList/User — di-resolve ke nama agar
+     * tidak tampil sebagai angka.
      */
-    private static function kolPicOptions($current = null): array
+    private static function resolveKolPicDisplay($state): ?string
     {
-        $options = \App\Models\BvSalesList::pluck('nama_sales', 'id')->toArray();
-
-        if ($current && !isset($options[$current])) {
-            $legacyName = \App\Models\User::find($current)?->name;
-            if ($legacyName) {
-                $options[$current] = $legacyName;
-            }
+        if (blank($state)) {
+            return null;
         }
 
-        return $options;
+        if (is_numeric($state)) {
+            return \App\Models\BvSalesList::find($state)?->nama_sales
+                ?? \App\Models\User::find($state)?->name
+                ?? (string) $state;
+        }
+
+        return (string) $state;
+    }
+
+    /**
+     * Daftar label SOW dari rate card milik KOL (Database KOL).
+     * Dipakai untuk auto-fill & opsi kolom "SOW (Request)" agar selalu valid/tampil.
+     *
+     * @return array<int, string>
+     */
+    private static function kolSowLabels(?int $dataKolId): array
+    {
+        if (! $dataKolId) {
+            return [];
+        }
+
+        return DataKol::find($dataKolId)
+            ?->rateCards()->with('masterSow')->get()
+            ->pluck('sow_label')
+            ->filter()
+            ->unique()
+            ->values()
+            ->all() ?? [];
+    }
+
+    /**
+     * Rincian rate per SOW (read-only), tampil rapi seperti spreadsheet:
+     * tiap SOW = 1 baris (Item | Rate), ditutup baris Total.
+     * Rate card KOL di-load SEKALI lalu dipakai untuk hitung rate + cek masa berlaku (hindari N+1).
+     */
+    private static function renderSowRateBreakdown(callable $get): \Illuminate\Support\HtmlString
+    {
+        $scopes = array_values(array_filter((array) $get('scope_items'), fn($s) => filled($s)));
+
+        if (empty($scopes)) {
+            return new \Illuminate\Support\HtmlString(
+                '<span style="color:#9ca3af;font-size:12px;font-style:italic;">Belum ada SOW dipilih</span>'
+            );
+        }
+
+        // Ambil seluruh rate card KOL satu kali untuk lookup rate + cek expiry.
+        $rateCards = self::resolveKolRateCards($get('data_kol_id'), $get('name'), $get('channel'));
+
+        $total = 0;
+        $rows = '';
+        $hasExpired = false;
+        foreach ($scopes as $scope) {
+            $card = $rateCards->first(fn($c) => strcasecmp($c->sow_label, (string) $scope) === 0);
+            $rate = (float) ($card?->rate ?? 0);
+            $total += $rate;
+
+            $badge = '';
+            if ($card && $card->isExpired()) {
+                $hasExpired = true;
+                $tooltip = self::expiryTooltip($card);
+                $badge = ' <span title="' . e($tooltip) . '" style="display:inline-block;margin-left:6px;font-size:11px;font-weight:600;color:#dc2626;background:#fef2f2;border:1px solid #fecaca;border-radius:4px;padding:1px 6px;white-space:nowrap;">&#9888; Perlu update</span>';
+            }
+
+            $rows .= '<tr>
+                <td style="padding:5px 8px;border:1px solid #e5e7eb;font-size:12px;color:#374151;">' . e($scope) . $badge . '</td>
+                <td style="padding:5px 8px;border:1px solid #e5e7eb;font-size:12px;color:#111827;text-align:right;white-space:nowrap;">Rp ' . number_format(round($rate), 0, ',', '.') . '</td>
+            </tr>';
+        }
+
+        $count = count($scopes);
+        $totalFmt = 'Rp ' . number_format(round($total), 0, ',', '.');
+
+        // Banner ringkas bila ada SOW yang sudah lewat masa berlaku.
+        $banner = $hasExpired
+            ? '<div style="font-size:11px;color:#dc2626;background:#fef2f2;border:1px solid #fecaca;border-radius:4px;padding:6px 8px;margin-bottom:6px;">&#9888; Sebagian rate card sudah lewat masa berlaku &mdash; wajib perbarui data SOW dengan yang terbaru.</div>'
+            : '';
+
+        // <details> = collapse native (tanpa JS), default tertutup agar baris tabel tetap ringkas.
+        // Ringkasan tetap menampilkan jumlah item + Total walau tertutup.
+        return new \Illuminate\Support\HtmlString('
+            <details style="font-family:inherit;">
+                <summary style="cursor:pointer;font-size:12px;font-weight:600;color:#4f46e5;padding:4px 0;white-space:nowrap;user-select:none;">
+                    Rincian Rate (' . $count . ' item) · ' . $totalFmt . ($hasExpired ? ' <span style="color:#dc2626;">&#9888;</span>' : '') . '
+                </summary>
+                ' . $banner . '
+                <table style="border-collapse:collapse;width:100%;background:#fff;margin-top:6px;">
+                    <thead>
+                        <tr>
+                            <th style="padding:5px 8px;border:1px solid #e5e7eb;background:#f9fafb;font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#6b7280;text-align:left;">Item</th>
+                            <th style="padding:5px 8px;border:1px solid #e5e7eb;background:#f9fafb;font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#6b7280;text-align:right;">Rate</th>
+                        </tr>
+                    </thead>
+                    <tbody>' . $rows . '</tbody>
+                    <tfoot>
+                        <tr>
+                            <td style="padding:5px 8px;border:1px solid #e5e7eb;background:#f9fafb;font-size:12px;font-weight:700;color:#111827;">Total</td>
+                            <td style="padding:5px 8px;border:1px solid #e5e7eb;background:#f9fafb;font-size:12px;font-weight:700;color:#111827;text-align:right;white-space:nowrap;">' . $totalFmt . '</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </details>
+        ');
+    }
+
+    /**
+     * Ambil koleksi rate card KOL (eager-load masterSow) untuk lookup rate + expiry.
+     * Aman bila data_kol_id null (fallback by username + channel, pola sama computeRateFromSow).
+     *
+     * @return \Illuminate\Support\Collection<int, \App\Models\KolRateCard>
+     */
+    private static function resolveKolRateCards($dataKolId, ?string $name, ?string $channel): \Illuminate\Support\Collection
+    {
+        $dataKol = $dataKolId
+            ? DataKol::find($dataKolId)
+            : DataKol::where('username', $name)
+                ->when($channel, fn($q) => $q->where('channel', $channel))
+                ->first();
+
+        return $dataKol
+            ? $dataKol->rateCards()->with('masterSow')->get()
+            : collect();
+    }
+
+    /**
+     * Teks tooltip rentang masa berlaku rate card yang sudah lewat.
+     */
+    private static function expiryTooltip(\App\Models\KolRateCard $card): string
+    {
+        $from = $card->valid_from?->format('d M Y') ?? '-';
+        $until = $card->effective_valid_until?->format('d M Y') ?? '-';
+        $days = abs((int) $card->daysUntilExpiry());
+
+        return "Diisi {$from} → berlaku s/d {$until} (lewat {$days} hari)";
+    }
+
+    /**
+     * Label read-only SOW dari brief client, ditampilkan di tab Select KOL
+     * agar tim tidak perlu bolak-balik ke tab Brief.
+     * Konten adalah rich-text trusted (pola existing project), dibungkus HtmlString.
+     */
+    private static function renderBriefSowLabel(?object $record): \Illuminate\Support\HtmlString
+    {
+        $sow = $record?->bvSales?->formBrief?->sow;
+
+        if (blank($sow)) {
+            return new \Illuminate\Support\HtmlString(
+                '<span style="color:#9ca3af;font-size:12px;font-style:italic;">Belum ada SOW pada brief</span>'
+            );
+        }
+
+        return new \Illuminate\Support\HtmlString(
+            '<div style="font-size:13px;line-height:1.6;color:#374151;">' . $sow . '</div>'
+        );
     }
 
     /**
@@ -135,6 +284,70 @@ class MediaPlanForm
                 fn($card) => strcasecmp($card->sow_label, (string) $scope) === 0
             )?->rate ?? 0)
         );
+    }
+
+    /**
+     * Kalkulasi budget 1 baris (Cost / Client Price / Margin) dari rate_base + koef PPh.
+     * Dipakai BERSAMA oleh tampilan KOL List & EditMediaPlan::afterSave agar nilai konsisten.
+     * Margin: pakai $marginOverride bila diisi, jika null fallback ke MasterMargin (by subtotal).
+     *
+     * @return array{subtotal:float, mu_pph:float, mu_target:float, rounded:float, actual_margin:float}
+     */
+    public static function computeBudgetFigures(float $subtotal, float $pphCoeff, ?float $marginOverride): array
+    {
+        if ($subtotal <= 0 || $pphCoeff <= 0) {
+            return ['subtotal' => round($subtotal), 'mu_pph' => 0, 'mu_target' => 0, 'rounded' => 0, 'actual_margin' => 0];
+        }
+
+        $muPph = $subtotal / $pphCoeff;
+
+        $margin = $marginOverride !== null
+            ? $marginOverride
+            : \App\Models\MasterMargin::getMarginForAmount($subtotal);
+
+        $marginDecimal = min(max($margin, 0), 99) / 100;
+        $muTarget = $marginDecimal >= 1 ? $muPph : $muPph / (1 - $marginDecimal);
+        $rounded = ceil($muTarget / 100000) * 100000;
+        $actualMargin = $rounded > 0 ? (($rounded - $muPph) / $rounded) * 100 : 0;
+
+        return [
+            'subtotal' => round($subtotal),
+            'mu_pph' => round($muPph),
+            'mu_target' => round($muTarget),
+            'rounded' => round($rounded),
+            'actual_margin' => round($actualMargin, 2),
+        ];
+    }
+
+    /**
+     * Total Cost (MU PPh) & Client Price (rounded) untuk 1 KOL (jumlah seluruh SOW-nya),
+     * dihitung per-SOW lalu dijumlah — konsisten dengan generate InternalBudgetItem.
+     *
+     * @return array{cost:float, client:float, margin:?float}
+     */
+    private static function computeKolTotals(callable $get): array
+    {
+        $scopes = array_values(array_filter((array) $get('scope_items'), fn($s) => filled($s)));
+        if (empty($scopes)) {
+            return ['cost' => 0, 'client' => 0, 'margin' => null];
+        }
+
+        $rateCards = self::resolveKolRateCards($get('data_kol_id'), $get('name'), $get('channel'));
+        $pph = filled($get('tipe_pajak_kol')) ? \App\Models\MasterPph::find($get('tipe_pajak_kol')) : null;
+        $coeff = $pph?->getCalculatedCoefficient() ?? 0.975;
+        $margin = filled($get('margin_percent')) ? (float) $get('margin_percent') : null;
+
+        $cost = 0;
+        $client = 0;
+        foreach ($scopes as $scope) {
+            $card = $rateCards->first(fn($c) => strcasecmp($c->sow_label, (string) $scope) === 0);
+            $rate = (float) ($card?->rate ?? 0);
+            $figs = self::computeBudgetFigures($rate, $coeff, $margin);
+            $cost += $figs['mu_pph'];
+            $client += $figs['rounded'];
+        }
+
+        return ['cost' => $cost, 'client' => $client, 'margin' => $margin];
     }
 
     /**
@@ -275,6 +488,7 @@ class MediaPlanForm
                                             })
                                             ->icon('heroicon-o-users')
                                             ->color('white')
+                                            ->modalWidth('5xl')
                                             ->modalHeading('Daftar PIC Client')
                                             ->modalContent(function (callable $get, \Livewire\Component $livewire) {
                                                 $record = $livewire->record ?? null;
@@ -305,8 +519,8 @@ class MediaPlanForm
                                                     </tr>";
                                                 })->join('');
                                                 return new \Illuminate\Support\HtmlString(
-                                                    '<div style="overflow-x:auto;">
-                                                        <table style="width:100%;border-collapse:collapse;font-family:sans-serif;">
+                                                    '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+                                                        <table style="width:100%;min-width:640px;border-collapse:collapse;font-family:sans-serif;">
                                                             <thead>
                                                                 <tr style="background:#7c3aed;">
                                                                     <th style="padding:10px 12px;text-align:left;color:#fff;font-size:12px;font-weight:600;">#</th>
@@ -468,8 +682,20 @@ class MediaPlanForm
                                 ->hiddenLabel()
                                 ->content(new \Illuminate\Support\HtmlString('<style>
                                     #kol-list-repeater { overflow-x: auto; padding-bottom: 340px; margin-bottom: -340px; }
-                                    #kol-list-repeater table { min-width: 2150px; }
+                                    #kol-list-repeater table { min-width: 2920px; }
                                 </style>'))
+                                ->columnSpanFull(),
+
+                            Section::make('Scope of Work (dari Brief)')
+                                ->icon('heroicon-m-clipboard-document-list')
+                                ->description('Referensi SOW dari brief client, tanpa perlu pindah ke tab Brief')
+                                ->collapsible()
+                                ->collapsed()
+                                ->schema([
+                                    Placeholder::make('brief_sow_label')
+                                        ->hiddenLabel()
+                                        ->content(fn(?\App\Models\MediaPlan $record) => self::renderBriefSowLabel($record)),
+                                ])
                                 ->columnSpanFull(),
 
                             Repeater::make('kols')
@@ -703,19 +929,15 @@ class MediaPlanForm
 
                                                     Select::make('status')
                                                         ->label('Status')
-                                                        ->options([
-                                                            'New List' => 'New List',
-                                                            'Approaching' => 'Approaching',
-                                                            'Locked' => 'Locked',
-                                                            'Canceled' => 'Canceled',
-                                                        ])
+                                                        ->options(MediaPlanKolStatus::toArray())
+                                                        ->searchable()
+                                                        ->native(false)
                                                         ->default('New List'),
 
-                                                    Select::make('pic')
-                                                        ->label('PIC')
-                                                        ->options(fn(callable $get) => self::kolPicOptions($get('pic')))
-                                                        ->searchable()
-                                                        ->default(fn() => \App\Models\BvSalesList::where('user_id', auth()->id())->value('id'))
+                                                    TextInput::make('pic')
+                                                        ->label('PIC KOL')
+                                                        ->placeholder('Otomatis dari PIC KOL')
+                                                        ->formatStateUsing(fn($state) => self::resolveKolPicDisplay($state))
                                                         ->nullable(),
                                                 ])
                                                 ->columns(3),
@@ -744,16 +966,19 @@ class MediaPlanForm
                                 ->table([
                                     TableColumn::make('PIC')->width('220px'),
                                     TableColumn::make('Status')->width('150px'),
-                                    TableColumn::make('Username')->width('280px'),
+                                    TableColumn::make('Username')->width('380px'),
                                     TableColumn::make('Link')->width('260px'),
                                     TableColumn::make('Channel')->width('150px'),
                                     TableColumn::make('Followers')->width('110px'),
                                     TableColumn::make('Tier')->width('90px'),
-                                    TableColumn::make('ER %')->width('100px'),
+                                    TableColumn::make('ER %')->width('150px'),
                                     TableColumn::make('Avg Views')->width('110px'),
                                     TableColumn::make('Engagement')->width('110px'),
                                     TableColumn::make('SOW (Request)')->width('320px'),
-                                    TableColumn::make('Rate')->width('150px'),
+                                    TableColumn::make('Rate per SOW')->width('300px'),
+                                    TableColumn::make('Margin %')->width('120px'),
+                                    TableColumn::make('Cost (MU PPh)')->width('150px'),
+                                    TableColumn::make('Client Price')->width('150px'),
                                     TableColumn::make('Quotation')->width('90px'),
                                 ])
                                 ->schema([
@@ -768,22 +993,17 @@ class MediaPlanForm
                                     Hidden::make('payment_date'),
                                     Hidden::make('notes'),
 
-                                    Select::make('pic')
-                                        ->label('PIC')
-                                        ->options(fn(callable $get) => self::kolPicOptions($get('pic')))
-                                        ->searchable()
-                                        ->placeholder('Pilih PIC')
-                                        ->default(fn() => \App\Models\BvSalesList::where('user_id', auth()->id())->value('id'))
+                                    TextInput::make('pic')
+                                        ->label('PIC KOL')
+                                        ->placeholder('Otomatis dari PIC KOL')
+                                        ->formatStateUsing(fn($state) => self::resolveKolPicDisplay($state))
                                         ->nullable(),
 
                                     Select::make('status')
                                         ->label('Status')
-                                        ->options([
-                                            'New List' => 'New List',
-                                            'Approaching' => 'Approaching',
-                                            'Locked' => 'Locked',
-                                            'Canceled' => 'Canceled',
-                                        ])
+                                        ->options(MediaPlanKolStatus::toArray())
+                                        ->searchable()
+                                        ->native(false)
                                         ->default('New List'),
 
                                     Select::make('name')
@@ -810,6 +1030,8 @@ class MediaPlanForm
                                             }
 
                                             $set('data_kol_id', $kol->id);
+                                            // PIC = PIC KOL (Nama Lengkap PIC dari Database KOL), bukan PIC BD/sales
+                                            $set('pic', $kol->full_name ?: null);
                                             $set('channel', $kol->channel);
                                             $set('links', $kol->link_userprofile);
                                             $set('followers', number_format((int) $kol->followers, 0, '.', ','));
@@ -821,11 +1043,16 @@ class MediaPlanForm
                                             if ($kol->tipe_pajak_kol) {
                                                 $set('tipe_pajak_kol', $kol->tipe_pajak_kol);
                                             }
+                                            // SOW (Request) otomatis dari rate card KOL (Database KOL)
+                                            $kolSowLabels = self::kolSowLabels($kol->id);
+                                            if (! empty($kolSowLabels)) {
+                                                $set('scope_items', $kolSowLabels);
+                                            }
                                             $set('rate', number_format(round(self::computeRateFromSow(
                                                 $kol->id,
                                                 $kol->username,
                                                 $kol->channel,
-                                                (array) $get('scope_items')
+                                                ! empty($kolSowLabels) ? $kolSowLabels : (array) $get('scope_items')
                                             )), 0, '.', ','));
                                         })
                                         ->suffixAction(
@@ -1129,6 +1356,13 @@ class MediaPlanForm
                                                                             ->label('Berlaku Dari')
                                                                             ->default(now()),
 
+                                                                        DatePicker::make('valid_until')
+                                                                            ->label('Berlaku Sampai (opsional)')
+                                                                            ->helperText('Kosongkan = otomatis berlaku 90 hari sejak Berlaku Dari')
+                                                                            ->minDate(fn(callable $get) => $get('valid_from'))
+                                                                            ->rule('after_or_equal:valid_from')
+                                                                            ->nullable(),
+
                                                                         Textarea::make('notes')
                                                                             ->label('Catatan')
                                                                             ->rows(2)
@@ -1140,6 +1374,7 @@ class MediaPlanForm
                                                                         TableColumn::make('SOW Custom'),
                                                                         TableColumn::make('Rate Card'),
                                                                         TableColumn::make('Berlaku Dari'),
+                                                                        TableColumn::make('Berlaku Sampai'),
                                                                         TableColumn::make('Catatan'),
                                                                     ])
                                                                     ->extraItemActions([
@@ -1216,6 +1451,7 @@ class MediaPlanForm
                                                                 'rate' => $rc['rate'] ?? null,
                                                                 'file_path' => $rc['file_path'] ?? null,
                                                                 'valid_from' => $rc['valid_from'] ?? null,
+                                                                'valid_until' => $rc['valid_until'] ?? null,
                                                                 'notes' => $rc['notes'] ?? null,
                                                             ])
                                                             ->values()
@@ -1227,6 +1463,7 @@ class MediaPlanForm
 
                                                         // Isi baris ini dengan data KOL yang baru dibuat
                                                         $set('data_kol_id', $kol->id);
+                                                        $set('pic', $kol->full_name ?: null);
                                                         $set('name', $kol->username);
                                                         $set('channel', $kol->channel);
                                                         $set('links', $kol->link_userprofile);
@@ -1303,21 +1540,35 @@ class MediaPlanForm
                                     Select::make('scope_items')
                                         ->label('SOW')
                                         ->multiple()
-                                        ->options([
-                                            'IG Post' => 'IG Post',
-                                            'IG Reels' => 'IG Reels',
-                                            'IG Story' => 'IG Story',
-                                            'TikTok Post' => 'TikTok Post',
-                                            'TikTok Video' => 'TikTok Video',
-                                            'TikTok Story' => 'TikTok Story',
-                                            'Threads Post' => 'Threads Post',
-                                            'YouTube Video' => 'YouTube Video',
-                                            'YouTube Shorts' => 'YouTube Shorts',
-                                            'Facebook Post' => 'Facebook Post',
-                                            'Facebook Reels' => 'Facebook Reels',
-                                            'Talent Appearance' => 'Talent Appearance',
-                                            'X Post' => 'X Post',
-                                        ])
+                                        ->options(function (callable $get): array {
+                                            // Opsi default + SOW dari rate card KOL terpilih (agar value auto-fill valid & tampil)
+                                            $base = [
+                                                'IG Post' => 'IG Post',
+                                                'IG Reels' => 'IG Reels',
+                                                'IG Story' => 'IG Story',
+                                                'TikTok Post' => 'TikTok Post',
+                                                'TikTok Video' => 'TikTok Video',
+                                                'TikTok Story' => 'TikTok Story',
+                                                'Threads Post' => 'Threads Post',
+                                                'YouTube Video' => 'YouTube Video',
+                                                'YouTube Shorts' => 'YouTube Shorts',
+                                                'Facebook Post' => 'Facebook Post',
+                                                'Facebook Reels' => 'Facebook Reels',
+                                                'Talent Appearance' => 'Talent Appearance',
+                                                'X Post' => 'X Post',
+                                            ];
+                                            foreach (self::kolSowLabels($get('data_kol_id')) as $label) {
+                                                $base[$label] = $label;
+                                            }
+                                            // Pastikan value yang sudah terpilih tetap tampil walau tak ada di daftar
+                                            foreach ((array) $get('scope_items') as $selected) {
+                                                if (filled($selected) && ! isset($base[$selected])) {
+                                                    $base[$selected] = $selected;
+                                                }
+                                            }
+
+                                            return $base;
+                                        })
                                         ->searchable()
                                         ->live()
                                         ->default([])
@@ -1330,13 +1581,42 @@ class MediaPlanForm
                                             )), 0, '.', ','));
                                         }),
 
-                                    TextInput::make('rate')
-                                        ->label('Rate')
-                                        ->prefix('Rp')
-                                        ->formatStateUsing(fn($state) => $state ? number_format(round($state), 0, '.', ',') : '0')
+                                    // Total rate disimpan (hidden); rincian per-SOW ditampilkan di Placeholder.
+                                    Hidden::make('rate')
                                         ->dehydrateStateUsing(fn($state) => round(self::parseNumber($state)))
-                                        ->readOnly()
                                         ->default(0),
+
+                                    // Rincian rate per SOW — tampil rapi seperti spreadsheet (Item | Rate + Total)
+                                    Placeholder::make('rate_breakdown')
+                                        ->label('Rate per SOW')
+                                        ->content(fn(callable $get) => self::renderSowRateBreakdown($get)),
+
+                                    // Margin % editable per KOL — diterapkan ke semua SOW-nya saat generate budget.
+                                    TextInput::make('margin_percent')
+                                        ->label('Margin %')
+                                        ->numeric()
+                                        ->suffix('%')
+                                        ->minValue(0)
+                                        ->maxValue(99)
+                                        ->placeholder('Auto')
+                                        ->helperText('Kosong = otomatis')
+                                        ->live(debounce: 500),
+
+                                    // Cost (MU PPh) — total seluruh SOW, read-only, dihitung otomatis.
+                                    Placeholder::make('kol_cost_display')
+                                        ->label('Cost (MU PPh)')
+                                        ->content(fn(callable $get) => new \Illuminate\Support\HtmlString(
+                                            '<span style="font-size:12px;font-weight:600;color:#dc2626;white-space:nowrap;">Rp ' .
+                                            number_format(round(self::computeKolTotals($get)['cost']), 0, ',', '.') . '</span>'
+                                        )),
+
+                                    // Client Price — total seluruh SOW, read-only, dihitung otomatis.
+                                    Placeholder::make('kol_client_display')
+                                        ->label('Client Price')
+                                        ->content(fn(callable $get) => new \Illuminate\Support\HtmlString(
+                                            '<span style="font-size:12px;font-weight:700;color:#059669;white-space:nowrap;">Rp ' .
+                                            number_format(round(self::computeKolTotals($get)['client']), 0, ',', '.') . '</span>'
+                                        )),
 
                                     Checkbox::make('is_selected')
                                         ->label('Quotation')
@@ -1443,6 +1723,9 @@ class MediaPlanForm
                     Step::make('Budget Items')
                         ->icon('heroicon-m-currency-dollar')
                         ->description('Input rate KOL & kalkulasi cost, client price, dan margin')
+                        // Dinonaktifkan sementara: kalkulasi margin/cost/client price dipindah ke KOL List
+                        // agar tidak dobel. Generate InternalBudgetItem tetap jalan di EditMediaPlan::afterSave.
+                        ->hidden()
                         ->schema([
                             Section::make('💰 Budget Items')
                                 ->description('Input Rate (Base) = harga pokok KOL. Cost & Client Price dikalkulasi otomatis.')

@@ -46,7 +46,9 @@ class MasterSowSeeder extends Seeder
         ];
 
         foreach ($sows as $sow) {
-            MasterSow::firstOrCreate(
+            // updateOrCreate: baris dengan name+channel sama akan di-update (sort_order/is_active/is_custom)
+            // agar master data selalu sinkron dengan daftar di seeder ini.
+            MasterSow::updateOrCreate(
                 ['name' => $sow['name'], 'channel' => $sow['channel']],
                 [
                     'sort_order' => $sow['sort_order'],

@@ -70,7 +70,7 @@ class TopSpenderWidget extends Widget
                 'total_campaigns' => $client->campaigns_count,
                 'total_spent' => (float) $client->total_spent,
                 'last_campaign' => $client->latestCampaign?->campaign_name ?? '-',
-                'status' => $client->status_client ?: 'Active',
+                'status' => $client->status_client ?: '—',
             ])
             ->toArray();
     }

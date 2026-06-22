@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\InternalBudgets\Schemas;
 
+use App\Enums\MediaPlanKolStatus;
 use App\Models\MediaPlanKol;
 use App\Models\InternalBudgetItem;
 use Filament\Schemas\Schema;
@@ -437,6 +438,24 @@ class InternalBudgetForm
                                     })
                                     ->disabled(),
 
+                                // Status KOL (editable di External) — tanpa "Payment Gateway".
+                                // Tidak disimpan ke item; di-persist ke MediaPlanKol via EditInternalBudget::afterSave.
+                                Select::make('kol_status')
+                                    ->label('Status KOL')
+                                    ->options(MediaPlanKolStatus::toArrayExternal())
+                                    ->searchable()
+                                    ->native(false)
+                                    ->dehydrated(false)
+                                    ->afterStateHydrated(function (Select $component, $state, callable $get) {
+                                        if (filled($state)) {
+                                            return;
+                                        }
+                                        $kolId = $get('media_plan_kol_id');
+                                        if ($kolId) {
+                                            $component->state(MediaPlanKol::find($kolId)?->status);
+                                        }
+                                    }),
+
                                 TextInput::make('scope_item')
                                     ->label('Scope Item')
                                     ->disabled(),
@@ -540,6 +559,7 @@ class InternalBudgetForm
                             ])
                             ->table([
                                 TableColumn::make('KOL')->width('200px'),
+                                TableColumn::make('Status KOL')->width('170px'),
                                 TableColumn::make('Scope Item')->width('200px'),
                                 TableColumn::make('Qty')->width('60px'),
                                 TableColumn::make('Rate (Base)')->width('160px'),

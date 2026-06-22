@@ -5,11 +5,14 @@ namespace App\Filament\Resources\DataClients\Pages;
 use App\Filament\Imports\DataClientImporter;
 use App\Filament\Resources\DataClients\DataClientResource;
 use App\Filament\Resources\DataClients\Widgets\DataClientStatsWidget;
+use App\Models\DataClient;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Actions\ImportAction;
 use Filament\Forms\Components\Select;
 use Filament\Resources\Pages\ListRecords;
+use Filament\Schemas\Components\Tabs\Tab;
+use Illuminate\Database\Eloquent\Builder;
 
 class ListDataClients extends ListRecords
 {
@@ -19,7 +22,22 @@ class ListDataClients extends ListRecords
 
     public function getHeaderWidgetsColumns(): int|array
     {
-        return 2;
+        return 3;
+    }
+
+    public function getTabs(): array
+    {
+        return [
+            'brand' => Tab::make('Database Brand')
+                ->icon('heroicon-o-building-storefront')
+                ->badge(DataClient::where('type', 'direct')->count())
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('type', 'direct')),
+
+            'agency' => Tab::make('Database Agency')
+                ->icon('heroicon-o-building-office-2')
+                ->badge(DataClient::where('type', 'agency')->count())
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('type', 'agency')),
+        ];
     }
 
     protected function getHeaderWidgets(): array

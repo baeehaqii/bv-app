@@ -2,10 +2,17 @@
 
 namespace App\Filament\Resources\DataClients\Tables;
 
+use App\Filament\Resources\DataClients\Schemas\DataClientForm;
+use App\Models\DataClient;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -39,6 +46,7 @@ class DataClientsTable
 
                 TextColumn::make('agency_name')
                     ->label('Agency')
+                    ->visible(fn($livewire) => ($livewire->activeTab ?? 'brand') !== 'agency')
                     ->getStateUsing(fn($record) => collect($record->pics ?? [])
                         ->filter(fn($p) => !empty($p['agency']))
                         ->count())
@@ -95,12 +103,15 @@ class DataClientsTable
                     ->badge()
                     ->color(fn($state) => $state > 0 ? 'success' : 'gray')
                     ->suffix(fn($state) => $state > 0 ? ' brand' : '')
-                    ->visible(fn() => true)
+                    ->visible(fn($livewire) => ($livewire->activeTab ?? 'brand') === 'agency')
                     ->action(
                         Action::make('lihatBrands')
                             ->modalHeading(fn($record): string => 'Brand yang Di-handle — ' . ($record->nama_brand ?: 'Agency'))
                             ->modalSubmitAction(false)
                             ->modalCancelActionLabel('Tutup')
+                            ->extraModalFooterActions([
+                                self::tambahBrandHandleAction(),
+                            ])
                             ->modalContent(function ($record): HtmlString {
                                 $brands = collect($record->agency_brands ?? []);
 
@@ -135,7 +146,7 @@ class DataClientsTable
                                     </div>
                                 ');
                             })
-                            ->visible(fn($record) => $record->type === 'agency' && !empty($record->agency_brands))
+                            ->visible(fn($record) => $record->type === 'agency')
                     ),
 
                 // DC-03: PIC Internal (Sales)
@@ -291,5 +302,110 @@ class DataClientsTable
                 ]),
             ])
             ->defaultSort('created_at', 'desc');
+    }
+
+    /**
+     * Action footer pada modal "Brand yang Di-handle":
+     * menambahkan satu brand ke daftar agency_brands milik agency.
+     */
+    protected static function tambahBrandHandleAction(): Action
+    {
+        return Action::make('tambahBrandHandle')
+            ->label(fn($record): string => 'Tambah Brand yang Di-handle ' . ($record->nama_brand ?: 'Agency'))
+            ->icon('heroicon-o-plus')
+            ->color('primary')
+            ->modalHeading(fn($record): string => 'Tambah Brand — ' . ($record->nama_brand ?: 'Agency'))
+            ->modalWidth('lg')
+            ->modalSubmitActionLabel('Tambah')
+            ->schema([
+                Select::make('nama_brand')
+                    ->label('Nama Brand')
+                    ->options(fn() => DataClient::where('type', 'direct')
+                        ->whereNotNull('nama_brand')
+                        ->orderBy('nama_brand')
+                        ->pluck('nama_brand', 'nama_brand'))
+                    ->searchable()
+                    ->native(false)
+                    ->live()
+                    ->afterStateUpdated(function (?string $state, Set $set) {
+                        if (! $state) {
+                            $set('category', null);
+                            $set('nama_pic', null);
+                            $set('email', null);
+                            $set('wa_number', null);
+                            $set('description', null);
+
+                            return;
+                        }
+                        $client = DataClient::where('type', 'direct')
+                            ->where('nama_brand', $state)
+                            ->first();
+                        if (! $client) {
+                            return;
+                        }
+                        $pic = collect($client->pic_clients)->first() ?? [];
+                        $set('category', $client->category);
+                        $set('nama_pic', $pic['name'] ?? $pic['nama_pic'] ?? null);
+                        $set('email', $pic['email'] ?? $pic['email_pic'] ?? null);
+                        $set('wa_number', $pic['wa_number'] ?? $pic['wa_pic'] ?? null);
+                        $set('description', $client->notes ?? null);
+                    })
+                    ->createOptionForm([
+                        TextInput::make('nama_brand')
+                            ->label('Nama Brand Baru')
+                            ->required(),
+                    ])
+                    ->getOptionLabelUsing(fn($value) => $value)
+                    ->createOptionUsing(fn(array $data): string => $data['nama_brand'])
+                    ->createOptionAction(
+                        fn($action) => $action
+                            ->label('Tambah Brand Baru')
+                            ->modalHeading('Tambah Brand Baru')
+                            ->modalWidth('sm')
+                    )
+                    ->required(),
+
+                Select::make('category')
+                    ->label('Kategori')
+                    ->prefixIcon('heroicon-o-tag')
+                    ->options(fn() => DataClientForm::categoryOptions())
+                    ->searchable()
+                    ->native(false),
+                TextInput::make('nama_pic')
+                    ->label('Nama PIC Brand')
+                    ->placeholder('Nama PIC brand...'),
+                TextInput::make('email')
+                    ->label('Email PIC Brand')
+                    ->email()
+                    ->placeholder('email@contoh.com'),
+                TextInput::make('wa_number')
+                    ->label('No WhatsApp PIC Brand')
+                    ->tel()
+                    ->placeholder('081234567890'),
+                Textarea::make('description')
+                    ->label('Deskripsi')
+                    ->placeholder('Deskripsi brand atau catatan tambahan...')
+                    ->rows(2),
+            ])
+            ->action(function (array $data, $record): void {
+                $brands = collect($record->agency_brands ?? []);
+                $brands->push([
+                    'nama_brand' => $data['nama_brand'],
+                    'category' => $data['category'] ?? null,
+                    'nama_pic' => $data['nama_pic'] ?? null,
+                    'email' => $data['email'] ?? null,
+                    'wa_number' => $data['wa_number'] ?? null,
+                    'description' => $data['description'] ?? null,
+                ]);
+
+                $record->agency_brands = $brands->values()->all();
+                $record->save();
+
+                Notification::make()
+                    ->success()
+                    ->title('Brand ditambahkan')
+                    ->body('Brand "' . $data['nama_brand'] . '" berhasil ditambahkan ke ' . ($record->nama_brand ?: 'agency') . '.')
+                    ->send();
+            });
     }
 }

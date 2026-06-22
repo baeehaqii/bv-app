@@ -7,6 +7,7 @@ use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Support\Enums\FontWeight;
+use Filament\Support\Enums\TextSize;
 use Filament\Tables\Columns\TextColumn;
 
 class FormBriefInfolist
@@ -123,7 +124,7 @@ class FormBriefInfolist
                                 ->label('Deadline')
                                 ->date('d M Y')
                                 ->weight(FontWeight::Bold)
-                                ->size(TextEntry\TextEntrySize::Large)
+                                ->size(TextSize::Large)
                                 ->placeholder('-'),
 
                             TextEntry::make('status')

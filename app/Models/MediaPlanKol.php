@@ -32,13 +32,24 @@ class MediaPlanKol extends Model
     ];
 
     /**
-     * Status options as per instruction
+     * Status options KOL. Sumber kanonik: App\Enums\MediaPlanKolStatus.
+     * Gunakan MediaPlanKolStatus::toArray() (internal) atau toArrayExternal() (tanpa Payment Gateway).
      */
     const STATUS_OPTIONS = [
+        'Move to Client' => 'Move to Client',
+        'Approved by Client' => 'Approved by Client',
+        'Unavail' => 'Unavail',
         'New List' => 'New List',
+        'HOLD' => 'HOLD',
+        'Rejected' => 'Rejected',
+        'AVAILABLE' => 'AVAILABLE',
         'Approaching' => 'Approaching',
-        'Locked' => 'Locked',
-        'Canceled' => 'Canceled',
+        'Req Client' => 'Req Client',
+        'Need Confirmation' => 'Need Confirmation',
+        'Need Rate Nego' => 'Need Rate Nego',
+        'Payment Gateway' => 'Payment Gateway',
+        'Referensi' => 'Referensi',
+        'Replied' => 'Replied',
     ];
 
     /**

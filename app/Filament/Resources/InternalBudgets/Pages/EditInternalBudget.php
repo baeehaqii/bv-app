@@ -11,6 +11,32 @@ class EditInternalBudget extends EditRecord
 {
     protected static string $resource = InternalBudgetResource::class;
 
+    /**
+     * Persist Status KOL (field non-dehydrated di repeater items) ke MediaPlanKol.
+     * Satu KOL bisa punya banyak item — cukup update sekali per KOL.
+     */
+    protected function afterSave(): void
+    {
+        $applied = [];
+
+        foreach ($this->data['items'] ?? [] as $row) {
+            $status = $row['kol_status'] ?? null;
+            $kolId = $row['media_plan_kol_id'] ?? null;
+
+            // Fallback: ambil media_plan_kol_id dari item bila tidak ada di state (field disabled).
+            if (! $kolId && ! empty($row['id'])) {
+                $kolId = \App\Models\InternalBudgetItem::find($row['id'])?->media_plan_kol_id;
+            }
+
+            if (! $kolId || blank($status) || isset($applied[$kolId])) {
+                continue;
+            }
+
+            \App\Models\MediaPlanKol::where('id', $kolId)->update(['status' => $status]);
+            $applied[$kolId] = true;
+        }
+    }
+
     protected function getHeaderActions(): array
     {
         return [
@@ -99,7 +125,7 @@ class EditInternalBudget extends EditRecord
                         ->label('Tautan Review Client')
                         ->readOnly()
                         ->suffixAction(
-                            \Filament\Forms\Components\Actions\Action::make('open')
+                            Actions\Action::make('open')
                                 ->icon('heroicon-m-arrow-top-right-on-square')
                                 ->label('Buka')
                                 ->url(fn($record) => $record->review_url, shouldOpenInNewTab: true)

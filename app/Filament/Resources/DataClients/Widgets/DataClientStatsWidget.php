@@ -49,65 +49,28 @@ class DataClientStatsWidget extends StatsOverviewWidget
         // Total Clients
         $totalClients = (clone $query)->count();
 
-        // Clients by Status (kolom: status_client)
-        $activeClients = (clone $query)->where('status_client', 'Active')->count();
-        $prospectClients = (clone $query)->where('status_client', 'Prospect')->count();
-        $inactiveClients = (clone $query)->where('status_client', 'Inactive')->count();
-        $lostClients = (clone $query)->where('status_client', 'Lost')->count();
-
-        // Clients by Priority
-        $highPriority = (clone $query)->where('priority', 'P0')->count() + (clone $query)->where('priority', 'High')->count();
-        $mediumPriority = (clone $query)->where('priority', 'P1')->count() + (clone $query)->where('priority', 'Medium')->count();
-        $lowPriority = (clone $query)->where('priority', 'P2')->count() + (clone $query)->where('priority', 'Low')->count();
-
-        // Recent Outreach (filter-aware: date_outreach in range)
-        $recentOutreach = (clone $query)
-            ->whereNotNull('date_outreach')
-            ->whereDate('date_outreach', '>=', now()->subDays(30))
-            ->count();
-
-        // Pending Follow-ups (filter-aware)
-        $pendingFollowUps = (clone $query)
-            ->whereNotNull('date_follow_up')
-            ->whereDate('date_follow_up', '>=', today())
-            ->count();
+        // Agency vs Brand (Direct)
+        $agencyCount = (clone $query)->where('type', 'agency')->count();
+        $brandCount = (clone $query)->where('type', 'direct')->count();
 
         return [
-            Stat::make('Total Clients', number_format($totalClients) . ' Clients')
-                ->description('Total clients in database')
+            Stat::make('Total Client', number_format($totalClients) . ' Clients')
+                ->description('Total client di database')
                 ->descriptionIcon('heroicon-m-building-office-2')
                 ->color('success')
                 ->chart([5, 8, 12, 15, 20, 25, $totalClients])
                 ->extraAttributes(['style' => 'background-color:#ffffff;box-shadow:0 1px 3px rgba(0,0,0,0.08);border-radius:0.75rem;']),
 
-            Stat::make('Client Status', "Active: {$activeClients} | Prospect: {$prospectClients}")
-                ->description("Inactive: {$inactiveClients} | Lost: {$lostClients}")
-                ->descriptionIcon('heroicon-m-chart-bar')
-                ->color('info')
-                ->extraAttributes(['style' => 'background-color:#ffffff;box-shadow:0 1px 3px rgba(0,0,0,0.08);border-radius:0.75rem;']),
-
-            Stat::make('Priority Distribution', "High: {$highPriority} | Medium: {$mediumPriority}")
-                ->description("Low: {$lowPriority}")
-                ->descriptionIcon('heroicon-m-flag')
+            Stat::make('Agency', number_format($agencyCount) . ' Agency')
+                ->description('Total client tipe agency')
+                ->descriptionIcon('heroicon-m-building-office-2')
                 ->color('warning')
                 ->extraAttributes(['style' => 'background-color:#ffffff;box-shadow:0 1px 3px rgba(0,0,0,0.08);border-radius:0.75rem;']),
 
-            Stat::make('Lost Clients', number_format($lostClients) . ' Clients')
-                ->description('Total clients marked as lost')
-                ->descriptionIcon('heroicon-m-x-circle')
-                ->color('danger')
-                ->extraAttributes(['style' => 'background-color:#ffffff;box-shadow:0 1px 3px rgba(0,0,0,0.08);border-radius:0.75rem;']),
-
-            Stat::make('Recent Outreach', number_format($recentOutreach) . ' Clients')
-                ->description('Contacted in last 30 days')
-                ->descriptionIcon('heroicon-m-phone')
-                ->color('success')
-                ->extraAttributes(['style' => 'background-color:#ffffff;box-shadow:0 1px 3px rgba(0,0,0,0.08);border-radius:0.75rem;']),
-
-            Stat::make('Pending Follow-ups', number_format($pendingFollowUps) . ' Clients')
-                ->description('Upcoming follow-up appointments')
-                ->descriptionIcon('heroicon-m-calendar')
-                ->color('danger')
+            Stat::make('Brand', number_format($brandCount) . ' Brand')
+                ->description('Total client direct brand')
+                ->descriptionIcon('heroicon-m-building-storefront')
+                ->color('info')
                 ->extraAttributes(['style' => 'background-color:#ffffff;box-shadow:0 1px 3px rgba(0,0,0,0.08);border-radius:0.75rem;']),
         ];
     }

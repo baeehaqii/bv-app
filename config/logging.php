@@ -73,6 +73,16 @@ return [
             'replace_placeholders' => true,
         ],
 
+        // Channel khusus log notifikasi WhatsApp (dipakai WhatsAppService &
+        // BvNotificationService via Log::stack(['single','whatsapp'])). Wajib
+        // terdefinisi: tanpa ini Log::stack melempar "Log [whatsapp] is not defined".
+        'whatsapp' => [
+            'driver' => 'single',
+            'path' => storage_path('logs/whatsapp.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'replace_placeholders' => true,
+        ],
+
         'slack' => [
             'driver' => 'slack',
             'url' => env('LOG_SLACK_WEBHOOK_URL'),

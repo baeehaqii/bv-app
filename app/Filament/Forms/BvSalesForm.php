@@ -20,6 +20,8 @@ use Filament\Forms\Components\TextInput;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Support\RawJs;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
@@ -138,7 +140,7 @@ class BvSalesForm
                                 ->required(),
 
                             Placeholder::make('company_display')
-                                ->label('Company / Client')
+                                ->label('Tipe Client')
                                 ->content(fn ($record) => $record?->company_name ?? '-')
                                 ->hintAction(
                                     Action::make('viewClient')
@@ -242,9 +244,10 @@ class BvSalesForm
                                 ->hidden(fn (string $operation): bool => $operation === 'create'),
 
                             Select::make('company_name')
-                                ->label('Company / Client Name')
+                                ->label('Tipe Client')
                                 ->searchable()
                                 ->live()
+                                ->afterStateUpdated(fn (Set $set) => $set('related_client_name', null))
                                 ->getSearchResultsUsing(fn (string $search): array => DataClient::where('nama_brand', 'like', "%{$search}%")->limit(50)->pluck('nama_brand', 'nama_brand')->toArray())
                                 ->options(DataClient::limit(50)->pluck('nama_brand', 'nama_brand'))
                                 ->createOptionForm(DataClientForm::getFormSchema())
@@ -308,6 +311,28 @@ class BvSalesForm
                                 ->placeholder('Select or create')
                                 ->required()
                                 ->hidden(fn (string $operation): bool => $operation === 'edit'),
+
+                            // Field dinamis: pasangan client (brand <-> agency)
+                            Select::make('related_client_name')
+                                ->label(fn (Get $get): string => match (self::resolveClientType($get('company_name'))) {
+                                    'agency' => 'Brand yang Dihandel Agency',
+                                    'direct' => 'Agency yang Menghandle Brand',
+                                    default => 'Brand / Agency Terkait',
+                                })
+                                ->placeholder(fn (Get $get): string => match (self::resolveClientType($get('company_name'))) {
+                                    'agency' => 'Pilih brand yang dihandel agency...',
+                                    'direct' => 'Pilih agency yang menghandle brand...',
+                                    default => 'Pilih client terlebih dahulu',
+                                })
+                                ->helperText(fn (Get $get): ?string => match (self::resolveClientType($get('company_name'))) {
+                                    'agency' => 'Brand-brand yang berada di bawah agency ini.',
+                                    'direct' => 'Agency yang menangani brand ini.',
+                                    default => null,
+                                })
+                                ->options(fn (Get $get): array => self::relatedClientOptions($get('company_name')))
+                                ->searchable()
+                                ->native(false)
+                                ->visible(fn (Get $get): bool => filled($get('company_name')) && self::resolveClientType($get('company_name')) !== null),
 
                             Select::make('campaign_items')
                                 ->label('Campaign Items')
@@ -648,5 +673,64 @@ class BvSalesForm
                         ->columnSpanFull(),
                 ]),
         ];
+    }
+
+    /** Tipe client (agency|direct|null) berdasarkan nama brand yang dipilih di company_name. */
+    protected static function resolveClientType(?string $companyName): ?string
+    {
+        if (blank($companyName)) {
+            return null;
+        }
+
+        return DataClient::where('nama_brand', $companyName)->value('type');
+    }
+
+    /**
+     * Opsi field pasangan client:
+     * - agency  → daftar brand yang dihandel agency tsb (dari agency_brands).
+     * - direct  → daftar agency yang menghandle brand tsb (dari pics brand + agency yang mencantumkan brand ini).
+     */
+    protected static function relatedClientOptions(?string $companyName): array
+    {
+        if (blank($companyName)) {
+            return [];
+        }
+
+        $client = DataClient::where('nama_brand', $companyName)->first();
+        if (! $client) {
+            return [];
+        }
+
+        if ($client->type === 'agency') {
+            return collect($client->agency_brands ?? [])
+                ->pluck('nama_brand')
+                ->filter()
+                ->unique()
+                ->values()
+                ->mapWithKeys(fn ($name) => [$name => $name])
+                ->all();
+        }
+
+        if ($client->type === 'direct') {
+            // 1) Agency yang tercatat langsung di PIC brand
+            $fromPics = collect($client->pics ?? [])->pluck('agency')->filter();
+
+            // 2) Agency yang mencantumkan brand ini di daftar agency_brands miliknya
+            $fromAgencies = DataClient::where('type', 'agency')
+                ->get()
+                ->filter(fn ($agency) => collect($agency->agency_brands ?? [])
+                    ->pluck('nama_brand')
+                    ->contains($client->nama_brand))
+                ->pluck('nama_brand');
+
+            return $fromPics->merge($fromAgencies)
+                ->filter()
+                ->unique()
+                ->values()
+                ->mapWithKeys(fn ($name) => [$name => $name])
+                ->all();
+        }
+
+        return [];
     }
 }

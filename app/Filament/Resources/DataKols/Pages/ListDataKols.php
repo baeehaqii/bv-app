@@ -11,6 +11,7 @@ use App\Filament\Widgets\KolByTierChart;
 use App\Filament\Widgets\TopKolByFollowersChart;
 use App\Models\DataKol;
 use Filament\Actions\CreateAction;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -95,7 +96,22 @@ class ListDataKols extends ListRecords
                 ->label('New Data KOL')
                 ->icon('heroicon-o-plus')
                 ->modalHeading('Create Database KOL')
+                ->modalSubmitActionLabel('Create & Fetch Data')
                 ->form([
+                    // Indikator loading saat tombol Create ditekan (fetch API bisa beberapa detik)
+                    Placeholder::make('fetch_loading_indicator')
+                        ->hiddenLabel()
+                        ->content(new \Illuminate\Support\HtmlString(
+                            '<span wire:loading.delay.flex wire:target="callMountedAction" style="display:none;" class="items-center gap-2 rounded-lg bg-primary-50 px-3 py-2 text-sm font-medium text-primary-600 dark:bg-primary-500/10 dark:text-primary-400">
+                                <svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                </svg>
+                                Menyimpan & mengambil data dari API… mohon tunggu.
+                            </span>'
+                        ))
+                        ->columnSpanFull(),
+
                     Repeater::make('channels')
                         ->label('Platform / Channel')
                         ->helperText('Satu KOL bisa punya banyak platform. Tambahkan tiap channel — masing-masing di-fetch & disimpan terpisah.')

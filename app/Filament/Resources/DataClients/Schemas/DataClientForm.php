@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\DataClients\Schemas;
 
+use App\Enums\ClientStatus;
 use App\Enums\SalesStatus;
 use App\Models\BvSalesList;
 use App\Models\DataClient;
@@ -26,7 +27,7 @@ class DataClientForm
     }
 
     /** Daftar kategori: gabungan default + kategori existing di database */
-    private static function categoryOptions(): array
+    public static function categoryOptions(): array
     {
         $defaults = [
             'FMCG' => 'FMCG',
@@ -56,6 +57,7 @@ class DataClientForm
                 ->schema([
                     Select::make('type')
                         ->label('Client Type')
+                        ->helperText('Wajib & harus jelas — dipakai di Quotation dan Invoice pembayaran.')
                         ->options([
                             'direct' => 'Direct Brand',
                             'agency' => 'Agency',
@@ -67,9 +69,12 @@ class DataClientForm
 
                     TextInput::make('nama_brand')
                         ->label(fn (Get $get) => $get('type') === 'agency' ? 'Nama Agency' : 'Nama Brand')
+                        ->helperText(fn (Get $get) => $get('type') === 'agency'
+                            ? 'Nama agency — dipakai sebagai identitas client di Quotation & Invoice.'
+                            : 'Nama brand — dipakai sebagai identitas client di Quotation & Invoice.')
                         ->placeholder(fn (Get $get) => $get('type') === 'agency' ? 'Masukan nama agency...' : 'Masukan nama brand...')
                         ->visible(fn (Get $get) => in_array($get('type'), ['direct', 'agency']))
-                        ->required(fn (Get $get) => in_array($get('type'), ['direct', 'agency'])),
+                        ->required(),
 
                     Select::make('category')
                         ->label('Kategori')
@@ -123,13 +128,6 @@ class DataClientForm
                         ->label('Term of Payment (hari)')
                         ->numeric()->placeholder('Term of Payment')
                         ->suffix('hari'),
-                    Select::make(name: 'status_client')
-                        ->label('Status Client')->required()
-                        ->options([
-                            'Active' => 'Active',
-                            'Inactive' => 'Inactive',
-                        ]),
-
                     // ─── PIC (dipindah dari section terpisah) ────────────
                     Select::make('pic_internal_sales_id')
                         ->label('PIC Internal (Sales)')
@@ -137,6 +135,14 @@ class DataClientForm
                         ->searchable()
                         ->native(false)
                         ->nullable(),
+
+                    // ─── Status Client (tahap deal sales) — di samping PIC Internal ─
+                    Select::make('status_client')
+                        ->label('Status Client')
+                        ->required()
+                        ->options(ClientStatus::options())
+                        ->default(ClientStatus::AWAITING->value)
+                        ->native(false),
 
                     // ─── PIC Client (dikomentari — dipindah ke section tersendiri untuk direct brand) ─
                     // Repeater::make('pic_clients')

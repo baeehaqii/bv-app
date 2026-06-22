@@ -27,7 +27,11 @@ class MasterSow extends Model
 
     public function scopeByChannel(Builder $query, string $channel): Builder
     {
-        return $query->where('channel', $channel)->orWhereNull('channel');
+        // Bungkus dalam closure agar tidak bentrok dengan where lain (mis. active()):
+        // hasilnya "... AND (channel = ? OR channel IS NULL)" bukan precedence yang salah.
+        return $query->where(function (Builder $q) use ($channel) {
+            $q->where('channel', $channel)->orWhereNull('channel');
+        });
     }
 
     public function rateCards(): HasMany

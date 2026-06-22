@@ -163,67 +163,99 @@
             <p class="text-xs text-gray-400 mb-6">
                 Dengan ditandatanganinya dokumen ini, para pihak menyatakan menyetujui seluruh rincian penawaran di atas.
             </p>
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-8">
+            @php
+                $signatories = collect($quotation->signatories ?? [])
+                    ->filter(fn ($s) => filled($s['name'] ?? null) || filled($s['signature'] ?? null))
+                    ->values();
+            @endphp
 
-                {{-- PIC Client --}}
-                <div class="text-center">
-                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Pihak Pertama (Client)</p>
-                    <div class="border border-dashed border-gray-300 rounded-xl h-28 mb-3 flex items-center justify-center overflow-hidden">
-                        @if ($quotation->ttd_pic_client)
-                            <img src="{{ Storage::disk('public')->url($quotation->ttd_pic_client) }}"
-                                 alt="TTD Client" class="max-h-full max-w-full object-contain p-2">
-                        @else
-                            <span class="text-xs text-gray-300">Tanda Tangan</span>
-                        @endif
-                    </div>
-                    <div class="border-t border-gray-200 pt-2">
-                        <p class="text-xs font-semibold text-gray-800">{{ $quotation->client_name ?? '___________________' }}</p>
-                        <p class="text-xs text-gray-500 mt-0.5">PIC Client</p>
-                        <p class="text-xs text-gray-400 mt-1">Tanggal: _______________</p>
-                    </div>
+            @if ($signatories->isNotEmpty())
+                {{-- Daftar penanda tangan fleksibel --}}
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+                    @foreach ($signatories as $signatory)
+                        <div class="text-center">
+                            <div class="border border-dashed border-gray-300 rounded-xl h-28 mb-3 flex items-center justify-center overflow-hidden">
+                                @if (!empty($signatory['signature']))
+                                    <img src="{{ Storage::disk('public')->url($signatory['signature']) }}"
+                                         alt="Tanda Tangan {{ $signatory['name'] ?? '' }}"
+                                         class="max-h-full max-w-full object-contain p-2">
+                                @else
+                                    <span class="text-xs text-gray-300">Tanda Tangan</span>
+                                @endif
+                            </div>
+                            <div class="border-t border-gray-200 pt-2">
+                                <p class="text-xs font-semibold text-gray-800">{{ $signatory['name'] ?? '___________________' }}</p>
+                                @if (!empty($signatory['role']))
+                                    <p class="text-xs text-gray-500 mt-0.5">{{ $signatory['role'] }}</p>
+                                @endif
+                            </div>
+                        </div>
+                    @endforeach
                 </div>
+            @else
+                {{-- Fallback: tanda tangan lama (kompatibilitas record lama) --}}
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-8">
 
-                {{-- Sales / BD BV --}}
-                <div class="text-center">
-                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Pihak Kedua (Sales BV)</p>
-                    <div class="border border-dashed border-gray-300 rounded-xl h-28 mb-3 flex items-center justify-center overflow-hidden">
-                        @if ($quotation->ttd_sales_bv)
-                            <img src="{{ Storage::disk('public')->url($quotation->ttd_sales_bv) }}"
-                                 alt="TTD Sales BV" class="max-h-full max-w-full object-contain p-2">
-                        @else
-                            <span class="text-xs text-gray-300">Tanda Tangan</span>
-                        @endif
+                    {{-- PIC Client --}}
+                    <div class="text-center">
+                        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Pihak Pertama (Client)</p>
+                        <div class="border border-dashed border-gray-300 rounded-xl h-28 mb-3 flex items-center justify-center overflow-hidden">
+                            @if ($quotation->ttd_pic_client)
+                                <img src="{{ Storage::disk('public')->url($quotation->ttd_pic_client) }}"
+                                     alt="TTD Client" class="max-h-full max-w-full object-contain p-2">
+                            @else
+                                <span class="text-xs text-gray-300">Tanda Tangan</span>
+                            @endif
+                        </div>
+                        <div class="border-t border-gray-200 pt-2">
+                            <p class="text-xs font-semibold text-gray-800">{{ $quotation->client_name ?? '___________________' }}</p>
+                            <p class="text-xs text-gray-500 mt-0.5">PIC Client</p>
+                            <p class="text-xs text-gray-400 mt-1">Tanggal: _______________</p>
+                        </div>
                     </div>
-                    <div class="border-t border-gray-200 pt-2">
-                        <p class="text-xs font-semibold text-gray-800">
-                            {{ $quotation->mediaPlan?->picSalesBd?->nama_sales ?? '___________________' }}
-                        </p>
-                        <p class="text-xs text-gray-500 mt-0.5">Sales / Business Development</p>
-                        <p class="text-xs text-gray-400 mt-1">PT Beyond Viral Indonesia</p>
+
+                    {{-- Sales / BD BV --}}
+                    <div class="text-center">
+                        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Pihak Kedua (Sales BV)</p>
+                        <div class="border border-dashed border-gray-300 rounded-xl h-28 mb-3 flex items-center justify-center overflow-hidden">
+                            @if ($quotation->ttd_sales_bv)
+                                <img src="{{ Storage::disk('public')->url($quotation->ttd_sales_bv) }}"
+                                     alt="TTD Sales BV" class="max-h-full max-w-full object-contain p-2">
+                            @else
+                                <span class="text-xs text-gray-300">Tanda Tangan</span>
+                            @endif
+                        </div>
+                        <div class="border-t border-gray-200 pt-2">
+                            <p class="text-xs font-semibold text-gray-800">
+                                {{ $quotation->mediaPlan?->picSalesBd?->nama_sales ?? '___________________' }}
+                            </p>
+                            <p class="text-xs text-gray-500 mt-0.5">Sales / Business Development</p>
+                            <p class="text-xs text-gray-400 mt-1">PT Beyond Viral Indonesia</p>
+                        </div>
                     </div>
+
+                    {{-- BD / Director BV --}}
+                    <div class="text-center">
+                        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Pihak Ketiga (BD BV)</p>
+                        <div class="border border-dashed border-gray-300 rounded-xl h-28 mb-3 flex items-center justify-center overflow-hidden">
+                            @if ($quotation->ttd_bd_sales)
+                                <img src="{{ Storage::disk('public')->url($quotation->ttd_bd_sales) }}"
+                                     alt="TTD BD BV" class="max-h-full max-w-full object-contain p-2">
+                            @else
+                                <span class="text-xs text-gray-300">Tanda Tangan</span>
+                            @endif
+                        </div>
+                        <div class="border-t border-gray-200 pt-2">
+                            <p class="text-xs font-semibold text-gray-800">
+                                {{ $quotation->mediaPlan?->picLeadsProject?->nama_sales ?? '___________________' }}
+                            </p>
+                            <p class="text-xs text-gray-500 mt-0.5">Business Director</p>
+                            <p class="text-xs text-gray-400 mt-1">PT Beyond Viral Indonesia</p>
+                        </div>
+                    </div>
+
                 </div>
-
-                {{-- BD / Director BV --}}
-                <div class="text-center">
-                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Pihak Ketiga (BD BV)</p>
-                    <div class="border border-dashed border-gray-300 rounded-xl h-28 mb-3 flex items-center justify-center overflow-hidden">
-                        @if ($quotation->ttd_bd_sales)
-                            <img src="{{ Storage::disk('public')->url($quotation->ttd_bd_sales) }}"
-                                 alt="TTD BD BV" class="max-h-full max-w-full object-contain p-2">
-                        @else
-                            <span class="text-xs text-gray-300">Tanda Tangan</span>
-                        @endif
-                    </div>
-                    <div class="border-t border-gray-200 pt-2">
-                        <p class="text-xs font-semibold text-gray-800">
-                            {{ $quotation->mediaPlan?->picLeadsProject?->nama_sales ?? '___________________' }}
-                        </p>
-                        <p class="text-xs text-gray-500 mt-0.5">Business Director</p>
-                        <p class="text-xs text-gray-400 mt-1">PT Beyond Viral Indonesia</p>
-                    </div>
-                </div>
-
-            </div>
+            @endif
 
             {{-- Stamp area --}}
             <p class="text-xs text-gray-300 text-center mt-6">

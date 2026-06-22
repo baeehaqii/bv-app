@@ -14,3 +14,4 @@
 13. Jangan buat kode yang tidak aman
 14. Jangan buat komentar yang tidak perlu dan terlalu panjang
 15. Lakukan testing menggunakan php pest ketika penambahan fitur atau perbaikan, pastikan testing pass untuk production live
+16. gunakan multi sub agent untuk mengerjakan task dan revisi lebih cepat dan testing lebih cepat dan sesuai best practice

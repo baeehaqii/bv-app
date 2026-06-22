@@ -49,9 +49,9 @@ class DataClientImporter extends Importer
                 ->example('Garudafood Group'),
 
             ImportColumn::make('status_client')
-                ->label('Status Client (Active/Inactive)')
-                ->rules(['nullable', 'in:Active,Inactive'])
-                ->example('Active'),
+                ->label('Status Client (won/lost/revision/mediaplan/awaiting/invoicing)')
+                ->rules(['nullable', 'in:won,lost,revision,mediaplan,awaiting,invoicing'])
+                ->example('awaiting'),
 
             ImportColumn::make('status')
                 ->label('Status Campaign')

@@ -205,6 +205,32 @@ class EditMediaPlan extends EditRecord
             }
         }
 
+        // Kalkulasi Cost/Client Price/Margin tiap budget item dari rate_base + koef PPh + Margin% KOL.
+        // Dipindah dari step "Budget Items" (kini disembunyikan) agar nilai tetap konsisten & tidak dobel.
+        foreach ($internalBudget->items()->with(['mediaPlanKol', 'masterPph'])->get() as $item) {
+            $coeff = $item->masterPph?->getCalculatedCoefficient() ?? 0.975;
+            $kolMargin = $item->mediaPlanKol?->margin_percent;
+            $subtotal = (float) $item->rate_base * (int) ($item->qty ?: 1);
+
+            $figs = \App\Filament\Resources\MediaPlans\Schemas\MediaPlanForm::computeBudgetFigures(
+                $subtotal,
+                $coeff,
+                $kolMargin !== null ? (float) $kolMargin : null,
+            );
+
+            $item->update([
+                'subtotal' => $figs['subtotal'],
+                'mu_pph' => $figs['mu_pph'],
+                'mu_target' => $figs['mu_target'],
+                'published_rate' => $figs['mu_target'],
+                'rounded' => $figs['rounded'],
+                'actual_margin_percent' => $figs['actual_margin'],
+                // Simpan override agar margin KOL tetap konsisten bila halaman External recalculate.
+                'use_flexible_margin' => $kolMargin !== null,
+                'margin_percent_override' => $kolMargin !== null ? (float) $kolMargin : null,
+            ]);
+        }
+
         // Update CPI/CPV and CPE for each KOL
         foreach ($this->record->kols as $kol) {
             $kol->syncRateFromBudget();

@@ -14,6 +14,7 @@ class BvQuotation extends Model
         'quotation_date' => 'date',
         'expiry_date'    => 'date',
         'is_public'      => 'boolean',
+        'signatories'    => 'array',
     ];
 
     public function internalBudget(): BelongsTo

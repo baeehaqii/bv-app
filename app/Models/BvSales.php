@@ -17,6 +17,7 @@ class BvSales extends Model
         'bv_sales_list_id',
         'event_name',
         'company_name',
+        'related_client_name',
         'campaign_items',
         'budget_propose',
         'deal_value',
@@ -47,6 +48,8 @@ class BvSales extends Model
         'margin' => 'decimal:2',
         'brief_files' => 'array',
         'brief_submit_date' => 'date',
+        'start_date' => 'date',
+        'end_date' => 'date',
         'campaign_year' => 'integer',
         'close_date' => 'date',
         'status' => SalesStatus::class,
@@ -203,9 +206,11 @@ class BvSales extends Model
             'status' => 'ongoing',
         ]);
 
-        // Jika InternalBudget sudah fully approved, langsung sync KOL entries ke campaign
+        // Jika InternalBudget sudah di-approve AM, langsung sync KOL entries + seed
+        // draft storyline ke campaign. (Status valid InternalBudget = 'approve_am',
+        // bukan 'approved' — perbaikan kondisi mati yang membuat sync tak pernah jalan.)
         $internalBudget = $this->mediaPlan?->internalBudget;
-        if ($internalBudget && $internalBudget->status === 'approved') {
+        if ($internalBudget && $internalBudget->status === 'approve_am') {
             $internalBudget->syncCampaignKolsFromApprovedBudget();
         }
     }

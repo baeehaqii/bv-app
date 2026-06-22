@@ -2,13 +2,14 @@
 
 namespace App\Filament\Resources\InternalBudgets\Tables;
 
+use App\Models\InternalBudget;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
-use Filament\Tables\Table;
 use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Table;
 
 class InternalBudgetsTable
 {
@@ -37,11 +38,14 @@ class InternalBudgetsTable
                 TextColumn::make('status')
                     ->label('Status')
                     ->badge()
-                    ->color(fn(string $state): string => match ($state) {
+                    ->formatStateUsing(fn (string $state): string => InternalBudget::STATUS_OPTIONS[$state] ?? ucfirst($state))
+                    ->color(fn (string $state): string => match ($state) {
                         'draft' => 'gray',
-                        'pending' => 'warning',
-                        'approved' => 'success',
+                        'review_client' => 'info',
+                        'approve_client' => 'warning',
+                        'approve_am' => 'success',
                         'rejected' => 'danger',
+                        default => 'gray',
                     }),
 
                 TextColumn::make('items_count')
@@ -72,9 +76,9 @@ class InternalBudgetsTable
 
                 TextColumn::make('warnings')
                     ->label('⚠️')
-                    ->state(fn($record) => $record->warnings ? '⚠️' : '✅')
+                    ->state(fn ($record) => $record->warnings ? '⚠️' : '✅')
                     ->alignCenter()
-                    ->tooltip(fn($record) => $record->warnings ?? 'No warnings'),
+                    ->tooltip(fn ($record) => $record->warnings ?? 'No warnings'),
 
                 TextColumn::make('created_at')
                     ->label('Created')
@@ -84,16 +88,11 @@ class InternalBudgetsTable
             ])
             ->filters([
                 SelectFilter::make('status')
-                    ->options([
-                        'draft' => 'Draft',
-                        'pending' => 'Pending',
-                        'approved' => 'Approved',
-                        'rejected' => 'Rejected',
-                    ]),
+                    ->options(InternalBudget::STATUS_OPTIONS),
 
                 Filter::make('has_warnings')
                     ->label('Has Warnings')
-                    ->query(fn($query) => $query->whereNotNull('warnings')),
+                    ->query(fn ($query) => $query->whereNotNull('warnings')),
             ])
             ->recordActions([
                 EditAction::make(),

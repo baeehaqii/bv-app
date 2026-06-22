@@ -245,7 +245,10 @@ class InternalBudget extends Model
      */
     public function syncCampaignKolsFromApprovedBudget(): void
     {
-        $campaign = $this->mediaPlan?->bvSales?->campaign;
+        // Resolusi campaign lewat query segar (bukan properti relasi yang bisa
+        // ter-cache null sebelum campaign dibuat di alur Campaign Live).
+        $bvSales = $this->mediaPlan?->bvSales;
+        $campaign = $bvSales?->campaign()->first();
         if (!$campaign) {
             return;
         }
@@ -446,6 +449,10 @@ class InternalBudget extends Model
             // gunakan tryActivateCampaign() — akan aktifkan BvCampign jika kedua plan sudah approve
             if ($mediaPlan->bv_sales_id) {
                 $mediaPlan->tryActivateCampaign();
+                // Pastikan KOL + draft storyline campaign internal ter-seed dari approved
+                // budget, apa pun urutannya (campaign bisa dibuat lebih dulu via Campaign Live).
+                // No-op bila campaign belum ada; idempotent bila sudah.
+                $budget->syncCampaignKolsFromApprovedBudget();
                 return;
             }
 

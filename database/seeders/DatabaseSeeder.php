@@ -40,6 +40,10 @@ class DatabaseSeeder extends Seeder
         $this->call(MasterPphSeeder::class);
         $this->command->info('MasterPph seeding completed!');
 
+        // Jalankan MasterSowSeeder (master data SOW untuk Rate Card KOL)
+        $this->call(MasterSowSeeder::class);
+        $this->command->info('MasterSow seeding completed!');
+
         // Jalankan OrganizationStructureSeeder
         $this->call(OrganizationStructureSeeder::class);
         $this->command->info('OrganizationStructure seeding completed!');
