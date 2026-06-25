@@ -5,6 +5,7 @@ namespace App\Filament\Resources\CampaignExternals;
 use App\Filament\Resources\CampaignExternals\Pages\ListCampaignExternals;
 use App\Filament\Resources\CampaignExternals\Pages\ViewCampaignExternal;
 use App\Filament\Resources\CampaignExternals\RelationManagers\StorylinesExternalRelationManager;
+use App\Filament\Resources\CampaignExternals\RelationManagers\TrackerExternalRelationManager;
 use App\Filament\Resources\CampaignExternals\Tables\CampaignExternalsTable;
 use App\Models\BvCampign;
 use BackedEnum;
@@ -78,6 +79,7 @@ class CampaignExternalResource extends Resource
     public static function getRelations(): array
     {
         return [
+            TrackerExternalRelationManager::class,
             StorylinesExternalRelationManager::class,
         ];
     }

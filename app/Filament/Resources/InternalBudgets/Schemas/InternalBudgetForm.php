@@ -440,11 +440,12 @@ class InternalBudgetForm
 
                                 // Status KOL (editable di External) — tanpa "Payment Gateway".
                                 // Tidak disimpan ke item; di-persist ke MediaPlanKol via EditInternalBudget::afterSave.
+                                // native(true) -> popup di-render browser, lolos dari overflow-x & kolom freeze
+                                // (kalau native(false) dropdown ketutup di belakang sel sticky).
                                 Select::make('kol_status')
                                     ->label('Status KOL')
                                     ->options(MediaPlanKolStatus::toArrayExternal())
-                                    ->searchable()
-                                    ->native(false)
+                                    ->native(true)
                                     ->dehydrated(false)
                                     ->afterStateHydrated(function (Select $component, $state, callable $get) {
                                         if (filled($state)) {

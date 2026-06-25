@@ -297,6 +297,10 @@ class InternalBudget extends Model
         // Seed draft Content Planning (storylines) untuk tiap KOL/SOW yang di-approve.
         // PIC Campaign mengisi draft di sini sebelum dikirim ke client & sebelum KOL Performance terisi.
         $this->seedContentPlanningDrafts($campaign, $approvedItems);
+
+        // Buat/relink baris pembayaran KOL (OFERO). Aman: tidak menimpa data bayar yang sudah ada.
+        $campaign->load('kols');
+        $campaign->syncPaymentRowsFromKols();
     }
 
     /**

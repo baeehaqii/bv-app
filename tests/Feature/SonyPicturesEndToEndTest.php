@@ -277,3 +277,28 @@ it('Konsistensi: deal_value campaign = total_rounded budget (harga client setela
     expect((float) $r['campaign']->deal_value)->toBe((float) $r['budget']->total_rounded);
     expect((float) $r['campaign']->deal_value)->toBeGreaterThan((float) $r['budget']->total_rate);
 });
+
+it('Stage 6 (Phase 1): Pembayaran KOL (OFERO) ter-generate; Real Cost = biaya aktual KOL (rate dasar), bukan harga client', function () {
+    $r = runMotuFlow();
+    $campaign = $r['campaign'];
+    $budget = $r['budget'];
+
+    // Hook syncPaymentRowsFromKols dipanggil saat Campaign Live → 1 baris pembayaran per KOL.
+    expect($campaign->payments()->count())->toBe(7);
+
+    $adifiKol = $campaign->kols()->where('creator_name', 'adifi_')->first();
+    $adifiPay = $campaign->payments()->where('kol_name', 'adifi_')->first();
+
+    // Real Cost = Σ rate_base approved item (biaya KOL); Cost+Tax = Σ mu_pph.
+    $expectedRealCost = (float) $budget->items()
+        ->whereHas('mediaPlanKol', fn ($q) => $q->where('name', 'adifi_'))
+        ->where('status', 'approved')
+        ->sum('rate_base');
+
+    expect($adifiPay)->not->toBeNull()
+        ->and((float) $adifiPay->real_cost)->toBe($expectedRealCost)
+        // Harga client (price = rounded setelah markup) HARUS lebih besar dari biaya aktual.
+        ->and($expectedRealCost)->toBeLessThan((float) $adifiKol->price)
+        ->and($adifiPay->payment_status)->toBe('waiting_payment')
+        ->and($adifiPay->bv_campaign_kol_id)->toBe($adifiKol->id);
+});

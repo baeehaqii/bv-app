@@ -141,6 +141,78 @@ class BvCampign extends Model
     }
 
     /**
+     * Baris pembayaran KOL (Campaign Ongoing Internal — sheet OFERO).
+     */
+    public function payments(): HasMany
+    {
+        return $this->hasMany(CampaignKolPayment::class, 'campaign_id');
+    }
+
+    /**
+     * Buat/relink baris pembayaran dari daftar KOL aktif.
+     * Pakai (campaign_id + kol_name) sebagai kunci agar data bayar (status/bukti transfer)
+     * TIDAK hilang saat KOL di-wipe & dibuat ulang oleh sync InternalBudget.
+     * Field snapshot hanya di-seed saat baris baru; baris lama hanya di-relink pointernya.
+     */
+    public function syncPaymentRowsFromKols(): void
+    {
+        // Biaya AKTUAL ke KOL diambil dari approved budget items (Real Cost = rate dasar,
+        // Cost + Tax = mu_pph) — BUKAN harga client (price = sudah kena markup).
+        $costByName = $this->resolveKolCostMap();
+
+        foreach ($this->kols as $kol) {
+            $name = $kol->creator_name ?: '—';
+
+            $payment = CampaignKolPayment::firstOrNew([
+                'campaign_id' => $this->id,
+                'kol_name' => $name,
+            ]);
+
+            $payment->bv_campaign_kol_id = $kol->id;
+
+            if (! $payment->exists) {
+                $payment->username = $kol->username;
+                $payment->platform = $kol->platform;
+                $payment->real_cost = $costByName[$name]['real_cost'] ?? 0;
+                $payment->cost_tax = $costByName[$name]['cost_tax'] ?? 0;
+                $payment->payment_status = 'waiting_payment';
+            }
+
+            $payment->save();
+        }
+    }
+
+    /**
+     * Peta nama KOL → biaya aktual dari approved budget items (Media Plan External).
+     * Diakumulasi bila satu KOL punya lebih dari satu SOW/item. Sekali query (hindari N+1).
+     *
+     * @return array<string, array{real_cost: float, cost_tax: float}>
+     */
+    protected function resolveKolCostMap(): array
+    {
+        $budget = $this->mediaPlan?->internalBudget;
+        if (! $budget) {
+            return [];
+        }
+
+        return $budget->items()
+            ->where('status', 'approved')
+            ->with('mediaPlanKol:id,name')
+            ->get()
+            ->reduce(function (array $map, $item): array {
+                $name = $item->mediaPlanKol?->name;
+                if (! $name) {
+                    return $map;
+                }
+
+                $map[$name]['real_cost'] = ($map[$name]['real_cost'] ?? 0) + (float) ($item->rate_base ?? 0);
+                $map[$name]['cost_tax'] = ($map[$name]['cost_tax'] ?? 0) + (float) ($item->mu_pph ?? 0);
+
+                return $map;
+            }, []);
+    }
+
+    /**
      * Riwayat revisi konten (storyline/video/caption) lintas KOL pada campaign ini.
      */
     public function revisions(): HasMany

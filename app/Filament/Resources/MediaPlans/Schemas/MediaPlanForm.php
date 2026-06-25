@@ -682,20 +682,27 @@ class MediaPlanForm
                                 ->hiddenLabel()
                                 ->content(new \Illuminate\Support\HtmlString('<style>
                                     #kol-list-repeater { overflow-x: auto; padding-bottom: 340px; margin-bottom: -340px; }
-                                    #kol-list-repeater table { min-width: 2920px; }
+                                    #kol-list-repeater table { min-width: 2750px; }
+                                    /* Freeze PIC(160) Status(180) Username(240) — Link dst ikut scroll.
+                                       Tanpa kolom reorder, jadi kolom 1=PIC, 2=Status, 3=Username. */
+                                    #kol-list-repeater table th:nth-child(1), #kol-list-repeater table td:nth-child(1) { position: sticky; left: 0; z-index: 2; background-color:#fff; }
+                                    #kol-list-repeater table th:nth-child(2), #kol-list-repeater table td:nth-child(2) { position: sticky; left: 160px; z-index: 2; background-color:#fff; }
+                                    #kol-list-repeater table th:nth-child(3), #kol-list-repeater table td:nth-child(3) { position: sticky; left: 340px; z-index: 2; background-color:#fff; box-shadow: 3px 0 6px -2px rgba(0,0,0,0.10); }
+                                    #kol-list-repeater table thead th:nth-child(1), #kol-list-repeater table thead th:nth-child(2), #kol-list-repeater table thead th:nth-child(3) { background-color:#f9fafb; }
+                                    /* Saat dropdown (Username) dibuka, naikkan stacking baris agar list tidak ketutup kolom freeze */
+                                    #kol-list-repeater table tbody tr:focus-within td:nth-child(1),
+                                    #kol-list-repeater table tbody tr:focus-within td:nth-child(2),
+                                    #kol-list-repeater table tbody tr:focus-within td:nth-child(3) { z-index: 20; }
+                                    .dark #kol-list-repeater table td:nth-child(1), .dark #kol-list-repeater table td:nth-child(2), .dark #kol-list-repeater table td:nth-child(3) { background-color:#111827; }
+                                    .dark #kol-list-repeater table thead th:nth-child(1), .dark #kol-list-repeater table thead th:nth-child(2), .dark #kol-list-repeater table thead th:nth-child(3) { background-color:#1f2937; }
                                 </style>'))
                                 ->columnSpanFull(),
 
-                            Section::make('Scope of Work (dari Brief)')
-                                ->icon('heroicon-m-clipboard-document-list')
-                                ->description('Referensi SOW dari brief client, tanpa perlu pindah ke tab Brief')
-                                ->collapsible()
-                                ->collapsed()
-                                ->schema([
-                                    Placeholder::make('brief_sow_label')
-                                        ->hiddenLabel()
-                                        ->content(fn(?\App\Models\MediaPlan $record) => self::renderBriefSowLabel($record)),
-                                ])
+                            // Minimalis: tanpa card — cuma label + placeholder SOW & garis pembatas.
+                            Placeholder::make('brief_sow_label')
+                                ->label('Scope of Work (dari Brief)')
+                                ->content(fn(?\App\Models\MediaPlan $record) => self::renderBriefSowLabel($record))
+                                ->extraAttributes(['style' => 'border-bottom:1px solid #e5e7eb;padding-bottom:14px;margin-bottom:4px;'])
                                 ->columnSpanFull(),
 
                             Repeater::make('kols')
@@ -964,9 +971,9 @@ class MediaPlanForm
                                         }),
                                 ])
                                 ->table([
-                                    TableColumn::make('PIC')->width('220px'),
-                                    TableColumn::make('Status')->width('150px'),
-                                    TableColumn::make('Username')->width('380px'),
+                                    TableColumn::make('PIC')->width('160px'),
+                                    TableColumn::make('Status')->width('180px'),
+                                    TableColumn::make('Username')->width('240px'),
                                     TableColumn::make('Link')->width('260px'),
                                     TableColumn::make('Channel')->width('150px'),
                                     TableColumn::make('Followers')->width('110px'),
@@ -982,28 +989,26 @@ class MediaPlanForm
                                     TableColumn::make('Quotation')->width('90px'),
                                 ])
                                 ->schema([
-                                    Hidden::make('row_number'),
-                                    Hidden::make('data_kol_id'),
-                                    Hidden::make('domisili'),
-                                    Hidden::make('tipe_pajak_kol')
-                                        ->default(fn() => MasterPph::active()->ordered()->first()?->id),
-                                    Hidden::make('cpi_cpv'),
-                                    Hidden::make('cpe'),
-                                    Hidden::make('after_nego'),
-                                    Hidden::make('payment_date'),
-                                    Hidden::make('notes'),
+                                    // CATATAN: komponen Hidden TIDAK boleh diletakkan sebelum kolom freeze (PIC/Status/Username).
+                                    // Hidden me-render <input> telanjang di dalam <tr> sehingga menggeser nth-child sel <tbody>
+                                    // dan bikin sticky kolom gagal (header tetap kena karena thead tak punya Hidden).
+                                    // Maka blok Hidden diletakkan SETELAH Username (lihat di bawah, sebelum kolom Link).
 
-                                    TextInput::make('pic')
+                                    // PIC = KOL Specialist (karyawan divisi Creative) — pilih manual dari dropdown.
+                                    Select::make('pic')
                                         ->label('PIC KOL')
-                                        ->placeholder('Otomatis dari PIC KOL')
-                                        ->formatStateUsing(fn($state) => self::resolveKolPicDisplay($state))
+                                        ->placeholder('Pilih KOL Specialist')
+                                        ->options(fn() => \App\Models\BvEmploye::whereHas(
+                                            'position.department.division',
+                                            fn($q) => $q->where('slug', 'creative')
+                                        )->orderBy('nama_lengkap')->pluck('nama_lengkap', 'nama_lengkap'))
+                                        ->native(true)
                                         ->nullable(),
 
                                     Select::make('status')
                                         ->label('Status')
                                         ->options(MediaPlanKolStatus::toArray())
-                                        ->searchable()
-                                        ->native(false)
+                                        ->native(true)
                                         ->default('New List'),
 
                                     Select::make('name')
@@ -1030,8 +1035,7 @@ class MediaPlanForm
                                             }
 
                                             $set('data_kol_id', $kol->id);
-                                            // PIC = PIC KOL (Nama Lengkap PIC dari Database KOL), bukan PIC BD/sales
-                                            $set('pic', $kol->full_name ?: null);
+                                            // PIC tidak di-auto-fill: dipilih manual dari dropdown KOL Specialist.
                                             $set('channel', $kol->channel);
                                             $set('links', $kol->link_userprofile);
                                             $set('followers', number_format((int) $kol->followers, 0, '.', ','));
@@ -1482,6 +1486,18 @@ class MediaPlanForm
                                                 ])
                                         ),
 
+                                    // Hidden diletakkan setelah Username (kolom freeze terakhir) — lihat catatan di awal schema.
+                                    Hidden::make('row_number'),
+                                    Hidden::make('data_kol_id'),
+                                    Hidden::make('domisili'),
+                                    Hidden::make('tipe_pajak_kol')
+                                        ->default(fn() => MasterPph::active()->ordered()->first()?->id),
+                                    Hidden::make('cpi_cpv'),
+                                    Hidden::make('cpe'),
+                                    Hidden::make('after_nego'),
+                                    Hidden::make('payment_date'),
+                                    Hidden::make('notes'),
+
                                     TextInput::make('links')
                                         ->label('Link')
                                         ->placeholder('URL')
@@ -1599,7 +1615,6 @@ class MediaPlanForm
                                         ->minValue(0)
                                         ->maxValue(99)
                                         ->placeholder('Auto')
-                                        ->helperText('Kosong = otomatis')
                                         ->live(debounce: 500),
 
                                     // Cost (MU PPh) — total seluruh SOW, read-only, dihitung otomatis.
@@ -1625,7 +1640,7 @@ class MediaPlanForm
                                 ])
                                 ->defaultItems(0)
                                 ->addActionLabel('Tambah Baris Manual')
-                                ->reorderable()
+                                ->reorderable(false)
                                 ->columnSpanFull()
                                 ->extraAttributes(['id' => 'kol-list-repeater'])
                                 ->live(),

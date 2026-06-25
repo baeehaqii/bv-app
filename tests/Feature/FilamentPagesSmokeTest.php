@@ -65,3 +65,8 @@ it('Edit Media Plan External ter-render (regression: namespace Filament\\Actions
 it('Edit Campaign Ongoing Internal ter-render', function () {
     $this->get("/office/campaign-ongoing-internal/{$this->campaign->id}/edit")->assertSuccessful();
 });
+
+it('List & View Campaign Ongoing External ter-render (Tracker RelationManager)', function () {
+    $this->get('/office/campaign-ongoing-external')->assertSuccessful();
+    $this->get("/office/campaign-ongoing-external/{$this->campaign->id}")->assertSuccessful();
+});

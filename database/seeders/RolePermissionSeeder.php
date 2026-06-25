@@ -46,7 +46,6 @@ class RolePermissionSeeder extends Seeder
                 'FormBrief',
                 'BvCampign',
                 'BvCampignUpcoming',
-                'BvTrackerProgresKol',
                 'Spk',
                 // Media plan internal/external
                 'MediaPlan',
