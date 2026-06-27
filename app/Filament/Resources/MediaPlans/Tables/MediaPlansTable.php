@@ -191,13 +191,6 @@ class MediaPlansTable
             ])
             ->recordActions([
                 EditAction::make(),
-                Action::make('markToClient')
-                    ->label('Send to Client')
-                    ->icon('heroicon-o-paper-airplane')
-                    ->color('info')
-                    ->requiresConfirmation()
-                    ->visible(fn($record) => $record->status === 'Planning')
-                    ->action(fn($record) => $record->update(['status' => 'To Client'])),
                 Action::make('markOngoing')
                     ->label('Mark as Ongoing')
                     ->icon('heroicon-o-play')

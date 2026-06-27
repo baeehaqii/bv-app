@@ -18,6 +18,12 @@
     @apply text-[#270056];
 }
 
+/* Dark mode: non-active sidebar text visible di atas background hitam */
+.dark .fi-sidebar-open .fi-sidebar-item:not(.fi-active) .fi-sidebar-item-btn .fi-sidebar-item-label,
+.dark .fi-sidebar-open .fi-sidebar-item:not(.fi-active) .fi-sidebar-item-btn .fi-sidebar-item-icon {
+    color: #a1a1aa;
+}
+
 .fi-sidebar-item.fi-active .fi-sidebar-item-btn {
     @apply transition-all duration-300 rounded-full;
     background-color: #48009f !important;

@@ -1,6 +1,11 @@
 .fi-wi-stats-overview-stat, .fi-wi-table {
-    @apply shadow-none ring-0 dark:bg-gray-800 rounded-2xl;
-  }
+    @apply shadow-none ring-0 rounded-2xl;
+}
+
+.dark .fi-wi-stats-overview-stat {
+    background-color: #1f2937 !important;
+    color: #f3f4f6 !important;
+}
 /* .fi-wi-widget {
     @apply p-1 bg-white border border-gray-300 dark:bg-gray-800 rounded-2xl dark:border-gray-700;
 }

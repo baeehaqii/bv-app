@@ -17,6 +17,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Section;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\TagsInput;
 use Filament\Support\RawJs;
 
 class DataKolForm
@@ -333,41 +334,15 @@ class DataKolForm
                             ->dehydrated()
                             ->prefixIcon('heroicon-o-at-symbol'),
 
-                        Select::make('category')
-                            ->options(function (callable $get) {
-                                $options = [
-                                    'Gamers & Lifestyle' => 'Gamers & Lifestyle',
-                                    'Lifestyle' => 'Lifestyle',
-                                    'Techno' => 'Techno',
-                                    'Beauty' => 'Beauty',
-                                    'Kpop' => 'Kpop',
-                                    'Otomotif' => 'Otomotif',
-                                    'Sport' => 'Sport',
-                                    'Family' => 'Family',
-                                    'Comedy' => 'Comedy',
-                                    'Sport & Lifestyle' => 'Sport & Lifestyle',
-                                    'Fashion & Lifestyle' => 'Fashion & Lifestyle',
-                                    'DIY' => 'DIY',
-                                    'Travel' => 'Travel',
-                                    'Home Living' => 'Home Living',
-                                    'Photography' => 'Photography',
-                                    'Beauty & Lifestyle' => 'Beauty & Lifestyle',
-                                    'Music' => 'Music',
-                                    'Home Cook' => 'Home Cook',
-                                    'Couple' => 'Couple',
-                                    'Foodies' => 'Foodies',
-                                ];
-
-                                // Sertakan kategori hasil fetch API agar lolos validasi & tersimpan
-                                foreach (array_filter((array) $get('category')) as $cat) {
-                                    $options[$cat] = $cat;
-                                }
-
-                                return $options;
-                            })
-                            ->multiple()
+                        TagsInput::make('category')
                             ->label('Category')
-                            ->searchable(),
+                            ->suggestions([
+                                'Gamers & Lifestyle', 'Lifestyle', 'Techno', 'Beauty', 'Kpop',
+                                'Otomotif', 'Sport', 'Family', 'Comedy', 'Sport & Lifestyle',
+                                'Fashion & Lifestyle', 'DIY', 'Travel', 'Home Living',
+                                'Photography', 'Beauty & Lifestyle', 'Music', 'Home Cook',
+                                'Couple', 'Foodies',
+                            ]),
 
                         TextInput::make('engagement_rate')
                             ->label('Engagement Rate')

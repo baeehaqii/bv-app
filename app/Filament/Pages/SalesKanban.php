@@ -540,11 +540,12 @@ class SalesKanban extends BoardPage implements HasTable
                     ->action(fn (BvSales $record, array $data) => $record->update(['brief_link' => $data['brief_link'] ?: null])),
                 EditAction::make()
                     ->form(BvSalesForm::getFormComponents())
-                    ->modalWidth('2xl')
+                    ->modalWidth('5xl')
                     ->slideOver()
                     ->modalFooter(fn ($record) => view('filament.pages.partials.sales-comments-footer', ['record' => $record])),
                 DeleteAction::make(),
             ])
+            ->recordAction('edit')
             ->defaultSort('created_at', 'desc')
             ->striped();
     }

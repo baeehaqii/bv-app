@@ -1,0 +1,100 @@
+{
+  "company": {
+    "name": "Beyond Viral",
+    "legal_name": "PT. Bisa Viral Butuh Usaha",
+    "tagline": "No Bullsh*t",
+    "positioning": "Content & Creators Marketing Agency",
+    "description_id": "Beyond Viral bantu brand kamu eksekusi campaign dari awal sampai viral—cerita kreatif, hasil nyata, dan semuanya bisa terukur.",
+    "description_en": "Beyond Viral is a Content & Creators Marketing Agency on a mission to solve the most sophisticated marketing challenge with the power of Creators & Content. Our team specializes in making great content for TikTok, Instagram, YouTube and more. Access to 20,000+ Creators Network, Livestream Capabilities, and Digital Productions.",
+    "website": "https://www.wearebeyondviral.com",
+    "logo": "https://static.wixstatic.com/media/68a836_682522d96d4d473bad39359b74156404~mv2.png/v1/fill/w_300,h_146,enc_avif,quality_auto/02_Logo_Purple_on_Neon.png",
+    "copyright": "© 2024 by PT. Bisa Viral Butuh Usaha"
+  },
+  "contact": {
+    "email": "hello@wearebeyondviral.com",
+    "phone": "+6289647704818",
+    "whatsapp": "https://wa.me/+6289647704818",
+    "address": "Jl. Graha Raya Bintaro No.53, Parigi Baru, Bintaro, Jakarta, 15228"
+  },
+  "linkedin": {
+    "url": "https://www.linkedin.com/company/beyond-viral/",
+    "industry": "Marketing Services",
+    "company_size": "11-50 employees",
+    "type": "Privately Held",
+    "headquarters": "Jakarta, Jakarta",
+    "location": "Jakarta, Jakarta 12910, ID",
+    "followers": 6,
+    "specialties": ["TikTok", "Instagram", "Creators", "Contents", "YouTube", "Video Production", "Social Media"]
+  },
+  "hero": {
+    "headline": "No Bullsh*t",
+    "subheadline_id": "Stop cuma bayar Agency KOL tapi cuma dapet list doang.",
+    "body_id": "Stop buang waktu dan budget buat agency yang cuma kasih data tanpa hasil yang jelas. Beyond Viral bantu brand kamu eksekusi campaign dari awal sampai viral—cerita kreatif, hasil nyata, dan semuanya bisa terukur.",
+    "cta": { "label": "Lihat Cara Kerja Kami", "url": "https://wa.me/+6289647704818" }
+  },
+  "pain_points": {
+    "heading_id": "Pernah kerjasama dengan KOL Agency sebelumnya, tapi...",
+    "items": [
+      { "icon": "🎭", "title_id": "Cuma Dapet List, Bukan Narasi", "body_id": "Tanpa story-telling yang kreatif, campaign kamu cuma numpang lewat di timeline—gak ada yang ingat, gak ada yang engage." },
+      { "icon": "🗓️", "title_id": "Nggak Ada Rencana, Nggak Ada Brief", "body_id": "Gak jelas siapa bikin apa, jadwal berantakan, dan hasilnya nggak bisa diukur. Brand kamu jadi korban \"asal jalan\"." },
+      { "icon": "📊", "title_id": "No Data, No Growth", "body_id": "Tanpa insight dan reporting, kamu nggak pernah tau mana yang berhasil. Budget habis, hasil nggak kelihatan." }
+    ]
+  },
+  "testimonials": [
+    { "quote_id": "Udah coba beberapa agency KOL, tapi cuma di Beyond Viral yang ide kreatifnya nyambung sama eksekusi. Timnya asik banget diajak diskusi, bukan cuma ngasih list doang!", "author": "KOL Specialist", "company": "Large Beauty Brand" },
+    { "quote_id": "Setelah coba banyak agency, BV paling konsisten—dari ide, eksekusi, sampai negosiasi. Semua prosesnya lancar dan hasilnya selalu bisa diandalkan. Sukses terus, BV!", "author": "Social Media Manager", "company": "FMCG for Mom & Kids" },
+    { "quote_id": "Bareng Beyond Viral, cost per install aplikasi kita turun drastis! Mereka ngerti banget cara main di social media & ngasih rekomendasi creative briefing buat performance campaign kita.", "author": "Media Team", "company": "Fintech e-Wallet App" }
+  ],
+  "differentiators": {
+    "heading_id": "Kenapa beda dengan yang lain?",
+    "intro_id": "Beyond Viral bukan cuma KOL atau Influencer agency aja. Kami menggabungkan strategi kreatif KOL, eksekusi total, dan data real-time untuk hasil yang benar-benar ngaruh ke bisnis kamu.",
+    "items": [
+      { "title": "STORY ORCHESTRATION", "subtitle_id": "Ide cerita yang relevan & viral untuk brand kamu.", "body_id": "Bukan sekadar posting, tapi bikin cerita yang viral dan relevan. Ide fresh, konsep yang beda, dan konten yang bikin orang ngomongin brand kamu." },
+      { "title": "EXECUTION EXCELLENCE", "subtitle_id": "Semua proses di-handle—dari brief, take konten, sampai report.", "body_id": "Gak perlu ribet. Semua eksekusi, mulai dari brief, konten, sampai report, kita yang urus. Kamu tinggal duduk manis, hasil jalan terus." },
+      { "title": "REAL TIME INSIGHT", "subtitle_id": "Kamu bisa pantau hasil campaign, kapan aja.", "body_id": "Semua hasil campaign bisa dipantau real-time. Kamu gak lagi main tebak-tebakan—semua data, insight, dan ROI langsung di tangan." }
+    ]
+  },
+  "process": {
+    "heading_id": "Setiap Briefs, Pasti Akan Berbeda",
+    "intro_id": "Produk kamu punya sendiri. KOL punya trend sendiri. Setiap platform punya best practice sendiri. Gak ada strategi yang template di Beyond Viral. Kita merancang campaign KOL sesuai kebutuhan, objektif dan target market brand kamu.",
+    "steps": [
+      { "icon": "📣", "title_id": "Share Brief Brand Kamu", "body_id": "Mulai dari goals, objectives, budget, timeline dan lainnya. Apa lagi kalau punya preferensi KOL sendiri!" },
+      { "icon": "🧠✨", "title_id": "Brainstorm & Strategi", "body_id": "Kita akan mulai brainstorm dan siapkan strategi yang paling cocok dengan brief kamu." },
+      { "icon": "📄⚡", "title_id": "Proposal Custom", "body_id": "Kamu akan mulai dapat proposal custom dari tim kita dalam 3 - 5 hari kerja saja!" },
+      { "icon": "🚀", "title_id": "Eksekusi Full Service", "body_id": "Setelah strategi dan administrasi selesai, kita sudah bisa langsung jalan campaign KOL!" }
+    ]
+  },
+  "partners": {
+    "heading_id": "Partner in Crime kita selama ini",
+    "intro_id": "Perkenalkan partner-partner kita yang membuat kita bisa memberikan result yang terbaik untuk campaign-campaign KOL brand kamu secara maksimal.",
+    "clients": [
+      { "name": "Wardah", "logo": "https://static.wixstatic.com/media/68a836_4fd01dfe60724d4baa682cf6454fbebc~mv2.png/v1/fill/w_300,h_300,enc_avif,quality_auto/Wardah%20-%20Beyond%20Viral.png" },
+      { "name": "DANA", "logo": "https://static.wixstatic.com/media/68a836_7f87d2621b5c435aafecb363a80bb500~mv2.png/v1/fill/w_300,h_300,enc_avif,quality_auto/DANA%20-%20Beyond%20Viral.png" },
+      { "name": "Astro", "logo": "https://static.wixstatic.com/media/68a836_90433ed3e7e74753a1c6b3e75d49aae3~mv2.png/v1/fill/w_300,h_300,enc_avif,quality_auto/Astro%20-%20Beyond%20Viral.png" },
+      { "name": "ELL", "logo": "https://static.wixstatic.com/media/68a836_e12d3e8b94f8440eb25fe11502914fe1~mv2.png/v1/fill/w_300,h_300,enc_avif,quality_auto/ELL%20-%20Beyond%20Viral.png" },
+      { "name": "Ofero", "logo": "https://static.wixstatic.com/media/68a836_b407c230a94643c9a0c4de5de0fd5c27~mv2.png/v1/fill/w_300,h_300,enc_avif,quality_auto/Ofero%20-%20Beyond%20Viral.png" }
+    ],
+    "tools": [
+      { "name": "Fair", "logo": "https://static.wixstatic.com/media/68a836_b52c4624618e42b99f194128007cfe59~mv2.png/v1/fill/w_280,h_280,enc_avif,quality_auto/Fair.png" },
+      { "name": "Kalodata", "logo": "https://static.wixstatic.com/media/68a836_1a7aba6987c24eecaf97fb61070f9369~mv2.png/v1/fill/w_280,h_280,enc_avif,quality_auto/Kalodata.png" },
+      { "name": "TikTok for Business", "logo": "https://static.wixstatic.com/media/68a836_53c258815d754a1ea8538fbbf6fa7689~mv2.png/v1/fill/w_280,h_280,enc_avif,quality_auto/TikTok%20for%20Business.png" }
+    ]
+  },
+  "offer": {
+    "badge_id": "Special di bulan ini",
+    "headline_id": "LIMITED SLOT! 🚨 GRATIS 🚨",
+    "body_id": "Social Media audit (senilai Rp 3 juta) untuk 5 brand pertama di bulan ini",
+    "urgency_id": "😭 Tinggal 5 slot campaign untuk bulan ini! 😭",
+    "rationale_id": "Di Beyond Viral, setiap campaign & konsultasi kami rancang khusus, bukan massal. Karena itu, kami hanya bisa terima beberapa brand setiap bulan—supaya setiap klien dapat perhatian & hasil maksimal.",
+    "cta": { "label": "Ngobrol Sekarang", "url": "https://wa.me/+6289647704818" }
+  },
+  "consultation_cta": {
+    "heading_id": "Masih ragu? Konsultasi Masih Gratis Kok!",
+    "cta": { "label": "Ngobrol Sekarang", "url": "https://wa.me/+6289647704818" }
+  },
+  "_meta": {
+    "scraped_from": ["https://www.wearebeyondviral.com/", "https://www.linkedin.com/company/beyond-viral/?originalSubdomain=id"],
+    "scraped_at": "2026-06-28",
+    "note": "Source site dibangun di Wix. Semua CTA mengarah ke WhatsApp. Logo di-host di static.wixstatic.com (URL dinormalisasi ke ukuran besar)."
+  }
+}

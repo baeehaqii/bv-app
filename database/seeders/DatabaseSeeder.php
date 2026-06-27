@@ -33,6 +33,14 @@ class DatabaseSeeder extends Seeder
         $this->call(DataClientSeeder::class);
         $this->command->info('DataClient seeding completed!');
 
+        // Client/Brand dari Sales Pipeline (untuk pasangan BvSales.company_name)
+        $this->call(PipelineClientSeeder::class);
+        $this->command->info('PipelineClient seeding completed!');
+
+        // Data Sales Tracker (BvSales) dari sheet Pipeline
+        $this->call(SalesTrackerSeeder::class);
+        $this->command->info('SalesTracker seeding completed!');
+
         // Jalankan DataVendorSeeder
         $this->call(DataVendorSeeder::class);
         $this->command->info('DataVendor seeding completed!');

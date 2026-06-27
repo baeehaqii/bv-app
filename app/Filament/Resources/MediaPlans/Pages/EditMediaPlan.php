@@ -151,6 +151,11 @@ class EditMediaPlan extends EditRecord
                 $kolData['links'] = [$kolData['links']];
             }
 
+            // Ensure name is never null — fallback to DataKol username
+            if (empty($kolData['name']) && !empty($kolData['data_kol_id'])) {
+                $kolData['name'] = \App\Models\DataKol::find($kolData['data_kol_id'])?->username;
+            }
+
             if ($kolId) {
                 // Update existing KOL
                 $mediaPlanKol = $this->record->kols()->find($kolId);

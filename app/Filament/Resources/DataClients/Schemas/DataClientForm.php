@@ -136,12 +136,14 @@ class DataClientForm
                         ->native(false)
                         ->nullable(),
 
-                    // ─── Status Client (tahap deal sales) — di samping PIC Internal ─
                     Select::make('status_client')
                         ->label('Status Client')
                         ->required()
-                        ->options(ClientStatus::options())
-                        ->default(ClientStatus::AWAITING->value)
+                        ->options([
+                            'aktif'      => 'Aktif',
+                            'tidak_aktif' => 'Tidak Aktif',
+                        ])
+                        ->default('aktif')
                         ->native(false),
 
                     // ─── PIC Client (dikomentari — dipindah ke section tersendiri untuk direct brand) ─
@@ -503,7 +505,10 @@ class DataClientForm
                         ->label('Tanggal Outreach')->required()->default(now()),
                     DatePicker::make('date_follow_up')
                         ->label('Tanggal Follow Up')
-                        ->visible(fn (Get $get) => in_array($get('status'), ['draft', 'upcoming', 'ongoing'])),
+                        ->visible(fn (Get $get) => !in_array($get('status'), [
+                            SalesStatus::CLOSE_LOSE->value,
+                            SalesStatus::PAID->value,
+                        ])),
                     Textarea::make('notes')
                         ->label('Catatan')->columnSpanFull()
                         ->placeholder('Catatan tambahan mengenai client, hasil meeting, dll...'),

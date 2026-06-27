@@ -16,6 +16,7 @@ use Filament\Schemas\Components\Utilities\Set;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use App\Enums\SalesStatus;
 use Illuminate\Support\HtmlString;
 
 class DataClientsTable
@@ -237,22 +238,8 @@ class DataClientsTable
                 TextColumn::make('status')
                     ->label('Status Campaign')
                     ->badge()
-                    ->color(fn(?string $state): string => match ($state) {
-                        'draft' => 'gray',
-                        'upcoming' => 'info',
-                        'ongoing' => 'warning',
-                        'completed' => 'success',
-                        'cancelled' => 'danger',
-                        default => 'gray',
-                    })
-                    ->formatStateUsing(fn(?string $state): string => match ($state) {
-                        'draft' => 'Draft',
-                        'upcoming' => 'Upcoming',
-                        'ongoing' => 'Ongoing',
-                        'completed' => 'Completed',
-                        'cancelled' => 'Cancelled',
-                        default => $state ?? '-',
-                    })
+                    ->color(fn(?string $state): string => SalesStatus::tryFrom($state ?? '')?->getColor() ?? 'gray')
+                    ->formatStateUsing(fn(?string $state): string => SalesStatus::tryFrom($state ?? '')?->getLabel() ?? ($state ?? '-'))
                     ->searchable(),
 
                 TextColumn::make('date_outreach')
@@ -285,13 +272,7 @@ class DataClientsTable
 
                 SelectFilter::make('status')
                     ->label('Status Campaign')
-                    ->options([
-                        'draft' => 'Draft',
-                        'upcoming' => 'Upcoming',
-                        'ongoing' => 'Ongoing',
-                        'completed' => 'Completed',
-                        'cancelled' => 'Cancelled',
-                    ]),
+                    ->options(SalesStatus::options()),
             ])
             ->recordActions([
                 EditAction::make(),

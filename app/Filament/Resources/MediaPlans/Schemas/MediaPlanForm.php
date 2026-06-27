@@ -154,7 +154,7 @@ class MediaPlanForm
         $rows = '';
         $hasExpired = false;
         foreach ($scopes as $scope) {
-            $card = $rateCards->first(fn($c) => strcasecmp($c->sow_label, (string) $scope) === 0);
+            $card = self::matchSowCard($rateCards, (string) $scope);
             $rate = (float) ($card?->rate ?? 0);
             $total += $rate;
 
@@ -165,10 +165,16 @@ class MediaPlanForm
                 $badge = ' <span title="' . e($tooltip) . '" style="display:inline-block;margin-left:6px;font-size:11px;font-weight:600;color:#dc2626;background:#fef2f2;border:1px solid #fecaca;border-radius:4px;padding:1px 6px;white-space:nowrap;">&#9888; Perlu update</span>';
             }
 
-            $rows .= '<tr>
-                <td style="padding:5px 8px;border:1px solid #e5e7eb;font-size:12px;color:#374151;">' . e($scope) . $badge . '</td>
-                <td style="padding:5px 8px;border:1px solid #e5e7eb;font-size:12px;color:#111827;text-align:right;white-space:nowrap;">Rp ' . number_format(round($rate), 0, ',', '.') . '</td>
-            </tr>';
+            $rateStr = $rate > 0
+                ? 'Rp ' . number_format(round($rate), 0, ',', '.')
+                : '—';
+            $rateColor = $rate > 0 ? '#111827' : '#9ca3af';
+            // Baris flex (div, BUKAN <table>): scope kiri, rate kanan. <table> di sini kena CSS sticky
+            // global #kol-list-repeater (td:nth-child) sehingga sel rate ke-positioning & harganya hilang.
+            $rows .= '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:5px 8px;border:1px solid #e5e7eb;border-top:none;">
+                <span style="font-size:12px;color:#374151;">' . e($scope) . $badge . '</span>
+                <span style="font-size:12px;font-weight:600;color:' . $rateColor . ';white-space:nowrap;">' . $rateStr . '</span>
+            </div>';
         }
 
         $count = count($scopes);
@@ -187,23 +193,33 @@ class MediaPlanForm
                     Rincian Rate (' . $count . ' item) · ' . $totalFmt . ($hasExpired ? ' <span style="color:#dc2626;">&#9888;</span>' : '') . '
                 </summary>
                 ' . $banner . '
-                <table style="border-collapse:collapse;width:100%;background:#fff;margin-top:6px;">
-                    <thead>
-                        <tr>
-                            <th style="padding:5px 8px;border:1px solid #e5e7eb;background:#f9fafb;font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#6b7280;text-align:left;">Item</th>
-                            <th style="padding:5px 8px;border:1px solid #e5e7eb;background:#f9fafb;font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#6b7280;text-align:right;">Rate</th>
-                        </tr>
-                    </thead>
-                    <tbody>' . $rows . '</tbody>
-                    <tfoot>
-                        <tr>
-                            <td style="padding:5px 8px;border:1px solid #e5e7eb;background:#f9fafb;font-size:12px;font-weight:700;color:#111827;">Total</td>
-                            <td style="padding:5px 8px;border:1px solid #e5e7eb;background:#f9fafb;font-size:12px;font-weight:700;color:#111827;text-align:right;white-space:nowrap;">' . $totalFmt . '</td>
-                        </tr>
-                    </tfoot>
-                </table>
+                <div style="background:#fff;margin-top:6px;border-top:1px solid #e5e7eb;">
+                    ' . $rows . '
+                    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:5px 8px;border:1px solid #e5e7eb;border-top:none;background:#f9fafb;">
+                        <span style="font-size:12px;font-weight:700;color:#111827;">Total</span>
+                        <span style="font-size:12px;font-weight:700;color:#111827;white-space:nowrap;">' . $totalFmt . '</span>
+                    </div>
+                </div>
             </details>
         ');
+    }
+
+    /**
+     * Match scope item ke rate card — toleran terhadap suffix channel "(Instagram)" dll.
+     * "IG Reels" cocok dengan "IG Reels (Instagram)" dan sebaliknya.
+     */
+    private static function matchSowCard(\Illuminate\Support\Collection $rateCards, string $scope): mixed
+    {
+        // 1. Exact (case-insensitive)
+        $card = $rateCards->first(fn($c) => strcasecmp($c->sow_label, $scope) === 0);
+        if ($card) return $card;
+
+        // 2. sow_label starts with scope (e.g. "IG Reels (Instagram)" starts with "IG Reels")
+        $card = $rateCards->first(fn($c) => stripos($c->sow_label, $scope) === 0);
+        if ($card) return $card;
+
+        // 3. scope starts with sow_label (reverse)
+        return $rateCards->first(fn($c) => stripos($scope, $c->sow_label) === 0);
     }
 
     /**
@@ -280,9 +296,7 @@ class MediaPlanForm
         $rateCards = $dataKol->rateCards()->with('masterSow')->get();
 
         return collect($scopeItems)->sum(
-            fn($scope) => (float) ($rateCards->first(
-                fn($card) => strcasecmp($card->sow_label, (string) $scope) === 0
-            )?->rate ?? 0)
+            fn($scope) => (float) (self::matchSowCard($rateCards, (string) $scope)?->rate ?? 0)
         );
     }
 
@@ -340,7 +354,7 @@ class MediaPlanForm
         $cost = 0;
         $client = 0;
         foreach ($scopes as $scope) {
-            $card = $rateCards->first(fn($c) => strcasecmp($c->sow_label, (string) $scope) === 0);
+            $card = self::matchSowCard($rateCards, (string) $scope);
             $rate = (float) ($card?->rate ?? 0);
             $figs = self::computeBudgetFigures($rate, $coeff, $margin);
             $cost += $figs['mu_pph'];
@@ -641,6 +655,42 @@ class MediaPlanForm
                         ->icon('heroicon-m-document-text')
                         ->description('Lihat brief & lampiran dari client')
                         ->schema([
+                            Actions::make([
+                                Action::make('edit_sow')
+                                    ->label('Edit SOW Brief')
+                                    ->icon('heroicon-m-pencil-square')
+                                    ->color('primary')
+                                    ->fillForm(fn($record) => [
+                                        'sow' => $record?->bvSales?->formBrief?->sow,
+                                    ])
+                                    ->form([
+                                        Textarea::make('sow')
+                                            ->label('Scope of Work (SOW)')
+                                            ->placeholder("Contoh:\n- IG Reels (1x)\n- IG Story (3x)\n- TikTok Video (1x)")
+                                            ->rows(8)
+                                            ->columnSpanFull(),
+                                    ])
+                                    ->modalHeading('Edit SOW Brief')
+                                    ->modalWidth('lg')
+                                    ->modalSubmitActionLabel('Simpan')
+                                    ->action(function ($record, array $data) {
+                                        $brief = $record?->bvSales?->formBrief;
+                                        if (! $brief) {
+                                            Notification::make()
+                                                ->title('Brief belum ada')
+                                                ->body('FormBrief belum dibuat. Set status BvSales ke Briefing terlebih dahulu.')
+                                                ->warning()
+                                                ->send();
+                                            return;
+                                        }
+                                        $brief->update(['sow' => $data['sow']]);
+                                        Notification::make()
+                                            ->title('SOW berhasil disimpan')
+                                            ->success()
+                                            ->send();
+                                    }),
+                            ])->columnSpanFull(),
+
                             ViewField::make('brief_view')
                                 ->view('filament.forms.components.media-plan-brief')
                                 ->dehydrated(false)
@@ -982,7 +1032,7 @@ class MediaPlanForm
                                     TableColumn::make('Avg Views')->width('110px'),
                                     TableColumn::make('Engagement')->width('110px'),
                                     TableColumn::make('SOW (Request)')->width('320px'),
-                                    TableColumn::make('Rate per SOW')->width('300px'),
+                                    TableColumn::make('Rate per SOW')->width('420px'),
                                     TableColumn::make('Margin %')->width('120px'),
                                     TableColumn::make('Cost (MU PPh)')->width('150px'),
                                     TableColumn::make('Client Price')->width('150px'),
@@ -1299,118 +1349,7 @@ class MediaPlanForm
                                                             ->description('Input rate card untuk setiap SOW.')
                                                             ->columnSpanFull()
                                                             ->schema([
-                                                                Repeater::make('rate_cards')
-                                                                    ->label('Rate cards')
-                                                                    ->schema([
-                                                                        Select::make('channel')
-                                                                            ->label('Channel')
-                                                                            ->options(self::kolChannelOptions())
-                                                                            ->live()
-                                                                            ->afterStateUpdated(fn(callable $set) => $set('master_sow_id', null))
-                                                                            ->required(),
-
-                                                                        Select::make('master_sow_id')
-                                                                            ->label('SOW')
-                                                                            ->options(function (callable $get) {
-                                                                                $channel = $get('channel');
-                                                                                $query = \App\Models\MasterSow::active()->ordered();
-                                                                                if ($channel) {
-                                                                                    $query->byChannel($channel);
-                                                                                }
-                                                                                return $query->get()
-                                                                                    ->mapWithKeys(fn($sow) => [
-                                                                                        $sow->id => $sow->channel
-                                                                                            ? "{$sow->name} ({$sow->channel})"
-                                                                                            : $sow->name,
-                                                                                    ]);
-                                                                            })
-                                                                            ->searchable()
-                                                                            ->placeholder('Pilih SOW')
-                                                                            ->live()
-                                                                            ->afterStateUpdated(function ($state, callable $set) {
-                                                                                $sow = \App\Models\MasterSow::find($state);
-                                                                                if ($sow && !$sow->is_custom) {
-                                                                                    $set('custom_sow_name', null);
-                                                                                }
-                                                                            })
-                                                                            ->nullable(),
-
-                                                                        TextInput::make('custom_sow_name')
-                                                                            ->label('SOW Custom (Tulis Manual)')
-                                                                            ->placeholder('e.g. IG Collab Post + Story')
-                                                                            ->visible(function (callable $get) {
-                                                                                $sowId = $get('master_sow_id');
-                                                                                if (!$sowId) {
-                                                                                    return false;
-                                                                                }
-                                                                                $sow = \App\Models\MasterSow::find($sowId);
-                                                                                return $sow?->is_custom === true;
-                                                                            })
-                                                                            ->nullable(),
-
-                                                                        TextInput::make('rate')
-                                                                            ->label('Rate Card')
-                                                                            ->prefix('Rp')
-                                                                            ->mask(RawJs::make('$money($input)'))
-                                                                            ->dehydrateStateUsing(fn($state) => $state !== null && $state !== '' ? (int) preg_replace('/[^\d]/', '', $state) : null)
-                                                                            ->formatStateUsing(fn($state) => $state ? number_format((float) $state, 0, '.', ',') : null)
-                                                                            ->placeholder('0'),
-
-                                                                        DatePicker::make('valid_from')
-                                                                            ->label('Berlaku Dari')
-                                                                            ->default(now()),
-
-                                                                        DatePicker::make('valid_until')
-                                                                            ->label('Berlaku Sampai (opsional)')
-                                                                            ->helperText('Kosongkan = otomatis berlaku 90 hari sejak Berlaku Dari')
-                                                                            ->minDate(fn(callable $get) => $get('valid_from'))
-                                                                            ->rule('after_or_equal:valid_from')
-                                                                            ->nullable(),
-
-                                                                        Textarea::make('notes')
-                                                                            ->label('Catatan')
-                                                                            ->rows(2)
-                                                                            ->placeholder('Catatan tambahan...'),
-                                                                    ])
-                                                                    ->table([
-                                                                        TableColumn::make('Channel'),
-                                                                        TableColumn::make('SOW'),
-                                                                        TableColumn::make('SOW Custom'),
-                                                                        TableColumn::make('Rate Card'),
-                                                                        TableColumn::make('Berlaku Dari'),
-                                                                        TableColumn::make('Berlaku Sampai'),
-                                                                        TableColumn::make('Catatan'),
-                                                                    ])
-                                                                    ->extraItemActions([
-                                                                        Action::make('upload_file')
-                                                                            ->icon('heroicon-o-paper-clip')
-                                                                            ->label('')
-                                                                            ->tooltip('Upload File Rate Card')
-                                                                            ->modalHeading('Upload File Rate Card')
-                                                                            ->form([
-                                                                                FileUpload::make('file_path')
-                                                                                    ->label('File Rate Card')
-                                                                                    ->helperText('PDF, JPG, PNG, JPEG — maks. 2MB')
-                                                                                    ->acceptedFileTypes(['application/pdf', 'image/jpeg', 'image/png'])
-                                                                                    ->maxSize(2048)
-                                                                                    ->directory('kol-rate-cards')
-                                                                                    ->downloadable()
-                                                                                    ->openable(),
-                                                                            ])
-                                                                            ->fillForm(function (array $arguments, Repeater $component): array {
-                                                                                return [
-                                                                                    'file_path' => $component->getState()[$arguments['item']]['file_path'] ?? null,
-                                                                                ];
-                                                                            })
-                                                                            ->action(function (array $arguments, array $data, Repeater $component): void {
-                                                                                $items = $component->getState();
-                                                                                $items[$arguments['item']]['file_path'] = $data['file_path'];
-                                                                                $component->state($items);
-                                                                            }),
-                                                                    ])
-                                                                    ->addActionLabel('+ Tambah Rate Card')
-                                                                    ->defaultItems(0)
-                                                                    ->reorderable(false),
+                                                                self::rateCardRepeater(),
                                                             ]),
 
                                                     ])
@@ -1646,6 +1585,141 @@ class MediaPlanForm
                                 ->live(),
 
                             Actions::make([
+                                Action::make('create_multi_channel_kol')
+                                    ->label('Tambah KOL Multi-Channel')
+                                    ->icon('heroicon-o-user-plus')
+                                    ->color('white')
+                                    ->slideOver()
+                                    ->modalWidth('5xl')
+                                    ->modalHeading('Tambah KOL Baru (Multi-Channel)')
+                                    ->modalDescription('Input beberapa channel (mis. Instagram + TikTok) sekaligus — tiap channel jadi 1 baris KOL & tersimpan ke database.')
+                                    ->modalIcon('heroicon-o-user-plus')
+                                    ->modalSubmitActionLabel('Simpan & Tambahkan')
+                                    ->form([
+                                        Section::make('Channel KOL')
+                                            ->description('Satu baris per channel. Link akan auto-fetch data untuk Instagram, TikTok, dan YouTube.')
+                                            ->columnSpanFull()
+                                            ->schema([
+                                                Repeater::make('channels')
+                                                    ->hiddenLabel()
+                                                    ->minItems(1)
+                                                    ->defaultItems(1)
+                                                    ->addActionLabel('+ Tambah Channel')
+                                                    ->reorderable(false)
+                                                    ->schema([
+                                                        Select::make('channel')
+                                                            ->label('Channel')
+                                                            ->options(self::kolChannelOptions())
+                                                            ->required()
+                                                            ->live()
+                                                            ->afterStateUpdated(fn(callable $set) => $set('link_userprofile', null)),
+
+                                                        TextInput::make('link_userprofile')
+                                                            ->label('Profile URL')
+                                                            ->placeholder('https://...')
+                                                            ->helperText('Instagram/TikTok/YouTube: tekan Tab untuk fetch otomatis')
+                                                            ->required()
+                                                            ->live(onBlur: true)
+                                                            ->afterStateUpdated(fn(?string $state, callable $set, callable $get) => self::autofillChannelProfile($get('channel'), $state, $set)),
+
+                                                        TextInput::make('username')
+                                                            ->label('Username')
+                                                            ->required()
+                                                            ->prefixIcon('heroicon-o-at-symbol'),
+
+                                                        TextInput::make('followers')
+                                                            ->label('Followers')
+                                                            ->numeric()
+                                                            ->prefixIcon('heroicon-o-users'),
+
+                                                        TextInput::make('tier')
+                                                            ->label('Tier')
+                                                            ->prefixIcon('heroicon-o-star'),
+
+                                                        TextInput::make('engagement_rate')
+                                                            ->label('Engagement Rate')
+                                                            ->numeric()
+                                                            ->suffix('%')
+                                                            ->prefixIcon('heroicon-o-chart-bar'),
+
+                                                        TextInput::make('engagements')
+                                                            ->label('Total Engagements')
+                                                            ->numeric()
+                                                            ->prefixIcon('heroicon-o-heart'),
+
+                                                        TextInput::make('impressions')
+                                                            ->label('Avg Impressions')
+                                                            ->numeric()
+                                                            ->prefixIcon('heroicon-o-eye'),
+
+                                                        Select::make('category')
+                                                            ->label('Category')
+                                                            ->multiple()
+                                                            ->searchable()
+                                                            ->options(function (callable $get) {
+                                                                $options = self::kolCategoryOptions();
+                                                                foreach (array_filter((array) $get('category')) as $cat) {
+                                                                    $options[$cat] = $cat;
+                                                                }
+                                                                return $options;
+                                                            }),
+                                                    ])
+                                                    ->columns(2),
+                                            ]),
+
+                                        Section::make('Additional Info')
+                                            ->description('Kontak & catatan berlaku untuk semua channel di atas.')
+                                            ->columnSpanFull()
+                                            ->schema([
+                                                TextInput::make('full_name')
+                                                    ->label('Nama PIC KOL')
+                                                    ->placeholder('Nama PIC / penanggung jawab KOL')
+                                                    ->prefixIcon('heroicon-o-user'),
+
+                                                TextInput::make('email')
+                                                    ->label('Email')
+                                                    ->email()
+                                                    ->placeholder('email@example.com')
+                                                    ->prefixIcon('heroicon-o-envelope'),
+
+                                                TextInput::make('wa_number')
+                                                    ->label('No WhatsApp')
+                                                    ->tel()
+                                                    ->placeholder('08xxxxxxxxxx')
+                                                    ->prefixIcon('heroicon-o-phone'),
+
+                                                DatePicker::make('terakhir_update')
+                                                    ->label('Terakhir Update')
+                                                    ->default(now()),
+
+                                                Textarea::make('notes')
+                                                    ->label('Notes')
+                                                    ->rows(2)
+                                                    ->columnSpanFull(),
+                                            ])->columns(3),
+
+                                        Section::make('Rate Card KOL')
+                                            ->description('Opsional. Pilih channel per baris — rate card otomatis ditautkan ke channel yang cocok.')
+                                            ->columnSpanFull()
+                                            ->schema([
+                                                self::rateCardRepeater(),
+                                            ]),
+                                    ])
+                                    ->action(function (array $data, callable $get, callable $set): void {
+                                        $result = self::createMultiChannelKols($data, $get('kols') ?? []);
+                                        $set('kols', array_values($result['kols']));
+
+                                        Notification::make()
+                                            ->title($result['created'] > 0
+                                                ? "✅ {$result['created']} channel KOL ditambahkan"
+                                                : '⚠️ Tidak ada channel valid')
+                                            ->{$result['created'] > 0 ? 'success' : 'warning'}()
+                                            ->body($result['created'] > 0
+                                                ? 'Tiap channel jadi 1 baris di KOL List & tersimpan ke database.'
+                                                : 'Pastikan Channel & Username tiap baris terisi.')
+                                            ->send();
+                                    }),
+
                                 Action::make('import_csv_kols')
                                     ->label('Import dari CSV')
                                     ->icon('heroicon-o-arrow-up-tray')
@@ -2306,5 +2380,278 @@ class MediaPlanForm
         usort($newKols, fn($a, $b) => ($a['row_number'] ?? 0) <=> ($b['row_number'] ?? 0));
 
         return ['kols' => $newKols, 'count' => $count, 'fetched' => $fetched, 'errors' => $errors];
+    }
+
+    /**
+     * Repeater rate card per SOW — dipakai bersama oleh form "KOL Baru" & "Tambah KOL Multi-Channel".
+     * Tiap baris menyimpan channel-nya sendiri agar bisa dikelompokkan ke DataKol yang cocok.
+     */
+    private static function rateCardRepeater(): Repeater
+    {
+        return Repeater::make('rate_cards')
+            ->label('Rate cards')
+            ->schema([
+                Select::make('channel')
+                    ->label('Channel')
+                    ->options(self::kolChannelOptions())
+                    ->live()
+                    ->afterStateUpdated(fn(callable $set) => $set('master_sow_id', null))
+                    ->required(),
+
+                Select::make('master_sow_id')
+                    ->label('SOW')
+                    ->options(function (callable $get) {
+                        $channel = $get('channel');
+                        $query = \App\Models\MasterSow::active()->ordered();
+                        if ($channel) {
+                            $query->byChannel($channel);
+                        }
+                        return $query->get()
+                            ->mapWithKeys(fn($sow) => [
+                                $sow->id => $sow->channel
+                                    ? "{$sow->name} ({$sow->channel})"
+                                    : $sow->name,
+                            ]);
+                    })
+                    ->searchable()
+                    ->placeholder('Pilih SOW')
+                    ->live()
+                    ->afterStateUpdated(function ($state, callable $set) {
+                        $sow = \App\Models\MasterSow::find($state);
+                        if ($sow && !$sow->is_custom) {
+                            $set('custom_sow_name', null);
+                        }
+                    })
+                    ->nullable(),
+
+                TextInput::make('custom_sow_name')
+                    ->label('SOW Custom (Tulis Manual)')
+                    ->placeholder('e.g. IG Collab Post + Story')
+                    ->visible(function (callable $get) {
+                        $sowId = $get('master_sow_id');
+                        if (!$sowId) {
+                            return false;
+                        }
+                        $sow = \App\Models\MasterSow::find($sowId);
+                        return $sow?->is_custom === true;
+                    })
+                    ->nullable(),
+
+                TextInput::make('rate')
+                    ->label('Rate Card')
+                    ->prefix('Rp')
+                    ->mask(RawJs::make('$money($input)'))
+                    ->dehydrateStateUsing(fn($state) => $state !== null && $state !== '' ? (int) preg_replace('/[^\d]/', '', $state) : null)
+                    ->formatStateUsing(fn($state) => $state ? number_format((float) $state, 0, '.', ',') : null)
+                    ->placeholder('0'),
+
+                DatePicker::make('valid_from')
+                    ->label('Berlaku Dari')
+                    ->default(now()),
+
+                DatePicker::make('valid_until')
+                    ->label('Berlaku Sampai (opsional)')
+                    ->helperText('Kosongkan = otomatis berlaku 90 hari sejak Berlaku Dari')
+                    ->minDate(fn(callable $get) => $get('valid_from'))
+                    ->rule('after_or_equal:valid_from')
+                    ->nullable(),
+
+                Textarea::make('notes')
+                    ->label('Catatan')
+                    ->rows(2)
+                    ->placeholder('Catatan tambahan...'),
+            ])
+            ->table([
+                TableColumn::make('Channel'),
+                TableColumn::make('SOW'),
+                TableColumn::make('SOW Custom'),
+                TableColumn::make('Rate Card'),
+                TableColumn::make('Berlaku Dari'),
+                TableColumn::make('Berlaku Sampai'),
+                TableColumn::make('Catatan'),
+            ])
+            ->extraItemActions([
+                Action::make('upload_file')
+                    ->icon('heroicon-o-paper-clip')
+                    ->label('')
+                    ->tooltip('Upload File Rate Card')
+                    ->modalHeading('Upload File Rate Card')
+                    ->form([
+                        FileUpload::make('file_path')
+                            ->label('File Rate Card')
+                            ->helperText('PDF, JPG, PNG, JPEG — maks. 2MB')
+                            ->acceptedFileTypes(['application/pdf', 'image/jpeg', 'image/png'])
+                            ->maxSize(2048)
+                            ->directory('kol-rate-cards')
+                            ->downloadable()
+                            ->openable(),
+                    ])
+                    ->fillForm(function (array $arguments, Repeater $component): array {
+                        return [
+                            'file_path' => $component->getState()[$arguments['item']]['file_path'] ?? null,
+                        ];
+                    })
+                    ->action(function (array $arguments, array $data, Repeater $component): void {
+                        $items = $component->getState();
+                        $items[$arguments['item']]['file_path'] = $data['file_path'];
+                        $component->state($items);
+                    }),
+            ])
+            ->addActionLabel('+ Tambah Rate Card')
+            ->defaultItems(0)
+            ->reorderable(false);
+    }
+
+    /**
+     * Auto-fetch data profil channel (Instagram/TikTok/YouTube) ke field repeater channel.
+     * Hanya channel yang punya service fetch; channel lain diisi manual.
+     */
+    private static function autofillChannelProfile(?string $channel, ?string $link, callable $set): void
+    {
+        if (blank($channel) || blank($link) || ! in_array($channel, self::SCRAPABLE_CHANNELS, true)) {
+            return;
+        }
+
+        try {
+            $profile = match ($channel) {
+                'Instagram' => (new InstagramService())->getProfile($link),
+                'Tiktok' => (new TiktokService())->getProfile($link),
+                'Youtube Channels' => (new YoutubeChannelsService())->getProfile($link),
+                'Youtube Shorts' => (new YoutubeShortsService())->getProfile($link),
+                default => null,
+            };
+
+            if (! $profile) {
+                throw new \Exception('Channel tidak didukung untuk auto-fetch');
+            }
+
+            $set('username', $profile['username']);
+            $set('followers', $profile['followers_count']);
+            $set('tier', $profile['tier']);
+            $set('engagement_rate', $profile['engagement_rate']);
+            $set('engagements', $profile['total_engagements']);
+            $set('impressions', $profile['average_impressions']);
+            if (! empty($profile['category_name'])) {
+                $set('category', [$profile['category_name']]);
+            }
+
+            Notification::make()
+                ->title("✅ Data {$channel} berhasil diambil!")
+                ->success()
+                ->body("@{$profile['username']} · " . number_format((int) $profile['followers_count']) . ' followers')
+                ->send();
+        } catch (\Throwable $e) {
+            Notification::make()
+                ->title('❌ Gagal mengambil data')
+                ->danger()
+                ->body($e->getMessage())
+                ->send();
+        }
+    }
+
+    /**
+     * Buat beberapa DataKol sekaligus (1 per channel) + rate card-nya, lalu append baris baru
+     * ke daftar KOL List. Dipakai aksi "Tambah KOL Multi-Channel".
+     * Tidak memanggil API: data profil sudah di-fetch saat input di form.
+     *
+     * @return array{kols: array, created: int}
+     */
+    public static function createMultiChannelKols(array $data, array $existingKols): array
+    {
+        $channels = array_values(array_filter(
+            (array) ($data['channels'] ?? []),
+            fn($c) => filled($c['channel'] ?? null) && filled($c['username'] ?? null),
+        ));
+
+        if (empty($channels)) {
+            return ['kols' => $existingKols, 'created' => 0];
+        }
+
+        $defaultPph = MasterPph::active()->ordered()->first()?->id;
+        $startRowNum = (int) (collect($existingKols)->max('row_number') ?? 0) + 1;
+        $rateCardsByChannel = collect($data['rate_cards'] ?? [])
+            ->filter(fn($rc) => filled($rc['channel'] ?? null))
+            ->groupBy('channel');
+
+        $newKols = $existingKols;
+        $created = 0;
+
+        foreach ($channels as $ch) {
+            $channel = $ch['channel'];
+            $followers = (int) self::parseNumber($ch['followers'] ?? 0);
+            $er = (float) self::parseNumber($ch['engagement_rate'] ?? 0);
+
+            // Unik per (username, channel) — updateOrCreate agar tahan submit ulang & refresh data fetch.
+            $kol = DataKol::updateOrCreate(
+                ['channel' => $channel, 'username' => $ch['username']],
+                [
+                    'link_userprofile' => $ch['link_userprofile'] ?? '', // kolom NOT NULL
+
+                    'followers' => $followers,
+                    'tier' => filled($ch['tier'] ?? null) ? $ch['tier'] : \App\Models\MediaPlanKol::calculateTier($followers),
+                    'engagement_rate' => $er,
+                    'engagements' => (int) self::parseNumber($ch['engagements'] ?? 0),
+                    'impressions' => (int) self::parseNumber($ch['impressions'] ?? 0),
+                    'category' => $ch['category'] ?? null,
+                    'status' => 'New List',
+                    'full_name' => $data['full_name'] ?? null,
+                    'email' => $data['email'] ?? null,
+                    'wa_number' => $data['wa_number'] ?? null,
+                    'contact' => $data['email'] ?? null,
+                    'notes' => $data['notes'] ?? null,
+                    'terakhir_update' => $data['terakhir_update'] ?? now(),
+                ],
+            );
+
+            // Rate card channel ini — ganti yang lama agar tidak dobel bila KOL sudah ada.
+            $cards = ($rateCardsByChannel[$channel] ?? collect())
+                ->map(fn($rc) => [
+                    'channel' => $rc['channel'],
+                    'master_sow_id' => $rc['master_sow_id'] ?? null,
+                    'custom_sow_name' => $rc['custom_sow_name'] ?? null,
+                    'rate' => $rc['rate'] ?? null,
+                    'file_path' => $rc['file_path'] ?? null,
+                    'valid_from' => $rc['valid_from'] ?? null,
+                    'valid_until' => $rc['valid_until'] ?? null,
+                    'notes' => $rc['notes'] ?? null,
+                ])
+                ->values()
+                ->all();
+
+            if ($cards) {
+                $kol->rateCards()->delete();
+                $kol->rateCards()->createMany($cards);
+            }
+
+            $sowLabels = self::kolSowLabels($kol->id);
+            $rate = round(self::computeRateFromSow($kol->id, $kol->username, $channel, $sowLabels));
+
+            $newKols[] = [
+                'row_number' => $startRowNum++,
+                'data_kol_id' => $kol->id,
+                'channel' => $channel,
+                'name' => $kol->username,
+                'pic' => null,
+                'domisili' => null,
+                'links' => $kol->link_userprofile,
+                'tipe_pajak_kol' => $kol->tipe_pajak_kol ?? $defaultPph,
+                'followers' => $followers,
+                'tier' => $kol->tier,
+                'er_percent' => $er,
+                'impression' => (int) $kol->impressions,
+                'engagement' => intval($followers * ($er / 100)),
+                'scope_items' => $sowLabels,
+                'rate' => $rate,
+                'margin_percent' => null,
+                'after_nego' => null,
+                'payment_date' => null,
+                'status' => 'New List',
+                'notes' => null,
+                'is_selected' => false,
+            ];
+            $created++;
+        }
+
+        return ['kols' => $newKols, 'created' => $created];
     }
 }

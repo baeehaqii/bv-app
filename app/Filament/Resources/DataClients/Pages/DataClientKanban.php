@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\DataClients\Pages;
 
+use App\Enums\SalesStatus;
 use App\Filament\Resources\DataClients\DataClientResource;
 use App\Models\BvSalesList;
 use App\Models\DataClient;
@@ -128,14 +129,8 @@ class DataClientKanban extends BoardResourcePage
 
             Select::make('status')
                 ->label('Status Campaign')
-                ->options([
-                    'draft'     => 'Draft',
-                    'upcoming'  => 'Upcoming',
-                    'ongoing'   => 'Ongoing',
-                    'completed' => 'Completed',
-                    'cancelled' => 'Cancelled',
-                ])
-                ->default('draft')
+                ->options(SalesStatus::options())
+                ->default(SalesStatus::NOT_STARTED->value)
                 ->native(false)
                 ->required(),
 

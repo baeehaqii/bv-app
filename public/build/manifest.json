@@ -108,7 +108,7 @@
     "src": "node_modules/@flaticon/flaticon-uicons/css/uicons-thin-straight-X52T7FDE.eot"
   },
   "resources/css/app.css": {
-    "file": "assets/app-DlFupXmG.css",
+    "file": "assets/app-DzW1rv55.css",
     "src": "resources/css/app.css",
     "isEntry": true,
     "name": "app",
@@ -117,7 +117,7 @@
     ]
   },
   "resources/css/filament/theme/theme.css": {
-    "file": "assets/theme-DQrAQQzg.css",
+    "file": "assets/theme-DkaVnWGJ.css",
     "src": "resources/css/filament/theme/theme.css",
     "isEntry": true,
     "name": "theme",

@@ -187,7 +187,7 @@ class InternalBudget extends Model
                 'client_email' => $clientEmail,
                 'subtotal' => $this->total_rounded ?? 0,
                 'discount' => 0,
-                'total_amount' => $this->total_rounded ?? 0,
+                'total_amount' => ($this->total_rounded ?? 0) + ($this->total_mu_pph ?? 0),
                 'status' => 'draft',
                 'user_id' => auth()->id(),
             ]

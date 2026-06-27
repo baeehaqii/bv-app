@@ -2,9 +2,11 @@
 
 namespace App\Filament\Resources\BvQuotations\Tables;
 
+use App\Models\BvQuotation;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
+use Filament\Actions\Action;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 
@@ -53,6 +55,18 @@ class BvQuotationsTable
                 //
             ])
             ->recordActions([
+                Action::make('downloadPdf')
+                    ->label('PDF')
+                    ->icon('heroicon-o-arrow-down-tray')
+                    ->color('success')
+                    ->url(fn(BvQuotation $record): string => route('bv-quotation.pdf', $record))
+                    ->openUrlInNewTab(),
+                Action::make('previewPdf')
+                    ->label('Preview')
+                    ->icon('heroicon-o-eye')
+                    ->color('info')
+                    ->url(fn(BvQuotation $record): string => route('bv-quotation.preview', $record))
+                    ->openUrlInNewTab(),
                 EditAction::make(),
             ])
             ->toolbarActions([

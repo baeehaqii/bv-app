@@ -17,6 +17,20 @@ class EditBvQuotation extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('downloadPdf')
+                ->label('Download PDF')
+                ->icon('heroicon-o-arrow-down-tray')
+                ->color('success')
+                ->url(fn($record) => route('bv-quotation.pdf', $record))
+                ->openUrlInNewTab(),
+
+            Action::make('previewPdf')
+                ->label('Preview PDF')
+                ->icon('heroicon-o-eye')
+                ->color('info')
+                ->url(fn($record) => route('bv-quotation.preview', $record))
+                ->openUrlInNewTab(),
+
             Action::make('generate_public_link')
                 ->label('Generate Link Client')
                 ->icon('heroicon-m-link')

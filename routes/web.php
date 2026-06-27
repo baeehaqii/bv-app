@@ -82,13 +82,19 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/internal-budget/{internalBudget}/pdf/preview', [InternalBudgetPdfController::class, 'preview'])
         ->name('internal-budget.pdf.preview');
 
-    // Quotation PDF Routes
+    // Quotation PDF Routes (lama — dari MediaPlan)
     Route::get('/quotation/{mediaPlan}/download', [QuotationController::class, 'generatePdf'])
         ->name('quotation.download');
     Route::get('/quotation/{mediaPlan}/preview', [QuotationController::class, 'preview'])
         ->name('quotation.preview');
     Route::get('/quotation/{mediaPlan}/html', [QuotationController::class, 'html'])
         ->name('quotation.html');
+
+    // BvQuotation PDF Routes (baru — format updated, dari InternalBudgetItem)
+    Route::get('/bv-quotation/{bvQuotation}/pdf', [QuotationController::class, 'generateFromBvQuotation'])
+        ->name('bv-quotation.pdf');
+    Route::get('/bv-quotation/{bvQuotation}/preview', [QuotationController::class, 'previewBvQuotation'])
+        ->name('bv-quotation.preview');
 
     // KOL Contract (SPK) Routes
     Route::get('/kol-contract/{spk}/download', [KolContractController::class, 'download'])
