@@ -17,6 +17,10 @@ Route::get('/', function () {
     return view('welcome');
 })->name('home');
 
+Route::get('/v2', function () {
+    return view('welcome-v2');
+})->name('home.v2');
+
 // Form Brief Public (Client Portal) — no auth required
 Route::get('/brief/{token}', [FormBriefPublicController::class, 'show'])->name('form-brief.public');
 Route::post('/brief/{token}', [FormBriefPublicController::class, 'submit'])->name('form-brief.submit');
