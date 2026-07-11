@@ -21,12 +21,4 @@ class Division extends Model
     {
         return $this->hasMany(Department::class);
     }
-
-    public function employees(): HasMany
-    {
-        return $this->hasMany(BvEmploye::class, 'position_id', 'id')
-            ->join('positions', 'bv_employes.position_id', '=', 'positions.id')
-            ->join('departments', 'positions.department_id', '=', 'departments.id')
-            ->where('departments.division_id', $this->id);
-    }
 }

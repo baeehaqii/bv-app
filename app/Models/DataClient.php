@@ -105,12 +105,6 @@ class DataClient extends Model
         return $this->belongsTo(self::class, 'agency_client_id');
     }
 
-    /** Daftar direct brand yang di-handle oleh agency ini */
-    public function brandClients(): HasMany
-    {
-        return $this->hasMany(self::class, 'agency_client_id');
-    }
-
     // -------------------------------------------------------
     // Accessor
     // -------------------------------------------------------

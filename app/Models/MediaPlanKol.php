@@ -152,27 +152,4 @@ class MediaPlanKol extends Model
         $this->cpe = $this->calculateCpe();
         $this->saveQuietly();
     }
-
-    /**
-     * Add a link to the links array
-     */
-    public function addLink(string $link): void
-    {
-        $links = $this->links ?? [];
-        if (!in_array($link, $links)) {
-            $links[] = $link;
-            $this->links = $links;
-            $this->save();
-        }
-    }
-
-    /**
-     * Remove a link from the links array
-     */
-    public function removeLink(string $link): void
-    {
-        $links = $this->links ?? [];
-        $this->links = array_values(array_filter($links, fn($l) => $l !== $link));
-        $this->save();
-    }
 }

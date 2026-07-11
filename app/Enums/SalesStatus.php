@@ -70,5 +70,11 @@ enum SalesStatus: string
             array_map(fn($case) => $case->getLabel(), self::cases())
         );
     }
+
+    // ponytail: alias — call sites use both names; keep both rather than churn 5 files
+    public static function options(): array
+    {
+        return self::toArray();
+    }
 }
 

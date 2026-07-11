@@ -17,22 +17,6 @@ class MasterService extends Model
     ];
 
     /**
-     * Scope untuk filter hanya service yang aktif
-     */
-    public function scopeActive(Builder $query): Builder
-    {
-        return $query->where('is_active', true);
-    }
-
-    /**
-     * Scope untuk filter hanya service yang available (aktif dan bukan coming soon)
-     */
-    public function scopeAvailable(Builder $query): Builder
-    {
-        return $query->where('is_active', true)->where('is_coming_soon', false);
-    }
-
-    /**
      * Scope untuk urut berdasarkan urutan
      */
     public function scopeOrdered(Builder $query): Builder

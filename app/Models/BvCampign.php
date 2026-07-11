@@ -221,30 +221,6 @@ class BvCampign extends Model
     }
 
     /**
-     * Get KOLs by platform
-     */
-    public function kolsByPlatform(string $platform): HasMany
-    {
-        return $this->kols()->where('platform', $platform);
-    }
-
-    /**
-     * Get total views across all KOLs
-     */
-    public function getTotalViewsAttribute(): int
-    {
-        return $this->kols->sum('views');
-    }
-
-    /**
-     * Get total engagements across all KOLs
-     */
-    public function getTotalEngagementsAttribute(): int
-    {
-        return $this->kols->sum('likes') + $this->kols->sum('comments') + $this->kols->sum('shares');
-    }
-
-    /**
      * Get campaign progress (days elapsed / total days)
      */
     public function getProgressAttribute(): float
@@ -261,15 +237,5 @@ class BvCampign extends Model
         }
 
         return min(100, round(($daysElapsed / $totalDays) * 100, 1));
-    }
-
-    /**
-     * Check if campaign is ongoing
-     */
-    public function getIsOngoingAttribute(): bool
-    {
-        return $this->status === 'ongoing' ||
-            ($this->start_date && $this->end_date &&
-                now()->between($this->start_date, $this->end_date));
     }
 }

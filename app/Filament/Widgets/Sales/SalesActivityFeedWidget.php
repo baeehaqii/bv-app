@@ -76,7 +76,7 @@ class SalesActivityFeedWidget extends Widget
             ->groupBy('status')
             ->get()
             ->map(fn($row) => [
-                'status' => SalesStatus::from($row->status),
+                'status' => $row->status, // already a SalesStatus enum via model cast
                 'count' => $row->count,
                 'total_value' => (float) $row->total_value,
             ])

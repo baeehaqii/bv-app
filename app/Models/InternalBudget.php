@@ -169,11 +169,15 @@ class InternalBudget extends Model
     public function generateQuotation(): BvQuotation
     {
         $mediaPlan = $this->mediaPlan;
-        $clientName = $mediaPlan?->bvSales?->dataClient?->nama_brand
+        $client = $mediaPlan?->bvSales?->client;
+
+        $clientName = $client?->nama_brand
             ?? $mediaPlan?->brand
             ?? 'Client';
 
-        $clientEmail = $mediaPlan?->bvSales?->dataClient?->email ?? null;
+        // Email lives in the pic_clients JSON (email_pic); prefer the lead contact.
+        $pics = collect($client?->pic_clients ?? []);
+        $clientEmail = ($pics->firstWhere('is_leads', true) ?? $pics->first())['email_pic'] ?? null;
 
         $quotationNumber = \App\Helpers\QuotationNumberGenerator::generate();
 
@@ -398,35 +402,6 @@ class InternalBudget extends Model
         }
 
         $this->warnings = empty($warnings) ? null : implode("\n", $warnings);
-    }
-
-    /**
-     * Calculate summary only from selected KOLs items
-     */
-    public function calculateSelectedSummary(): array
-    {
-        $selectedKolIds = $this->mediaPlan?->selectedKols()->pluck('id') ?? collect([]);
-        $selectedItems = $this->items()->whereIn('media_plan_kol_id', $selectedKolIds)->get();
-
-        $totalRate = 0;
-        $totalSubtotal = 0;
-        $totalMuPph = 0;
-        $totalRounded = 0;
-
-        foreach ($selectedItems as $item) {
-            $totalRate += self::parseNumber($item->rate_base);
-            $totalSubtotal += self::parseNumber($item->subtotal);
-            $totalMuPph += self::parseNumber($item->mu_pph);
-            $totalRounded += self::parseNumber($item->rounded);
-        }
-
-        return [
-            'total_rate' => $totalRate,
-            'total_subtotal' => $totalSubtotal,
-            'total_mu_pph' => $totalMuPph,
-            'total_rounded' => $totalRounded,
-            'item_count' => $selectedItems->count(),
-        ];
     }
 
     /**

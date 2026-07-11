@@ -422,12 +422,4 @@ class MediaPlan extends Model
             'selected_count' => $selectedKols->count(),
         ];
     }
-
-    /**
-     * Get next row number for a new KOL
-     */
-    public function getNextRowNumber(): int
-    {
-        return ($this->kols()->max('row_number') ?? 0) + 1;
-    }
 }

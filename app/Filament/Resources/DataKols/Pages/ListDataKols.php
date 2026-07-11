@@ -4,11 +4,6 @@ namespace App\Filament\Resources\DataKols\Pages;
 
 use App\Filament\Resources\DataKols\DataKolResource;
 use App\Filament\Resources\DataKols\Widgets\KolStatsWidget;
-use App\Filament\Widgets\EngagementRateDistributionChart;
-use App\Filament\Widgets\KolByCategoryChart;
-use App\Filament\Widgets\KolByChannelChart;
-use App\Filament\Widgets\KolByTierChart;
-use App\Filament\Widgets\TopKolByFollowersChart;
 use App\Models\DataKol;
 use Filament\Actions\CreateAction;
 use Filament\Forms\Components\Placeholder;

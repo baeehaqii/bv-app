@@ -111,22 +111,6 @@ class BvCampaignKol extends Model
     }
 
     /**
-     * Scope: hanya KOL yang sudah approved (untuk KOL Performance).
-     */
-    public function scopeApproved($query)
-    {
-        return $query->where('brief_status', 'approved');
-    }
-
-    /**
-     * Scope: KOL yang masih dalam proses brief (belum approved).
-     */
-    public function scopeInBrief($query)
-    {
-        return $query->where('brief_status', '!=', 'approved');
-    }
-
-    /**
      * Get platform label
      */
     public function getPlatformLabelAttribute(): string
@@ -177,17 +161,5 @@ class BvCampaignKol extends Model
         return 0;
     }
 
-    /**
-     * Get formatted engagement rate with type indicator
-     */
-    public function getFormattedEngagementRateAttribute(): string
-    {
-        if ($this->engagement_rate <= 0) {
-            return 'N/A';
-        }
-
-        $suffix = $this->er_type === 'followers' ? ' (F)' : '';
-        return number_format((float) $this->engagement_rate, 2) . '%' . $suffix;
-    }
 }
 

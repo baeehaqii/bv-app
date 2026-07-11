@@ -200,7 +200,7 @@ class DataClientSeeder extends Seeder
 
             unset($client['nama_pic'], $client['role_pic'], $client['email_pic']);
 
-            $client['pic_clients'] = !empty($picClients) ? json_encode($picClients) : null;
+            $client['pic_clients'] = !empty($picClients) ? $picClients : null;
 
             DataClient::create($client);
         }

@@ -6,7 +6,6 @@ use App\Models\BvCampaignKol;
 use App\Service\InstagramService;
 use App\Service\TiktokService;
 use App\Service\YoutubeChannelsService;
-use App\Service\YoutubeShortsService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -118,39 +117,7 @@ class ScrapeKolMetricsJob implements ShouldQueue
      */
     private function scrapeTiktok(BvCampaignKol $kol): ?array
     {
-        $service = app(TiktokService::class);
-
-        $username = $kol->username ?? $this->extractUsernameFromUrl($kol->post_url, 'tiktok');
-
-        if (!$username) {
-            return null;
-        }
-
-        $data = $service->getUserProfile($username);
-
-        if (empty($data)) {
-            return null;
-        }
-
-        return [
-            'views' => $data['video_view_count'] ?? $data['views'] ?? 0,
-            'likes' => $data['likes'] ?? 0,
-            'comments' => $data['comments'] ?? 0,
-            'shares' => $data['shares'] ?? 0,
-            'followers_count' => $data['followers'] ?? 0,
-        ];
-    }
-
-    /**
-     * @return array<string, mixed>|null
-     */
-    private function scrapeYoutube(BvCampaignKol $kol): ?array
-    {
-        $service = $kol->content_type === 'short'
-            ? app(YoutubeShortsService::class)
-            : app(YoutubeChannelsService::class);
-
-        $data = $service->getVideoMetrics($kol->post_url);
+        $data = app(TiktokService::class)->getPostStats($kol->post_url);
 
         if (empty($data)) {
             return null;
@@ -161,6 +128,31 @@ class ScrapeKolMetricsJob implements ShouldQueue
             'likes' => $data['likes'] ?? 0,
             'comments' => $data['comments'] ?? 0,
             'shares' => $data['shares'] ?? 0,
+            'saves' => $data['saves'] ?? 0,
+            'followers_count' => $data['followers_count'] ?? 0,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function scrapeYoutube(BvCampaignKol $kol): ?array
+    {
+        // ponytail: only YoutubeChannelsService exposes per-video stats; the /video
+        // endpoint works for shorts too, so content_type doesn't change the call.
+        $data = app(YoutubeChannelsService::class)->getVideoStats($kol->post_url);
+
+        if (empty($data)) {
+            return null;
+        }
+
+        return [
+            'views' => $data['views'] ?? 0,
+            'likes' => $data['likes'] ?? 0,
+            'comments' => $data['comments'] ?? 0,
+            'shares' => $data['shares'] ?? 0,
+            'saves' => $data['saves'] ?? 0,
+            'followers_count' => $data['followers_count'] ?? 0,
         ];
     }
 
