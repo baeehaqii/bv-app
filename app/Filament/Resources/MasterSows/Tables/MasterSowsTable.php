@@ -34,12 +34,13 @@ class MasterSowsTable
                     ->label('Platform')
                     ->badge()
                     ->color(fn($state) => match ($state) {
-                        'instagram' => 'pink',
-                        'tiktok'    => 'gray',
-                        'youtube'   => 'danger',
-                        'twitter'   => 'info',
-                        'threads'   => 'primary',
-                        default     => 'gray',
+                        'Instagram'        => 'pink',
+                        'Tiktok'           => 'gray',
+                        'Youtube Channels',
+                        'Youtube Shorts'   => 'danger',
+                        'X'                => 'info',
+                        'Threads'          => 'primary',
+                        default            => 'gray',
                     })
                     ->placeholder('-')
                     ->sortable(),
@@ -69,15 +70,7 @@ class MasterSowsTable
             ->filters([
                 SelectFilter::make('channel')
                     ->label('Platform')
-                    ->options([
-                        'instagram' => 'Instagram',
-                        'tiktok'    => 'TikTok',
-                        'youtube'   => 'YouTube',
-                        'twitter'   => 'Twitter / X',
-                        'threads'   => 'Threads',
-                        'facebook'  => 'Facebook',
-                        'other'     => 'Lainnya',
-                    ]),
+                    ->options(\App\Filament\Resources\DataKols\Schemas\DataKolForm::$channelOptions),
                 TernaryFilter::make('is_active')->label('Status Aktif'),
                 TernaryFilter::make('is_custom')->label('Tipe Custom'),
             ])

@@ -22,7 +22,9 @@ use Filament\Support\RawJs;
 
 class DataKolForm
 {
-    private static array $channelOptions = [
+    // ponytail: satu-satunya sumber daftar channel; MasterSowForm ikut pakai ini
+    // agar nilai `channel` SOW cocok dengan filter byChannel() di rate card KOL.
+    public static array $channelOptions = [
         'Instagram' => 'Instagram',
         'Tiktok' => 'TikTok',
         'Threads' => 'Threads',

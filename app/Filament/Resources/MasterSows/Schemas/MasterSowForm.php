@@ -27,15 +27,7 @@ class MasterSowForm
 
                         Select::make('channel')
                             ->label('Channel / Platform')
-                            ->options([
-                                'instagram' => 'Instagram',
-                                'tiktok'    => 'TikTok',
-                                'youtube'   => 'YouTube',
-                                'twitter'   => 'Twitter / X',
-                                'threads'   => 'Threads',
-                                'facebook'  => 'Facebook',
-                                'other'     => 'Lainnya',
-                            ])
+                            ->options(\App\Filament\Resources\DataKols\Schemas\DataKolForm::$channelOptions)
                             ->native(false)
                             ->placeholder('Pilih platform')
                             ->nullable(),
