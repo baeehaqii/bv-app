@@ -19,7 +19,7 @@ class InternalBudgetResource extends Resource
 {
     protected static ?string $model = InternalBudget::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-document-chart-bar';
 
     protected static string|\UnitEnum|null $navigationGroup = 'Media Planning';
 

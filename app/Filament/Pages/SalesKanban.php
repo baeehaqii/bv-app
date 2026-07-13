@@ -41,9 +41,9 @@ class SalesKanban extends BoardPage implements HasTable
 
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-view-columns';
 
-    protected static ?string $title = 'Sales Activity Trackerrr';
+    protected static ?string $title = 'Sales Activity Tracker';
 
-    protected static ?string $navigationLabel = 'Sales Activity Trackerrr';
+    protected static ?string $navigationLabel = 'Sales Activity Tracker';
 
     protected static string|UnitEnum|null $navigationGroup = 'Sales';
 

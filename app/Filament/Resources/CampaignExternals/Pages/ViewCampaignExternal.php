@@ -112,9 +112,9 @@ class ViewCampaignExternal extends ViewRecord
                 ->label('Approval Konten')
                 ->icon('heroicon-o-document-check')
                 ->color($this->record->content_review_is_public ? 'success' : 'warning')
-                ->button()
-                ->visible(fn() => $this->record->content_review_is_public
-                    || $this->record->storylines()->where('status', 'waiting_approval')->exists()),
+                // ponytail: selalu tampil — PIC bisa generate link approval kapan saja.
+                // Halaman client tampilkan storyline waiting_approval/revision/approved.
+                ->button(),
         ];
     }
 }

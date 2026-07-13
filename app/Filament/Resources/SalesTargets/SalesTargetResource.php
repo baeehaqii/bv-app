@@ -19,7 +19,7 @@ class SalesTargetResource extends Resource
 {
     protected static ?string $model = SalesTarget::class;
 
-    protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-user-group';
+    protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-flag';
 
     protected static string|\UnitEnum|null $navigationGroup = 'Sales';
 

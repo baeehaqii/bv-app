@@ -17,7 +17,7 @@ class GrossProfitTargetResource extends Resource
 {
     protected static ?string $model = GrossProfitTarget::class;
 
-    protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-banknotes';
+    protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-arrow-trending-up';
 
     protected static string|\UnitEnum|null $navigationGroup = 'Finance';
 

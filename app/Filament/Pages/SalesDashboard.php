@@ -13,7 +13,7 @@ use Livewire\Attributes\Url;
 
 class SalesDashboard extends Page
 {
-    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-home';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-presentation-chart-line';
 
     protected static ?string $navigationLabel = 'Dashboard';
 

@@ -19,7 +19,7 @@ class BvSalesListResource extends Resource
 {
     protected static ?string $model = BvSalesList::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-queue-list';
 
     protected static ?string $recordTitleAttribute = 'BvSalesList';
 

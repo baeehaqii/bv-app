@@ -29,7 +29,7 @@ class OfficePanelProvider extends PanelProvider
             ->sidebarCollapsibleOnDesktop(true)
             ->globalSearch(true)
             ->globalSearchKeyBindings(['command+k', 'ctrl+k'])
-            ->login()
+            ->login(\App\Filament\Pages\Auth\Login::class)
             ->topbar(true)
             // ->font('Plus Jakarta Sans')
             ->font('Poppins')

@@ -10,7 +10,7 @@ use Filament\Pages\Page;
 
 class KolDashboard extends Page
 {
-    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-user-group';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-chart-pie';
     protected static ?string $navigationLabel = 'Dashboard KOL';
     protected static ?string $title = 'KOL & Creative Dashboard';
     protected static string|\UnitEnum|null $navigationGroup = 'Campaign';

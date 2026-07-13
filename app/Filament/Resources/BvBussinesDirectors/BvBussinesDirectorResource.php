@@ -19,7 +19,7 @@ class BvBussinesDirectorResource extends Resource
 {
     protected static ?string $model = BvBussinesDirector::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedUserGroup;
+    protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-briefcase';
 
     protected static string|UnitEnum|null $navigationGroup = 'Master Data';
 

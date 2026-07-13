@@ -16,7 +16,7 @@ class MasterPphResource extends Resource
 {
     protected static ?string $model = MasterPph::class;
 
-    protected static \BackedEnum|string|null $navigationIcon = 'heroicon-o-document-text';
+    protected static \BackedEnum|string|null $navigationIcon = 'heroicon-o-receipt-percent';
 
     protected static ?string $recordTitleAttribute = 'name';
 

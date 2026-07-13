@@ -18,7 +18,7 @@ class BvQuotationResource extends Resource
 {
     protected static ?string $model = BvQuotation::class;
 
-    protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-document-duplicate';
+    protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-clipboard-document';
     protected static string|\UnitEnum|null $navigationGroup = "Finance";
     protected static ?int $navigationSort = 2;
     protected static ?string $navigationLabel = 'Quotation';
