@@ -263,17 +263,7 @@ class BvSalesForm
                                         $html .= ' <span style="font-size:11px;color:#6b7280;margin-left:4px;">('.e($agencyNames).')</span>';
                                     }
 
-                                    if ($client->type === 'agency') {
-                                        $handledBrands = collect($client->agency_brands ?? [])
-                                            ->pluck('nama_brand')
-                                            ->filter()
-                                            ->unique()
-                                            ->values();
-
-                                        if ($handledBrands->isNotEmpty()) {
-                                            $html .= ' <span style="font-size:11px;color:#6b7280;margin-left:4px;">Handle: '.e($handledBrands->implode(', ')).'</span>';
-                                        }
-                                    }
+                                    // Brand yang dihandel agency sudah tampil di field "Brand yang Dihandel Agency" di sampingnya.
 
                                     if ($client->type === 'direct') {
                                         $agencies = collect($client->pics ?? [])
@@ -317,7 +307,10 @@ class BvSalesForm
                                 ->options(fn (Get $get): array => self::relatedClientOptions($get('company_name')))
                                 ->searchable()
                                 ->native(false)
-                                ->visible(fn (Get $get): bool => filled($get('company_name')) && self::resolveClientType($get('company_name')) !== null),
+                                // Sembunyikan bila tak ada pasangan: brand tanpa agency (atau agency tanpa brand).
+                                ->visible(fn (Get $get): bool => filled($get('company_name'))
+                                    && self::resolveClientType($get('company_name')) !== null
+                                    && ! empty(self::relatedClientOptions($get('company_name')))),
 
                             Select::make('campaign_items')
                                 ->label('Campaign Items')

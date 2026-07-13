@@ -8,7 +8,6 @@ use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Notifications\Notification;
 use Filament\Support\Enums\FontWeight;
-use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
@@ -75,13 +74,25 @@ class CampaignExternalsTable
                     })
                     ->formatStateUsing(fn($state) => ucfirst($state ?? 'draft')),
 
-                IconColumn::make('is_public')
-                    ->label('External Link')
-                    ->boolean()
-                    ->trueIcon('heroicon-o-link')
-                    ->falseIcon('heroicon-o-lock-closed')
-                    ->trueColor('success')
-                    ->falseColor('gray'),
+                TextColumn::make('content_review_url')
+                    ->label('Link Approval Konten')
+                    ->state(fn($record) => $record->content_review_is_public ? 'Buka' : null)
+                    ->url(fn($record) => $record->content_review_is_public ? $record->content_review_url : null)
+                    ->openUrlInNewTab()
+                    ->badge()
+                    ->color('primary')
+                    ->icon('heroicon-o-arrow-top-right-on-square')
+                    ->placeholder('-'),
+
+                TextColumn::make('public_url')
+                    ->label('Link Performa Konten (External)')
+                    ->state(fn($record) => $record->is_public ? 'Buka' : null)
+                    ->url(fn($record) => $record->is_public ? $record->public_url : null)
+                    ->openUrlInNewTab()
+                    ->badge()
+                    ->color('primary')
+                    ->icon('heroicon-o-arrow-top-right-on-square')
+                    ->placeholder('-'),
             ])
             ->filters([
                 SelectFilter::make('status')

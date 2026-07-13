@@ -10,7 +10,6 @@ use App\Filament\Resources\CampaignExternals\Tables\CampaignExternalsTable;
 use App\Models\BvCampign;
 use BackedEnum;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -38,65 +37,67 @@ class CampaignExternalResource extends Resource
 
     public static function infolist(Schema $infolist): Schema
     {
+        // Top-level infolist default = 2 kolom (defaultInfolist). Dua Section langsung
+        // = kartu kiri-kanan sama rata selebar halaman. Jangan bungkus Grid (bikin separuh).
         return $infolist
             ->schema([
-                Grid::make()
-                    ->columns(2)
+                Section::make('Informasi Campaign')
+                    ->columns(3)
                     ->schema([
-                        Section::make('Informasi Campaign')
-                            ->columns(3)
-                            ->schema([
-                                TextEntry::make('campaign_name')
-                                    ->label('Nama Campaign')
-                                    ->weight(FontWeight::SemiBold)
-                                    ->columnSpan(2),
+                        TextEntry::make('campaign_name')
+                            ->label('Nama Campaign')
+                            ->weight(FontWeight::SemiBold)
+                            ->columnSpan(2),
 
-                                TextEntry::make('status')
-                                    ->label('Status')
-                                    ->badge()
-                                    ->color(fn($state) => match ($state) {
-                                        'ongoing'   => 'success',
-                                        'upcoming'  => 'warning',
-                                        'completed' => 'gray',
-                                        default     => 'primary',
-                                    }),
+                        TextEntry::make('status')
+                            ->label('Status')
+                            ->badge()
+                            ->color(fn($state) => match ($state) {
+                                'ongoing'   => 'success',
+                                'upcoming'  => 'warning',
+                                'completed' => 'gray',
+                                default     => 'primary',
+                            }),
 
-                                TextEntry::make('client.nama_brand')
-                                    ->label('Client / Brand'),
+                        TextEntry::make('client.nama_brand')
+                            ->label('Client / Brand'),
 
-                                TextEntry::make('start_date')
-                                    ->label('Mulai')
-                                    ->date('d M Y'),
+                        TextEntry::make('start_date')
+                            ->label('Mulai')
+                            ->date('d M Y'),
 
-                                TextEntry::make('end_date')
-                                    ->label('Selesai')
-                                    ->date('d M Y'),
-                            ]),
+                        TextEntry::make('end_date')
+                            ->label('Selesai')
+                            ->date('d M Y'),
+                    ]),
 
-                        // Link yang sudah tergenerate — tampil di sini biar tidak dibuat 2x.
-                        Section::make('Link Campaign')
-                            ->icon('heroicon-o-link')
-                            ->schema([
-                                TextEntry::make('content_review_url')
-                                    ->label('Link Approval Konten')
-                                    ->state(fn($record) => $record->content_review_is_public ? $record->content_review_url : null)
-                                    ->placeholder('Belum dibuat — pakai tombol "Approval Konten"')
-                                    ->copyable()
-                                    ->copyMessage('Link approval disalin')
-                                    ->url(fn($record) => $record->content_review_is_public ? $record->content_review_url : null)
-                                    ->openUrlInNewTab()
-                                    ->color('primary'),
+                // Link yang sudah tergenerate — tampil di sini biar tidak dibuat 2x.
+                Section::make('Link Campaign')
+                    ->icon('heroicon-o-link')
+                    ->schema([
+                        TextEntry::make('content_review_url')
+                            ->label('Link Approval Konten')
+                            ->state(fn($record) => $record->content_review_is_public ? 'Buka halaman approval →' : null)
+                            ->placeholder('Belum dibuat — pakai tombol "Approval Konten"')
+                            ->color('primary')
+                            ->weight(FontWeight::Medium)
+                            ->url(fn($record) => $record->content_review_is_public ? $record->content_review_url : null)
+                            ->openUrlInNewTab()
+                            ->copyable()
+                            ->copyableState(fn($record) => $record->content_review_url)
+                            ->copyMessage('Link approval disalin'),
 
-                                TextEntry::make('public_url')
-                                    ->label('Link Performa Konten (External)')
-                                    ->state(fn($record) => $record->is_public ? $record->public_url : null)
-                                    ->placeholder('Belum dibuat — pakai tombol "Link External"')
-                                    ->copyable()
-                                    ->copyMessage('Link external disalin')
-                                    ->url(fn($record) => $record->is_public ? $record->public_url : null)
-                                    ->openUrlInNewTab()
-                                    ->color('primary'),
-                            ]),
+                        TextEntry::make('public_url')
+                            ->label('Link Performa Konten (External)')
+                            ->state(fn($record) => $record->is_public ? 'Buka halaman performa →' : null)
+                            ->placeholder('Belum dibuat — pakai tombol "Link External"')
+                            ->color('primary')
+                            ->weight(FontWeight::Medium)
+                            ->url(fn($record) => $record->is_public ? $record->public_url : null)
+                            ->openUrlInNewTab()
+                            ->copyable()
+                            ->copyableState(fn($record) => $record->public_url)
+                            ->copyMessage('Link external disalin'),
                     ]),
             ]);
     }
