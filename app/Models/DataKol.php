@@ -12,7 +12,20 @@ class DataKol extends Model
 
     protected $casts = [
         'category' => 'array',
+        'terakhir_update' => 'date',
     ];
+
+    /**
+     * Semua baris channel milik KOL yang sama (1 baris = 1 channel, dikelompokkan by username),
+     * termasuk baris ini sendiri.
+     */
+    public function channelSiblings()
+    {
+        return static::with('rateCards')
+            ->where('username', $this->username)
+            ->orderBy('channel')
+            ->get();
+    }
 
     public function rateCards(): HasMany
     {

@@ -18,7 +18,9 @@ use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Section;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\TagsInput;
+use Filament\Forms\Components\Placeholder;
 use Filament\Support\RawJs;
+use Illuminate\Support\HtmlString;
 
 class DataKolForm
 {
@@ -67,6 +69,14 @@ class DataKolForm
                             ->action(fn(array $data, callable $set) => $set('rate_card_file', $data['rate_card_file'])),
                     ])
                     ->schema([
+                        // Kolom rate card sengaja dilebarkan; biar tidak gepeng, wrapper-nya di-scroll.
+                        Placeholder::make('rate_card_css')
+                            ->hiddenLabel()
+                            ->content(new HtmlString(
+                                '<style>#kol-rate-cards .fi-fo-repeater-table-wrapper { overflow-x: auto; }</style>'
+                            ))
+                            ->columnSpanFull(),
+
                         FileUpload::make('rate_card_file')
                             ->acceptedFileTypes(['application/pdf'])
                             ->maxSize(2048)
@@ -80,16 +90,10 @@ class DataKolForm
                             ->schema([
                                 Select::make('channel')
                                     ->label('Channel')
-                                    ->options([
-                                        'Instagram' => 'Instagram',
-                                        'Tiktok' => 'TikTok',
-                                        'Threads' => 'Threads',
-                                        'Youtube Channels' => 'YouTube Channels',
-                                        'Youtube Shorts' => 'YouTube Shorts',
-                                        'Facebook' => 'Facebook',
-                                        'Talent' => 'Talent',
-                                        'X' => 'X (Twitter)',
-                                    ])
+                                    ->options(self::$channelOptions)
+                                    // native(true): popup di-render browser, lolos dari overflow-x sel
+                                    // repeater tabel (kalau non-native, list-nya ke-clip / tidak kelihatan).
+                                    ->native(true)
                                     ->live()
                                     ->afterStateUpdated(fn(callable $set) => $set('master_sow_id', null))
                                     ->required(),
@@ -108,8 +112,7 @@ class DataKolForm
                                             ]);
                                     })
                                     ->getOptionLabelUsing(fn($value) => \App\Models\MasterSow::find($value)?->option_label)
-                                    ->searchable()
-                                    ->preload()
+                                    ->native(true)
                                     ->placeholder('Pilih SOW')
                                     ->suffixAction(
                                         Action::make('addCustomSow')
@@ -157,12 +160,13 @@ class DataKolForm
                                     ->placeholder('Catatan tambahan...'),
                             ])
                             ->table([
-                                TableColumn::make('Channel'),
-                                TableColumn::make('SOW'),
-                                TableColumn::make('Rate Card'),
-                                TableColumn::make('Berlaku Dari'),
-                                TableColumn::make('Catatan'),
+                                TableColumn::make('Channel')->width('14rem'),
+                                TableColumn::make('SOW')->width('24rem'),
+                                TableColumn::make('Rate Card')->width('13rem'),
+                                TableColumn::make('Berlaku Dari')->width('12rem'),
+                                TableColumn::make('Catatan')->width('20rem'),
                             ])
+                            ->extraAttributes(['id' => 'kol-rate-cards'])
                             ->addActionLabel('+ Tambah Rate Card')
                             ->defaultItems(0)
                             ->reorderable(false),
@@ -406,6 +410,17 @@ class DataKolForm
                         //         'Not Available' => 'Not Available',
                         //     ])
                         //     ->placeholder('Pilih Status'),
+
+                        // 1 KOL bisa punya beberapa channel (1 baris DataKol per channel).
+                        // Tampilkan hasil scraping seluruh channel-nya + kartu KOL per channel.
+                        Placeholder::make('channel_data')
+                            ->label('Data Per Channel')
+                            ->columnSpanFull()
+                            ->visible(fn($record) => $record !== null)
+                            ->content(fn($record) => view('filament.data-kols.channel-data', [
+                                'rows' => $record->channelSiblings(),
+                                'currentId' => $record->id,
+                            ])),
                     ])->columns(3),
 
                 $rateCardSection,
