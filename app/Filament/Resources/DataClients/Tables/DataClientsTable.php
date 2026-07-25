@@ -28,14 +28,17 @@ class DataClientsTable
                 TextColumn::make('type')
                     ->label('Tipe')
                     ->badge()
-                    ->color(fn(string $state): string => match ($state) {
-                        'agency' => 'warning',
-                        'direct' => 'info',
+                    ->color(fn(string $state, $record): string => match (true) {
+                        $state === 'agency' => 'warning',
+                        $state === 'direct' && $record->agency_client_id => 'success',
+                        $state === 'direct' => 'info',
                         default => 'gray',
                     })
-                    ->formatStateUsing(fn(string $state): string => match ($state) {
-                        'agency' => 'Agency',
-                        'direct' => 'Direct Brand',
+                    ->formatStateUsing(fn(string $state, $record): string => match (true) {
+                        $state === 'agency' => 'Agency',
+                        // Brand hasil sync dari daftar "Brand yang Di-handle" milik agency.
+                        $state === 'direct' && $record->agency_client_id => 'Di-handle Agency',
+                        $state === 'direct' => 'Direct Brand',
                         default => $state,
                     }),
 
@@ -48,9 +51,7 @@ class DataClientsTable
                 TextColumn::make('agency_name')
                     ->label('Agency')
                     ->visible(fn($livewire) => ($livewire->activeTab ?? 'brand') !== 'agency')
-                    ->getStateUsing(fn($record) => collect($record->pics ?? [])
-                        ->filter(fn($p) => !empty($p['agency']))
-                        ->count())
+                    ->getStateUsing(fn($record) => self::agencyRows($record)->count())
                     ->badge()
                     ->color(fn($state) => $state > 0 ? 'primary' : 'gray')
                     ->action(
@@ -59,8 +60,7 @@ class DataClientsTable
                             ->modalSubmitAction(false)
                             ->modalCancelActionLabel('Tutup')
                             ->modalContent(function ($record): HtmlString {
-                                $agencies = collect($record->pics ?? [])
-                                    ->filter(fn($p) => !empty($p['agency']));
+                                $agencies = self::agencyRows($record);
 
                                 if ($agencies->isEmpty()) {
                                     return new HtmlString('<p class="text-sm text-gray-500 py-4 text-center">Tidak ada data agency.</p>');
@@ -91,7 +91,7 @@ class DataClientsTable
                                     </div>
                                 ');
                             })
-                            ->visible(fn($record) => collect($record->pics ?? [])->filter(fn($p) => !empty($p['agency']))->isNotEmpty())
+                            ->visible(fn($record) => self::agencyRows($record)->isNotEmpty())
                     ),
 
                 TextColumn::make('category')
@@ -283,6 +283,27 @@ class DataClientsTable
                 ]),
             ])
             ->defaultSort('created_at', 'desc');
+    }
+
+    /**
+     * Agency dari sebuah brand: dari pics[].agency (input manual)
+     * + agency yang meng-handle brand ini lewat daftar "Brand yang Di-handle".
+     */
+    protected static function agencyRows($record): \Illuminate\Support\Collection
+    {
+        $rows = collect($record->pics ?? [])->filter(fn($p) => !empty($p['agency']))->values();
+
+        if ($record->agency_client_id && $agency = $record->agency) {
+            $pic = collect($agency->pic_clients)->first() ?? [];
+            $rows->prepend([
+                'agency' => $agency->nama_brand,
+                'name' => $pic['name'] ?? null,
+                'email' => $pic['email'] ?? null,
+                'wa_number' => $pic['wa_number'] ?? null,
+            ]);
+        }
+
+        return $rows;
     }
 
     /**

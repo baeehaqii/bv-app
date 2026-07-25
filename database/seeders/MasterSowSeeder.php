@@ -9,55 +9,65 @@ class MasterSowSeeder extends Seeder
 {
     public function run(): void
     {
+        // Daftar SOW resmi (revisi 13 Juli, dari mas Gerry).
+        // channel harus memakai vokabulari yang sama dengan channel KOL
+        // (Instagram / Tiktok / Youtube Channels / Youtube Shorts / Threads),
+        // karena MasterSow::byChannel() memfilter pakai nilai ini.
         $sows = [
             // Instagram
-            ['name' => 'IG Feed', 'channel' => 'Instagram', 'sort_order' => 1],
-            ['name' => 'IG Story', 'channel' => 'Instagram', 'sort_order' => 2],
-            ['name' => 'IG Reels', 'channel' => 'Instagram', 'sort_order' => 3],
-            ['name' => 'IG Carousel', 'channel' => 'Instagram', 'sort_order' => 4],
-            ['name' => 'IG Live', 'channel' => 'Instagram', 'sort_order' => 5],
-            ['name' => 'IG Story + Link', 'channel' => 'Instagram', 'sort_order' => 6],
-            ['name' => 'IG Feed Carousel', 'channel' => 'Instagram', 'sort_order' => 7],
-            ['name' => 'IG Feed + Story', 'channel' => 'Instagram', 'sort_order' => 8],
-            ['name' => 'IG Reels + Story', 'channel' => 'Instagram', 'sort_order' => 9],
+            ['name' => 'IG Photo Feed', 'channel' => 'Instagram'],
+            ['name' => 'IG Photo Carousel', 'channel' => 'Instagram'],
+            ['name' => 'IG Reels', 'channel' => 'Instagram'],
+            ['name' => 'IG Story', 'channel' => 'Instagram'],
+            ['name' => 'IG Story Session', 'channel' => 'Instagram'],
+            ['name' => 'IG Story + Link', 'channel' => 'Instagram'],
+            ['name' => 'IG Live', 'channel' => 'Instagram'],
             // TikTok
-            ['name' => 'TikTok Video', 'channel' => 'Tiktok', 'sort_order' => 10],
-            ['name' => 'TikTok Live', 'channel' => 'Tiktok', 'sort_order' => 11],
-            ['name' => 'TikTok FYP', 'channel' => 'Tiktok', 'sort_order' => 12],
-            // YouTube Channels
-            ['name' => 'YouTube Integration', 'channel' => 'Youtube Channels', 'sort_order' => 20],
-            ['name' => 'YouTube Dedicated', 'channel' => 'Youtube Channels', 'sort_order' => 21],
-            ['name' => 'YouTube Endcard', 'channel' => 'Youtube Channels', 'sort_order' => 22],
-            // YouTube Shorts
-            ['name' => 'YouTube Shorts', 'channel' => 'Youtube Shorts', 'sort_order' => 30],
+            ['name' => 'TikTok Video', 'channel' => 'Tiktok'],
+            ['name' => 'TikTok Video with Yellow Cart', 'channel' => 'Tiktok'],
+            ['name' => 'TikTok Story', 'channel' => 'Tiktok'],
+            ['name' => 'TikTok Live', 'channel' => 'Tiktok'],
+            ['name' => 'TikTok Live with Yellow Cart', 'channel' => 'Tiktok'],
+            // YouTube
+            ['name' => 'Youtube Shorts', 'channel' => 'Youtube Shorts'],
+            ['name' => 'Youtube Podcast', 'channel' => 'Youtube Channels'],
+            ['name' => 'Youtube Video Built-in/Eps', 'channel' => 'Youtube Channels'],
+            ['name' => 'Youtube Video Full', 'channel' => 'Youtube Channels'],
+            ['name' => 'Youtube Video Product Placement', 'channel' => 'Youtube Channels'],
             // Threads
-            ['name' => 'Threads Post', 'channel' => 'Threads', 'sort_order' => 40],
-            // Facebook
-            ['name' => 'Facebook Post', 'channel' => 'Facebook', 'sort_order' => 50],
-            ['name' => 'Facebook Reels', 'channel' => 'Facebook', 'sort_order' => 51],
-            // X (Twitter)
-            ['name' => 'Tweet / Post', 'channel' => 'X', 'sort_order' => 60],
-            ['name' => 'Thread Post', 'channel' => 'X', 'sort_order' => 61],
-            // Talent (offline/event)
-            ['name' => 'Event Appearance', 'channel' => 'Talent', 'sort_order' => 70],
-            ['name' => 'MC / Host', 'channel' => 'Talent', 'sort_order' => 71],
-            // Custom (lintas channel)
-            ['name' => 'Custom SOW', 'channel' => null, 'sort_order' => 99, 'is_custom' => true],
+            ['name' => '1x Threads', 'channel' => 'Threads'],
+            ['name' => '1x Threads with Image', 'channel' => 'Threads'],
+            ['name' => '1x Threads with Video', 'channel' => 'Threads'],
+            ['name' => '1x Threads Utas', 'channel' => 'Threads'],
+            ['name' => '1x Threads Utas + Image', 'channel' => 'Threads'],
+            ['name' => '1x Threads Utas + Video', 'channel' => 'Threads'],
+            // Lintas channel
+            ['name' => 'Event Attendance', 'channel' => null],
+            ['name' => 'Boosting 30 Days', 'channel' => null],
+            ['name' => 'Guest Star Podcast', 'channel' => null],
+            ['name' => 'As a Talent', 'channel' => null],
+            ['name' => 'Custom SOW', 'channel' => null, 'is_custom' => true],
         ];
 
-        foreach ($sows as $sow) {
-            // updateOrCreate: baris dengan name+channel sama akan di-update (sort_order/is_active/is_custom)
+        $ids = [];
+
+        foreach ($sows as $i => $sow) {
+            // updateOrCreate: baris dengan name+channel sama akan di-update
             // agar master data selalu sinkron dengan daftar di seeder ini.
-            MasterSow::updateOrCreate(
+            $ids[] = MasterSow::updateOrCreate(
                 ['name' => $sow['name'], 'channel' => $sow['channel']],
                 [
-                    'sort_order' => $sow['sort_order'],
+                    'sort_order' => ($i + 1) * 10,
                     'is_active' => true,
                     'is_custom' => $sow['is_custom'] ?? false,
                 ]
-            );
+            )->id;
         }
 
-        $this->command->info('MasterSow seeded: ' . MasterSow::count() . ' records.');
+        // SOW lama di luar daftar ini dinonaktifkan, bukan dihapus —
+        // rate card lama masih mereferensikan baris tersebut.
+        $retired = MasterSow::whereNotIn('id', $ids)->update(['is_active' => false]);
+
+        $this->command->info('MasterSow seeded: ' . count($ids) . ' aktif, ' . $retired . ' dinonaktifkan.');
     }
 }

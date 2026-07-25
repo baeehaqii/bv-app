@@ -15,6 +15,66 @@ class DataClient extends Model
         'has_agency' => 'boolean',
     ];
 
+    protected static function booted(): void
+    {
+        // Brand yang di-handle agency disimpan sebagai JSON (agency_brands),
+        // tapi harus ikut muncul di tab Database Brand + hitungan widget.
+        // Jadi setiap perubahan daftar itu disinkronkan jadi baris direct brand asli.
+        static::saved(function (self $client) {
+            // wasChanged() selalu kosong setelah insert, jadi cek wasRecentlyCreated juga.
+            if ($client->type === 'agency' && ($client->wasRecentlyCreated || $client->wasChanged('agency_brands'))) {
+                $client->syncAgencyBrands();
+            }
+        });
+    }
+
+    /**
+     * Buat/tautkan baris direct brand untuk tiap entri agency_brands.
+     * Brand yang dilepas dari agency hanya diputus tautannya, tidak dihapus.
+     */
+    public function syncAgencyBrands(): void
+    {
+        $linked = [];
+
+        foreach ($this->agency_brands as $brand) {
+            $name = trim($brand['nama_brand'] ?? '');
+            if ($name === '') {
+                continue;
+            }
+
+            $row = static::firstOrNew(['type' => 'direct', 'nama_brand' => $name]);
+
+            if (! $row->exists) {
+                $row->category = $brand['category'] ?? null;
+                $row->notes = $brand['description'] ?? null;
+                $row->pic_internal_sales_id = $this->pic_internal_sales_id;
+                $row->status = $this->status;
+                $pic = array_filter([
+                    'name' => $brand['nama_pic'] ?? null,
+                    'email' => $brand['email'] ?? null,
+                    'wa_number' => $brand['wa_number'] ?? null,
+                ]);
+                $row->pic_clients = $pic ? [$pic] : [];
+            }
+
+            $row->agency_client_id = $this->id;
+            $row->has_agency = true;
+            $row->save();
+
+            $linked[] = $row->id;
+        }
+
+        static::where('agency_client_id', $this->id)
+            ->whereNotIn('id', $linked)
+            ->update(['agency_client_id' => null, 'has_agency' => false]);
+    }
+
+    /** Direct brand yang di-handle agency ini (baris hasil sync) */
+    public function handledBrands(): HasMany
+    {
+        return $this->hasMany(self::class, 'agency_client_id');
+    }
+
     /** Transaksi keuangan yang terhubung ke client ini */
     public function cashflows(): HasMany
     {
