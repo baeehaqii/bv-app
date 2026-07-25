@@ -85,14 +85,22 @@ jobs:
           echo "http_code=$HTTP_CODE" >> $GITHUB_OUTPUT
           echo "Deploy triggered at $(date) | HTTP $HTTP_CODE | $BODY"
 
-      - name: Notify Telegram - Deploy Success
+      - name: Notify Telegram - Deploy Status
         if: always()
         env:
           BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          TEXT=$(printf "DEPLOY BERHASIL!\n\nRepo: %s\nBranch: %s\nBy: %s\n\nAplikasi sudah live di server!" \
-            "${{ github.repository }}" "${{ github.ref_name }}" "${{ github.actor }}")
+          # job.status, bukan teks statis — dulu selalu kirim "BERHASIL" walau webhook gagal.
+          if [ "${{ job.status }}" = "success" ]; then
+            HEAD="DEPLOY BERHASIL!"
+            FOOT="Aplikasi sudah live di server!"
+          else
+            HEAD="DEPLOY GAGAL!"
+            FOOT="Cek log GitHub Actions: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          fi
+          TEXT=$(printf "%s\n\nRepo: %s\nBranch: %s\nBy: %s\n\n%s" \
+            "$HEAD" "${{ github.repository }}" "${{ github.ref_name }}" "${{ github.actor }}" "$FOOT")
           curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
             -d "chat_id=${CHAT_ID}" \
             --data-urlencode "text=${TEXT}"
