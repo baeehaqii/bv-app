@@ -40,26 +40,45 @@
     @foreach ($rows as $row)
         {{-- teleport ke body: kalau tidak, modal ke-clip container form yang punya transform/overflow --}}
         <template x-teleport="body">
+        @php
+            // notes hasil scraping mencampur bio dengan statistik yang sudah tampil di kartu —
+            // baris statistik itu dibuang, sisakan bio & kontaknya saja.
+            $noteLines = collect(explode("\n", (string) $row->notes))->map(fn($l) => trim($l));
+            $isVerified = $noteLines->contains(fn($l) => str_contains($l, 'Verified Account'));
+            $bio = $noteLines
+                ->reject(fn($l) => $l === '' || preg_match(
+                    '/^(Tier|Engagement Rate|Avg Impressions|Avg Likes|Avg Comments|Following|Posts|Videos|Shorts)\s*:/u',
+                    $l
+                ) || str_contains($l, 'Verified Account'))
+                ->implode("\n");
+            $contact = array_filter([$row->full_name, $row->email, $row->wa_number]);
+        @endphp
         <div x-cloak x-show="open === {{ $row->id }}" x-on:keydown.escape.window="open = null"
-            class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4">
+            class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4">
             <div x-on:click.outside="open = null"
-                class="my-8 w-full max-w-2xl rounded-xl bg-white p-6 shadow-xl dark:bg-gray-900">
+                class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-6 shadow-xl dark:bg-gray-900">
 
                 <div class="mb-4 flex items-start justify-between">
                     <div>
                         <div class="text-xs uppercase tracking-wide text-gray-400">
                             Rate Card {{ $row->channel }}
                         </div>
-                        <div class="text-xl font-bold">&#64;{{ $row->username }}</div>
+                        <div class="flex items-center gap-1 text-xl font-bold">
+                            &#64;{{ $row->username }}
+                            @if ($isVerified)
+                                <x-filament::icon icon="heroicon-s-check-badge" class="h-5 w-5 text-blue-500"
+                                    title="Verified Account" />
+                            @endif
+                        </div>
                         <div class="text-sm text-gray-500">
                             {{ number_format((int) $row->followers) }} Followers
                             @if ($row->tier)
                                 <span class="ml-1 rounded-full bg-primary-50 px-2 py-0.5 text-xs text-primary-700 dark:bg-primary-950 dark:text-primary-300">{{ $row->tier }}</span>
                             @endif
                         </div>
-                        <div class="mt-1 text-xs text-gray-500">
-                            {{ $row->full_name ?: '-' }} &middot; {{ $row->email ?: '-' }} &middot; {{ $row->wa_number ?: '-' }}
-                        </div>
+                        @if ($contact)
+                            <div class="mt-1 text-xs text-gray-500">{{ implode(' · ', $contact) }}</div>
+                        @endif
                     </div>
                     <button type="button" x-on:click="open = null" class="text-gray-400 hover:text-gray-600">
                         <x-filament::icon icon="heroicon-o-x-mark" class="h-5 w-5" />
@@ -85,35 +104,22 @@
                     <p class="mt-3 text-center text-xs italic text-gray-400">Harga dalam satuan Rupiah</p>
                 </div>
 
-                <div class="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4 text-center">
-                    <div>
-                        <div class="font-bold">{{ number_format((float) $row->engagement_rate, 2) }}%</div>
-                        <div class="text-xs text-gray-500">Engagement Rate</div>
-                    </div>
-                    <div>
-                        <div class="font-bold">{{ number_format((int) $row->engagements) }}</div>
-                        <div class="text-xs text-gray-500">Total Engagements</div>
-                    </div>
-                    <div>
-                        <div class="font-bold">{{ number_format((int) $row->impressions) }}</div>
-                        <div class="text-xs text-gray-500">Avg Impressions</div>
-                    </div>
-                    <div>
-                        <div class="font-bold">{{ number_format((int) $row->followers) }}</div>
-                        <div class="text-xs text-gray-500">Followers</div>
-                    </div>
+                <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4 text-center">
+                    @foreach ([
+                        ['Engagement Rate', number_format((float) $row->engagement_rate, 2) . '%', 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300'],
+                        ['Total Engagements', number_format((int) $row->engagements), 'bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300'],
+                        ['Avg Impressions', number_format((int) $row->impressions), 'bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300'],
+                        ['Followers', number_format((int) $row->followers), 'bg-sky-50 text-sky-700 dark:bg-sky-950/50 dark:text-sky-300'],
+                    ] as [$label, $value, $tone])
+                        <div class="rounded-lg p-3 {{ $tone }}">
+                            <div class="text-base font-bold">{{ $value }}</div>
+                            <div class="text-xs opacity-80">{{ $label }}</div>
+                        </div>
+                    @endforeach
                 </div>
 
-                @if (filled($row->category))
-                    <div class="mt-4 flex flex-wrap gap-1">
-                        @foreach ((array) $row->category as $cat)
-                            <span class="rounded bg-gray-100 px-2 py-0.5 text-xs dark:bg-gray-800">{{ $cat }}</span>
-                        @endforeach
-                    </div>
-                @endif
-
-                @if ($row->notes)
-                    <pre class="mt-4 whitespace-pre-wrap rounded bg-gray-50 p-3 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">{{ $row->notes }}</pre>
+                @if (filled($bio))
+                    <pre class="mt-4 whitespace-pre-wrap rounded bg-gray-50 p-3 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">{{ $bio }}</pre>
                 @endif
 
                 <div class="mt-4 text-right text-xs text-gray-400">
