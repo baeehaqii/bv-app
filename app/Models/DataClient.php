@@ -70,6 +70,37 @@ class DataClient extends Model
     }
 
     /** Direct brand yang di-handle agency ini (baris hasil sync) */
+    /**
+     * Email PIC client (JSON pic_clients / pics). Prioritas: PIC leads, lalu PIC pertama.
+     * Key-nya pernah dua versi ('email' & 'email_pic'), jadi dua-duanya dicek.
+     */
+    public function getPicEmailAttribute(): ?string
+    {
+        $pics = collect($this->pic_clients)->concat($this->pics);
+        $pic = $pics->firstWhere('is_leads', true) ?? $pics->first();
+
+        return $pic['email'] ?? $pic['email_pic'] ?? null;
+    }
+
+    /**
+     * Data client untuk section "Detail Quotation" — dipakai bareng oleh form
+     * Quotation & InternalBudget::generateQuotation() agar isinya konsisten.
+     * $campaignBrand dipakai untuk agency: brand yang dikampanyekan, bukan nama agency-nya.
+     *
+     * @return array{client_type:?string, client_brand:?string, client_email:?string, client_address:?string}
+     */
+    public function quotationFields(?string $campaignBrand = null): array
+    {
+        return [
+            'client_type' => $this->type,
+            'client_brand' => $this->type === 'agency'
+                ? ($campaignBrand ?: null)
+                : $this->nama_brand,
+            'client_email' => $this->pic_email,
+            'client_address' => $this->alamat,
+        ];
+    }
+
     public function handledBrands(): HasMany
     {
         return $this->hasMany(self::class, 'agency_client_id');

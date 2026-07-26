@@ -3,9 +3,12 @@
 namespace App\Filament\Resources\BvQuotations\Pages;
 
 use App\Filament\Resources\BvQuotations\BvQuotationResource;
+use App\Models\BvQuotation;
 use App\Service\BvNotificationService;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
+use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 use Illuminate\Support\Facades\Log;
@@ -17,19 +20,10 @@ class EditBvQuotation extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            Action::make('downloadPdf')
-                ->label('Download PDF')
-                ->icon('heroicon-o-arrow-down-tray')
-                ->color('success')
-                ->url(fn($record) => route('bv-quotation.pdf', $record))
-                ->openUrlInNewTab(),
-
-            Action::make('previewPdf')
-                ->label('Preview PDF')
-                ->icon('heroicon-o-eye')
-                ->color('info')
-                ->url(fn($record) => route('bv-quotation.preview', $record))
-                ->openUrlInNewTab(),
+            // PDF (download & preview) dihapus: quotation dibagikan lewat Link Quotation,
+            // pengesahannya urut CEO → Business Development → Client.
+            self::signAction('ceo'),
+            self::signAction('bd'),
 
             Action::make('generate_public_link')
                 ->label('Generate Link Client')
@@ -106,5 +100,62 @@ class EditBvQuotation extends EditRecord
 
             DeleteAction::make(),
         ];
+    }
+
+    /**
+     * Aksi tanda tangan internal (CEO / Business Development).
+     * Hanya muncul saat memang urutannya — client tanda tangan sendiri lewat link.
+     * Gambar TTD opsional; tanpa gambar pun tetap sah (nama + waktu tercatat).
+     */
+    private static function signAction(string $role): Action
+    {
+        $label = BvQuotation::SIGN_FLOW[$role];
+
+        return Action::make("sign_{$role}")
+            ->label("Tanda Tangani ({$label})")
+            ->icon('heroicon-m-pencil-square')
+            ->color('success')
+            ->visible(fn($record) => $record->canSign($role))
+            ->modalHeading("Tanda Tangan {$label}")
+            ->modalDescription('Nama & waktu tanda tangan dicatat sistem. Gambar tanda tangan opsional.')
+            ->modalSubmitActionLabel('Tanda Tangani')
+            ->fillForm(fn() => [
+                'name' => auth()->user()?->name,
+                'job_title' => $label,
+            ])
+            ->form([
+                TextInput::make('name')
+                    ->label('Nama Penanda Tangan')
+                    ->required(),
+
+                TextInput::make('job_title')
+                    ->label('Jabatan')
+                    ->required(),
+
+                FileUpload::make('image')
+                    ->label('Gambar Tanda Tangan (opsional)')
+                    ->image()
+                    ->directory('signatures')
+                    ->disk('public')
+                    ->imagePreviewHeight('120'),
+            ])
+            ->action(function ($record, array $data) use ($role, $label) {
+                try {
+                    $record->sign($role, $data['name'], $data['job_title'] ?? null, $data['image'] ?? null);
+                } catch (\RuntimeException $e) {
+                    Notification::make()->title('Gagal Tanda Tangan')->body($e->getMessage())->danger()->send();
+                    return;
+                }
+
+                $next = $record->nextSigner();
+
+                Notification::make()
+                    ->title("Ditandatangani oleh {$label}")
+                    ->body($next
+                        ? 'Selanjutnya: tanda tangan ' . BvQuotation::SIGN_FLOW[$next] . '.'
+                        : 'Semua pihak sudah tanda tangan.')
+                    ->success()
+                    ->send();
+            });
     }
 }

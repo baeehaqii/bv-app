@@ -33,7 +33,8 @@ class EditMediaPlan extends EditRecord
                     $kol->data_kol_id,
                     $kol->name,
                     $kol->channel,
-                    $kol->scope_items ?? []
+                    $kol->scope_items ?? [],
+                    (int) ($kol->qty ?: 1)
                 ));
             }
 
@@ -56,12 +57,21 @@ class EditMediaPlan extends EditRecord
                 'impression' => $kol->impression,
                 'engagement' => $kol->engagement,
                 'scope_items' => $kol->scope_items ?? [],
+                'qty' => (int) ($kol->qty ?: 1),
                 'rate' => $rate,
                 'cpi_cpv' => $kol->cpi_cpv,
                 'cpe' => $kol->cpe,
                 'notes' => $kol->notes,
             ];
         })->toArray();
+
+        // Belum ada baris KOL sama sekali → generate 1 baris per SOW brief (dropdown KOL tetap manual).
+        // Baris hanya tersimpan kalau user menekan Save changes.
+        if (empty($data['kols'])) {
+            $data['kols'] = \App\Filament\Resources\MediaPlans\Schemas\MediaPlanForm::kolRowsFromBriefSow(
+                $this->record->bvSales?->formBrief?->sow
+            );
+        }
 
         // Load budget items dari InternalBudget untuk tab Budget Items
         if ($this->record->internalBudget) {
@@ -155,6 +165,13 @@ class EditMediaPlan extends EditRecord
             if (empty($kolData['name']) && !empty($kolData['data_kol_id'])) {
                 $kolData['name'] = \App\Models\DataKol::find($kolData['data_kol_id'])?->username;
             }
+            // Baris auto dari SOW brief belum punya KOL terpilih; name & channel NOT NULL.
+            if (blank($kolData['name'] ?? null)) {
+                $kolData['name'] = '';
+            }
+            if (blank($kolData['channel'] ?? null)) {
+                $kolData['channel'] = '';
+            }
 
             if ($kolId) {
                 // Update existing KOL
@@ -164,6 +181,7 @@ class EditMediaPlan extends EditRecord
                     $newScopeItems = $kolData['scope_items'] ?? [];
 
                     $mediaPlanKol->update($kolData);
+                    $qty = max(1, (int) ($mediaPlanKol->qty ?: 1));
 
                     // If scope items changed, update internal budget items
                     if ($oldScopeItems !== $newScopeItems) {
@@ -175,7 +193,7 @@ class EditMediaPlan extends EditRecord
                             $internalBudget->items()->create([
                                 'media_plan_kol_id' => $mediaPlanKol->id,
                                 'scope_item' => $scopeItem,
-                                'qty' => 1,
+                                'qty' => $qty,
                                 'rate_base' => $this->rateForScope($mediaPlanKol, $scopeItem),
                                 'master_pph_id' => $mediaPlanKol->tipe_pajak_kol ?? \App\Models\MasterPph::where('name', 'Pribadi')->value('id'),
                                 'sort_order' => ++$sortOrder,
@@ -189,6 +207,10 @@ class EditMediaPlan extends EditRecord
                             ]);
                         }
                     }
+
+                    // Qty baris KOL = qty tiap budget item-nya (step "Budget Items" sudah dinonaktifkan,
+                    // jadi qty per item tidak lagi diedit terpisah).
+                    $mediaPlanKol->internalBudgetItems()->update(['qty' => $qty]);
                 }
             } else {
                 // Create new KOL
@@ -201,7 +223,7 @@ class EditMediaPlan extends EditRecord
                     $internalBudget->items()->create([
                         'media_plan_kol_id' => $mediaPlanKol->id,
                         'scope_item' => $scopeItem,
-                        'qty' => 1,
+                        'qty' => max(1, (int) ($mediaPlanKol->qty ?: 1)),
                         'rate_base' => $this->rateForScope($mediaPlanKol, $scopeItem),
                         'master_pph_id' => $mediaPlanKol->tipe_pajak_kol ?? \App\Models\MasterPph::where('name', 'Pribadi')->value('id'),
                         'sort_order' => ++$sortOrder,

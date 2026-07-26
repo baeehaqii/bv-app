@@ -110,6 +110,11 @@ class DataClientForm
                         ->label('Website')->placeholder('https://www.contohwebsite.com')
                         ->url()
                         ->required(fn (Get $get) => $get('type') === 'direct'),
+                    Textarea::make('alamat')
+                        ->label('Alamat')
+                        ->placeholder('Alamat kantor / penagihan — dipakai otomatis di Quotation')
+                        ->rows(2)
+                        ->columnSpanFull(),
                     TextInput::make('parent_brand')
                         ->placeholder('Jika ini sub-brand, isi nama brand induknya')
                         ->label('Parent Brand')

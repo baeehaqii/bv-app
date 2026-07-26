@@ -70,7 +70,9 @@
                 <div class="divide-y divide-gray-100">
                     @foreach ($groupedItems as $group)
                         <div class="px-6 py-4">
-                            <p class="text-sm font-semibold text-gray-900 mb-2">{{ $group['kol_name'] }}</p>
+                            <p class="text-sm font-semibold text-gray-900">{{ $group['kol_name'] }}</p>
+                            @include('media-plan.partials.kol-stats', ['kol' => $group['kol']])
+                            <div class="mt-2"></div>
                             @foreach ($group['items'] as $item)
                                 <div class="flex items-start justify-between gap-3 py-1.5">
                                     <div class="text-sm text-gray-600">
@@ -108,6 +110,7 @@
                         <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                             <div class="px-6 py-3 border-b border-gray-100 bg-gray-50">
                                 <p class="text-sm font-semibold text-gray-900">{{ $group['kol_name'] }}</p>
+                                @include('media-plan.partials.kol-stats', ['kol' => $group['kol']])
                             </div>
                             <div class="divide-y divide-gray-100">
                                 @foreach ($group['items'] as $item)

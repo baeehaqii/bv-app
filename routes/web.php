@@ -30,6 +30,7 @@ Route::get('/campaign/{token}', [CampaignPublicController::class, 'show'])->name
 
 // Quotation Public Review — no auth required
 Route::get('/quotation-review/{token}', [QuotationPublicController::class, 'show'])->name('quotation.public');
+Route::post('/quotation-review/{token}/sign', [QuotationPublicController::class, 'sign'])->name('quotation.public.sign');
 
 // Media Plan External — Link Review Client (public, no auth)
 Route::get('/media-plan-review/{token}', [InternalBudgetReviewController::class, 'show'])->name('media-plan-external.review');

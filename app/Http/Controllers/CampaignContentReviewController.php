@@ -26,6 +26,7 @@ class CampaignContentReviewController extends Controller
     {
         return $campaign->storylines()
             ->whereIn('status', ['waiting_approval', 'revision', 'approved'])
+            ->with('contents')
             ->orderBy('posting_deadline')
             ->get();
     }
@@ -78,12 +79,8 @@ class CampaignContentReviewController extends Controller
                 continue;
             }
 
-            $storyline->update([
-                'client_choice'   => $choice,
-                'client_feedback' => $fb,
-                // approve → status approved; revision → status revision (PIC perbaiki lagi)
-                'status'          => $choice === 'approved' ? 'approved' : 'revision',
-            ]);
+            // Keputusan dicatat juga di versi konten terakhir → riwayat revisi tersimpan.
+            $storyline->recordClientDecision($choice, $fb);
 
             if ($choice === 'approved') {
                 $this->ensurePerformanceKol($campaign, $storyline);

@@ -175,9 +175,13 @@ class InternalBudget extends Model
             ?? $mediaPlan?->brand
             ?? 'Client';
 
-        // Email lives in the pic_clients JSON (email_pic); prefer the lead contact.
-        $pics = collect($client?->pic_clients ?? []);
-        $clientEmail = ($pics->firstWhere('is_leads', true) ?? $pics->first())['email_pic'] ?? null;
+        // Tipe client, brand, email PIC & alamat diambil dari Database Client.
+        $clientFields = $client?->quotationFields($mediaPlan?->brand) ?? [
+            'client_type' => null,
+            'client_brand' => $mediaPlan?->brand,
+            'client_email' => null,
+            'client_address' => null,
+        ];
 
         $quotationNumber = \App\Helpers\QuotationNumberGenerator::generate();
 
@@ -188,7 +192,8 @@ class InternalBudget extends Model
                 'quotation_date' => now()->toDateString(),
                 'expiry_date' => now()->addDays(14)->toDateString(),
                 'client_name' => $clientName,
-                'client_email' => $clientEmail,
+                // filter: jangan menimpa data quotation yang sudah diisi manual dengan null.
+                ...array_filter($clientFields, fn($v) => filled($v)),
                 'subtotal' => $this->total_rounded ?? 0,
                 'discount' => 0,
                 'total_amount' => ($this->total_rounded ?? 0) + ($this->total_mu_pph ?? 0),
@@ -240,6 +245,105 @@ class InternalBudget extends Model
         }
 
         return ['platform' => 'instagram', 'content_type' => 'feed'];
+    }
+
+    /**
+     * Ganti KOL pada satu budget item — dipakai saat KOL sudah di-ACC client tapi
+     * ternyata tidak available / client minta ganti orang.
+     *
+     * Item lama TIDAK dihapus (di-reject) supaya jejak persetujuan client tetap ada.
+     * Item pengganti dibuat status pending + link review client dibuka lagi agar
+     * client bisa meng-ACC penggantinya. Campaign (kalau sudah jalan) dibangun ulang
+     * dari item yang approved, jadi KOL lama otomatis keluar dari campaign.
+     */
+    public function replaceItemKol(InternalBudgetItem $item, int $dataKolId, ?string $reason = null): InternalBudgetItem
+    {
+        $dataKol = DataKol::findOrFail($dataKolId);
+        $oldKol = $item->mediaPlanKol;
+        $scope = (string) $item->scope_item;
+        $qty = max(1, (int) ($item->qty ?: 1));
+        $note = trim('Diganti ke @' . $dataKol->username . ($reason ? ' — ' . $reason : ''));
+
+        $item->reject($note);
+        $item->update(['client_choice' => 'rejected']);
+
+        // KOL lama jadi Unavail bila tidak punya item aktif lagi.
+        if ($oldKol && $oldKol->internalBudgetItems()->where('status', '!=', 'rejected')->doesntExist()) {
+            $oldKol->update(['status' => \App\Enums\MediaPlanKolStatus::UNAVAIL->value]);
+        }
+
+        // Baris KOL pengganti di Media Plan Internal (SOW & qty sama dengan yang diganti).
+        $newKol = $this->mediaPlan->kols()->create([
+            'row_number' => ((int) $this->mediaPlan->kols()->max('row_number')) + 1,
+            'data_kol_id' => $dataKol->id,
+            'name' => (string) ($dataKol->username ?? ''),
+            'channel' => (string) ($dataKol->channel ?? ''),
+            'links' => array_filter([$dataKol->link_userprofile]),
+            'followers' => (int) $dataKol->followers,
+            'tier' => $dataKol->tier,
+            'er_percent' => (float) $dataKol->engagement_rate,
+            'impression' => (int) $dataKol->impressions,
+            'engagement' => (int) $dataKol->engagements,
+            'tipe_pajak_kol' => $dataKol->tipe_pajak_kol ?? $oldKol?->tipe_pajak_kol,
+            'margin_percent' => $oldKol?->margin_percent,
+            'pic' => $oldKol?->pic,
+            'scope_items' => [$scope],
+            'qty' => $qty,
+            'status' => \App\Enums\MediaPlanKolStatus::MOVE_TO_CLIENT->value,
+            'is_selected' => true,
+        ]);
+
+        // rate_base = rate 1x SOW (qty disimpan terpisah), diambil dari rate card KOL pengganti.
+        $rateBase = \App\Filament\Resources\MediaPlans\Schemas\MediaPlanForm::computeRateFromSow(
+            $dataKol->id,
+            $dataKol->username,
+            $dataKol->channel,
+            [$scope],
+        );
+
+        $pphId = $newKol->tipe_pajak_kol ?? $item->master_pph_id ?? MasterPph::where('name', 'Pribadi')->value('id');
+        $coeff = MasterPph::find($pphId)?->getCalculatedCoefficient() ?? 0.975;
+        $margin = $newKol->margin_percent !== null ? (float) $newKol->margin_percent : null;
+        $figs = \App\Filament\Resources\MediaPlans\Schemas\MediaPlanForm::computeBudgetFigures($rateBase * $qty, $coeff, $margin);
+
+        $newItem = $this->items()->create([
+            'media_plan_kol_id' => $newKol->id,
+            'scope_item' => $scope,
+            'qty' => $qty,
+            'rate_base' => $rateBase,
+            'master_pph_id' => $pphId,
+            'subtotal' => $figs['subtotal'],
+            'mu_pph' => $figs['mu_pph'],
+            'mu_target' => $figs['mu_target'],
+            'published_rate' => $figs['mu_target'],
+            'rounded' => $figs['rounded'],
+            'actual_margin_percent' => $figs['actual_margin'],
+            'use_flexible_margin' => $margin !== null,
+            'margin_percent_override' => $margin,
+            'status' => 'pending',
+            'notes' => 'Pengganti ' . ($oldKol?->name ?: 'KOL sebelumnya'),
+            'sort_order' => ((int) $this->items()->max('sort_order')) + 1,
+        ]);
+
+        // Client perlu meng-ACC pengganti → buka lagi form review (link tetap sama).
+        if ($this->review_submitted_at) {
+            $this->forceFill(['review_submitted_at' => null])->saveQuietly();
+        }
+
+        $this->refresh()->recalculateTotals();
+
+        // Campaign yang sudah jalan: buang draft storyline KOL lama, lalu bangun ulang dari approved items.
+        $campaign = $this->mediaPlan?->bvSales?->campaign()->first();
+        if ($campaign && $oldKol) {
+            $campaign->storylines()
+                ->where('kol_name', $oldKol->name)
+                ->where('sow', $scope)
+                ->where('status', 'draft')
+                ->delete();
+            $this->syncCampaignKolsFromApprovedBudget();
+        }
+
+        return $newItem;
     }
 
     /**

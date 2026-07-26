@@ -175,8 +175,8 @@ class DataKolForm
         return $schema
             ->components([
                 Section::make('socialMediaData')
-                    ->heading(fn(callable $get) => filled($get('username'))
-                        ? "Social Media Data - @{$get('username')}"
+                    ->heading(fn(callable $get, $record) => filled($username = $record?->username ?: $get('username'))
+                        ? "Social Media Data - @{$username}"
                         : 'Social Media Data')
                     ->columnSpanFull()
                     ->schema([
@@ -185,6 +185,9 @@ class DataKolForm
                             ->options(self::$channelOptions)
                             ->live(onBlur: true)
                             ->afterStateUpdated(fn(callable $set) => $set('link_userprofile', null))
+                            // ponytail: di edit datanya sudah tampil di tabel "Data Per Channel".
+                            // Field hidden tidak di-dehydrate Filament, jadi kolom DB aman.
+                            ->hiddenOn('edit')
                             ->required(),
 
                         TextInput::make('link_userprofile')
@@ -214,6 +217,7 @@ class DataKolForm
                                 ? '📋 Masukkan URL/username, tekan Tab/Enter, kemudian tunggu data ter-fetch otomatis'
                                 : '📋 Masukkan URL/link profil channel ini')
                             ->required(fn(callable $get) => !empty($get('channel')))
+                            ->hiddenOn('edit')
                             ->live(onBlur: true)
                             ->afterStateUpdated(function (?string $state, callable $set, callable $get) {
                                 if (empty($state) || empty($get('channel'))) {
@@ -338,10 +342,12 @@ class DataKolForm
                             ->label('Username')
                             ->readOnly()
                             ->dehydrated()
+                            ->hiddenOn('edit')
                             ->prefixIcon('heroicon-o-at-symbol'),
 
                         TagsInput::make('category')
                             ->label('Category')
+                            ->hiddenOn('edit')
                             ->suggestions([
                                 'Gamers & Lifestyle', 'Lifestyle', 'Techno', 'Beauty', 'Kpop',
                                 'Otomotif', 'Sport', 'Family', 'Comedy', 'Sport & Lifestyle',
@@ -357,6 +363,7 @@ class DataKolForm
                             ->readOnly()
                             ->dehydrated()
                             ->helperText('Otomatis dihitung dari rata-rata 9 post terakhir')
+                            ->hiddenOn('edit')
                             ->prefixIcon('heroicon-o-chart-bar'),
 
                         TextInput::make('engagements')
@@ -366,6 +373,7 @@ class DataKolForm
                             ->formatStateUsing(fn($state) => $state !== null && $state !== '' ? number_format((int) $state) : null)
                             ->dehydrateStateUsing(fn($state) => $state !== null && $state !== '' ? (int) preg_replace('/[^\d]/', '', $state) : null)
                             ->hintIcon('heroicon-m-question-mark-circle', tooltip: 'Total likes + comments dari 12 post terakhir')
+                            ->hiddenOn('edit')
                             ->prefixIcon('heroicon-o-heart'),
 
                         TextInput::make('impressions')
@@ -375,12 +383,14 @@ class DataKolForm
                             ->formatStateUsing(fn($state) => $state !== null && $state !== '' ? number_format((int) $state) : null)
                             ->dehydrateStateUsing(fn($state) => $state !== null && $state !== '' ? (int) preg_replace('/[^\d]/', '', $state) : null)
                             ->hintIcon('heroicon-m-question-mark-circle', tooltip: 'Otomatis dari video views atau estimasi 2.5x engagement')
+                            ->hiddenOn('edit')
                             ->prefixIcon('heroicon-o-eye'),
 
                         TextInput::make('followers')
                             ->label('Followers')
                             ->readOnly()
                             ->dehydrated()
+                            ->hiddenOn('edit')
                             ->formatStateUsing(fn($state) => $state !== null && $state !== '' ? number_format((int) $state) : null)
                             ->dehydrateStateUsing(fn($state) => $state !== null && $state !== '' ? (int) preg_replace('/[^\d]/', '', $state) : null)
                             ->prefixIcon('heroicon-o-users'),
@@ -390,6 +400,7 @@ class DataKolForm
                             ->readOnly()
                             ->dehydrated()
                             ->hintIcon('heroicon-m-question-mark-circle', tooltip: 'Otomatis: Nano (1K-9K) | Micro (10K-99K) | Macro (100K-999K) | Mega (1M+)')
+                            ->hiddenOn('edit')
                             ->prefixIcon('heroicon-o-star')
                             ->extraAttributes(fn($state) => [
                                 'style' => match ($state) {

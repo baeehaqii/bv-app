@@ -11,6 +11,7 @@ use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Notifications\Notification;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -35,10 +36,27 @@ class StorylinesRelationManager extends RelationManager
         return $schema
             ->components([
                 Grid::make(2)->schema([
-                    TextInput::make('kol_name')
+                    // Hanya KOL yang sudah di-approve client (budget item approved).
+                    Select::make('kol_name')
                         ->label('Nama KOL / Creator')
+                        ->options(fn($livewire) => $livewire->getOwnerRecord()->approvedKolOptions())
+                        ->searchable()
+                        ->native(false)
+                        ->live()
                         ->required()
-                        ->maxLength(255),
+                        ->helperText('Diambil dari KOL yang sudah disetujui client di Media Plan External.')
+                        ->afterStateUpdated(function (?string $state, callable $set, $livewire) {
+                            $campaign = $livewire->getOwnerRecord();
+                            $sows = array_keys($campaign->approvedSowOptions($state));
+
+                            // SOW & platform ikut terisi; kalau KOL punya >1 SOW, biar user pilih.
+                            $set('sow', count($sows) === 1 ? $sows[0] : null);
+
+                            if ($sows) {
+                                ['platform' => $platform] = \App\Models\InternalBudget::parseScopeItemToChannel($sows[0]);
+                                $set('platform', $platform);
+                            }
+                        }),
 
                     Select::make('platform')
                         ->label('Platform')
@@ -47,10 +65,20 @@ class StorylinesRelationManager extends RelationManager
                 ]),
 
                 Grid::make(2)->schema([
-                    TextInput::make('sow')
+                    Select::make('sow')
                         ->label('SOW (Scope of Work)')
-                        ->placeholder('e.g. IG Reels 1x, Story 2x')
-                        ->maxLength(255),
+                        ->options(fn($livewire, callable $get) => $livewire->getOwnerRecord()->approvedSowOptions($get('kol_name')))
+                        ->native(false)
+                        ->searchable()
+                        ->live()
+                        ->afterStateUpdated(function (?string $state, callable $set) {
+                            if (blank($state)) {
+                                return;
+                            }
+                            ['platform' => $platform] = \App\Models\InternalBudget::parseScopeItemToChannel($state);
+                            $set('platform', $platform);
+                        })
+                        ->helperText('SOW yang di-approve client untuk KOL ini.'),
 
                     DatePicker::make('posting_deadline')
                         ->label('Deadline Posting')
@@ -74,6 +102,24 @@ class StorylinesRelationManager extends RelationManager
                     ->label('Caption Draft')
                     ->placeholder('Draft caption untuk posting...')
                     ->rows(4)
+                    ->columnSpanFull(),
+
+                // Konten yang dibuat tim KOL internal — ikut tampil di Link Approval Konten.
+                FileUpload::make('images')
+                    ->label('Gambar Konten (maks ' . CampaignStoryline::MAX_IMAGES . ')')
+                    ->image()
+                    ->multiple()
+                    ->reorderable()
+                    ->maxFiles(CampaignStoryline::MAX_IMAGES)
+                    ->directory('storyline-contents')
+                    ->disk('public')
+                    ->panelLayout('grid')
+                    ->columnSpanFull(),
+
+                TextInput::make('content_link')
+                    ->label('Link Konten / Video')
+                    ->placeholder('https://drive.google.com/... atau link video')
+                    ->url()
                     ->columnSpanFull(),
 
                 Grid::make(2)->schema([
@@ -155,6 +201,13 @@ class StorylinesRelationManager extends RelationManager
                         default    => '—',
                     }),
 
+                TextColumn::make('revisions')
+                    ->label('Revisi')
+                    ->badge()
+                    ->state(fn($record) => $record->revisionCount() . '/' . \App\Models\CampaignStoryline::MAX_REVISIONS)
+                    ->color(fn($record) => $record->remainingRevisions() === 0 ? 'danger' : 'gray')
+                    ->tooltip(fn($record) => 'Sisa jatah revisi: ' . $record->remainingRevisions() . 'x'),
+
                 TextColumn::make('client_feedback')
                     ->label('Feedback Client')
                     ->limit(40)
@@ -191,19 +244,41 @@ class StorylinesRelationManager extends RelationManager
                     ->label('Kirim ke Client')
                     ->icon('heroicon-m-paper-airplane')
                     ->color('warning')
-                    ->tooltip('Tandai draft ini "Waiting Approval" agar muncul di Link Approval Konten')
-                    ->visible(fn($record) => in_array($record->status, ['draft', 'revision'], true))
+                    ->tooltip('Kirim konten versi ini ke client (muncul di Link Approval Konten)')
+                    ->visible(fn($record) => in_array($record->status, ['draft', 'revision'], true) && $record->canSubmitToClient())
                     ->requiresConfirmation()
-                    ->modalHeading('Kirim Draft ke Client')
-                    ->modalDescription('Draft ini akan ditandai "Waiting Approval" dan muncul di Link Approval Konten. Buat/Buka link approval dari tombol header. Lanjutkan?')
+                    ->modalHeading('Kirim Konten ke Client')
+                    ->modalDescription(fn($record) => $record->revisionCount() > 0
+                        ? "Kiriman ini jadi Revisi ke-{$record->revisionCount()}+1. Sisa jatah revisi: {$record->remainingRevisions()}x."
+                        : 'Konten akan ditandai "Waiting Approval" dan muncul di Link Approval Konten. Lanjutkan?')
                     ->action(function ($record) {
-                        $record->update(['status' => 'waiting_approval']);
+                        try {
+                            $content = $record->submitToClient();
+                        } catch (\RuntimeException $e) {
+                            Notification::make()->title('Tidak Bisa Dikirim')->body($e->getMessage())->danger()->send();
+                            return;
+                        }
+
                         Notification::make()
-                            ->title('Draft siap di-review client')
-                            ->body('Gunakan tombol "Buat Link Approval Konten" di header untuk membagikan tautannya.')
+                            ->title("{$content->label} dikirim ke client")
+                            ->body('Bagikan lewat tombol "Buat Link Approval Konten" di header. Sisa jatah revisi: ' . $record->remainingRevisions() . 'x.')
                             ->success()
                             ->send();
                     }),
+
+                Action::make('content_history')
+                    ->label('Riwayat Konten')
+                    ->icon('heroicon-m-clock')
+                    ->color('gray')
+                    ->tooltip('Lihat versi konten & feedback client')
+                    ->visible(fn($record) => $record->contents()->exists())
+                    ->modalHeading('Riwayat Konten & Revisi')
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Tutup')
+                    ->modalWidth('3xl')
+                    ->modalContent(fn($record) => view('campaign.partials.storyline-content-history', [
+                        'storyline' => $record,
+                    ])),
 
                 EditAction::make(),
                 DeleteAction::make(),

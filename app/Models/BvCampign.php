@@ -141,6 +141,64 @@ class BvCampign extends Model
     }
 
     /**
+     * KOL yang sudah di-approve client (budget item approved di Media Plan External),
+     * beserta SOW-nya. Dipakai dropdown Storyline & KOL Performance.
+     * Fallback ke KOL campaign yang sudah ada bila budget belum/tidak tersedia.
+     *
+     * @return array<string, array<int, string>> nama KOL => daftar SOW
+     */
+    public function approvedKolSows(): array
+    {
+        $items = $this->mediaPlan?->internalBudget
+            ?->items()
+            ->where('status', 'approved')
+            ->with('mediaPlanKol')
+            ->orderBy('sort_order')
+            ->get();
+
+        $map = [];
+
+        foreach ($items ?? [] as $item) {
+            $name = $item->mediaPlanKol?->name;
+            if (blank($name)) {
+                continue;
+            }
+            $map[$name] ??= [];
+            if (filled($item->scope_item) && ! in_array($item->scope_item, $map[$name], true)) {
+                $map[$name][] = $item->scope_item;
+            }
+        }
+
+        if (empty($map)) {
+            foreach ($this->kols()->pluck('creator_name')->filter()->unique() as $name) {
+                $map[$name] = [];
+            }
+        }
+
+        return $map;
+    }
+
+    /** @return array<string, string> nama KOL => label dropdown */
+    public function approvedKolOptions(): array
+    {
+        $options = [];
+
+        foreach ($this->approvedKolSows() as $name => $sows) {
+            $options[$name] = $sows ? $name . ' — ' . implode(', ', $sows) : $name;
+        }
+
+        return $options;
+    }
+
+    /** @return array<string, string> SOW milik KOL tersebut (value = label) */
+    public function approvedSowOptions(?string $kolName): array
+    {
+        $sows = $this->approvedKolSows()[$kolName] ?? [];
+
+        return array_combine($sows, $sows) ?: [];
+    }
+
+    /**
      * Baris pembayaran KOL (Campaign Ongoing Internal — sheet OFERO).
      */
     public function payments(): HasMany

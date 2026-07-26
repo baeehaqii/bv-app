@@ -112,6 +112,82 @@ class MediaPlanForm
     }
 
     /**
+     * Pecah teks SOW brief jadi daftar item + qty, untuk auto-generate baris KOL List.
+     * Format yang didukung: "1x IG Reels 1x TikTok Video", "5x IG Reels", "IG Reels (3x)",
+     * dan baris tanpa angka (dianggap qty 1). Brief bisa berisi HTML → di-strip dulu.
+     *
+     * @return array<int, array{sow:string, qty:int}>
+     */
+    public static function parseBriefSow(?string $sow): array
+    {
+        if (blank($sow)) {
+            return [];
+        }
+
+        $text = strip_tags(preg_replace('#<(br|/p|/li|/div|/tr)[^>]*>#i', "\n", (string) $sow) ?? '');
+        $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5);
+
+        $items = [];
+        foreach (preg_split('/\r\n|\n|\r/', $text) ?: [] as $line) {
+            $line = trim(preg_replace('/\s+/', ' ', $line) ?? '');
+            $line = ltrim($line, "-•*– \t");
+            if ($line === '') {
+                continue;
+            }
+
+            // "IG Reels (3x)"
+            if (preg_match('/^(.+?)\s*\((\d+)\s*x\)$/i', $line, $m)) {
+                $items[] = ['sow' => trim($m[1]), 'qty' => max(1, (int) $m[2])];
+                continue;
+            }
+
+            // "1x IG Reels 1x TikTok Video" (bisa beberapa item dalam satu baris)
+            if (preg_match_all('/(\d+)\s*x\s+([^\d]+?)(?=\s+\d+\s*x\s|$)/i', $line, $ms, PREG_SET_ORDER)) {
+                foreach ($ms as $m) {
+                    $label = trim($m[2], " \t,;.");
+                    if ($label !== '') {
+                        $items[] = ['sow' => $label, 'qty' => max(1, (int) $m[1])];
+                    }
+                }
+                continue;
+            }
+
+            $items[] = ['sow' => $line, 'qty' => 1];
+        }
+
+        return $items;
+    }
+
+    /**
+     * Baris KOL List kosong (KOL dipilih manual user) untuk satu item SOW brief.
+     * Dipakai EditMediaPlan saat media plan belum punya baris KOL sama sekali.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public static function kolRowsFromBriefSow(?string $sow): array
+    {
+        $defaultPph = MasterPph::active()->ordered()->first()?->id;
+        $masterSows = \App\Models\MasterSow::query()->where('is_active', true)->get(['name', 'channel']);
+
+        return collect(self::parseBriefSow($sow))
+            ->values()
+            ->map(fn(array $item, int $i) => [
+                'row_number' => $i + 1,
+                'status' => 'New List',
+                'scope_items' => [$item['sow']],
+                'qty' => $item['qty'],
+                'links' => [],
+                'tipe_pajak_kol' => $defaultPph,
+                'is_selected' => false,
+                'rate' => 0,
+                'er_percent' => 0, // kolom NOT NULL, belum ada KOL terpilih
+                // Channel ditebak dari Master SOW agar dropdown KOL langsung ter-filter; '' bila tak cocok.
+                'channel' => $masterSows->first(fn($s) => strcasecmp($s->name, $item['sow']) === 0)?->channel ?? '',
+            ])
+            ->all();
+    }
+
+    /**
      * Daftar label SOW dari rate card milik KOL (Database KOL).
      * Dipakai untuk auto-fill & opsi kolom "SOW (Request)" agar selalu valid/tampil.
      *
@@ -149,13 +225,14 @@ class MediaPlanForm
 
         // Ambil seluruh rate card KOL satu kali untuk lookup rate + cek expiry.
         $rateCards = self::resolveKolRateCards($get('data_kol_id'), $get('name'), $get('channel'));
+        $qty = max(1, (int) ($get('qty') ?: 1));
 
         $total = 0;
         $rows = '';
         $hasExpired = false;
         foreach ($scopes as $scope) {
             $card = self::matchSowCard($rateCards, (string) $scope);
-            $rate = (float) ($card?->rate ?? 0);
+            $rate = (float) ($card?->rate ?? 0) * $qty;
             $total += $rate;
 
             $badge = '';
@@ -172,7 +249,7 @@ class MediaPlanForm
             // Baris flex (div, BUKAN <table>): scope kiri, rate kanan. <table> di sini kena CSS sticky
             // global #kol-list-repeater (td:nth-child) sehingga sel rate ke-positioning & harganya hilang.
             $rows .= '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:5px 8px;border:1px solid #e5e7eb;border-top:none;">
-                <span style="font-size:12px;color:#374151;">' . e($scope) . $badge . '</span>
+                <span style="font-size:12px;color:#374151;">' . e($scope) . ($qty > 1 ? ' <span style="color:#6b7280;">&times;' . $qty . '</span>' : '') . $badge . '</span>
                 <span style="font-size:12px;font-weight:600;color:' . $rateColor . ';white-space:nowrap;">' . $rateStr . '</span>
             </div>';
         }
@@ -277,7 +354,7 @@ class MediaPlanForm
      * Hitung total rate otomatis dari rate card per SOW milik KOL.
      * Rate card terbaru (valid_from terakhir) per SOW yang dipakai.
      */
-    public static function computeRateFromSow($dataKolId, ?string $name, ?string $channel, array $scopeItems): float
+    public static function computeRateFromSow($dataKolId, ?string $name, ?string $channel, array $scopeItems, int $qty = 1): float
     {
         if (empty($scopeItems)) {
             return 0;
@@ -297,7 +374,7 @@ class MediaPlanForm
 
         return collect($scopeItems)->sum(
             fn($scope) => (float) (self::matchSowCard($rateCards, (string) $scope)?->rate ?? 0)
-        );
+        ) * max(1, $qty);
     }
 
     /**
@@ -350,12 +427,13 @@ class MediaPlanForm
         $pph = filled($get('tipe_pajak_kol')) ? \App\Models\MasterPph::find($get('tipe_pajak_kol')) : null;
         $coeff = $pph?->getCalculatedCoefficient() ?? 0.975;
         $margin = filled($get('margin_percent')) ? (float) $get('margin_percent') : null;
+        $qty = max(1, (int) ($get('qty') ?: 1));
 
         $cost = 0;
         $client = 0;
         foreach ($scopes as $scope) {
             $card = self::matchSowCard($rateCards, (string) $scope);
-            $rate = (float) ($card?->rate ?? 0);
+            $rate = (float) ($card?->rate ?? 0) * $qty;
             $figs = self::computeBudgetFigures($rate, $coeff, $margin);
             $cost += $figs['mu_pph'];
             $client += $figs['rounded'];
@@ -732,12 +810,27 @@ class MediaPlanForm
                                 ->hiddenLabel()
                                 ->content(new \Illuminate\Support\HtmlString('<style>
                                     #kol-list-repeater { overflow-x: auto; padding-bottom: 340px; margin-bottom: -340px; }
-                                    #kol-list-repeater table { min-width: 2750px; }
-                                    /* Freeze PIC(160) Status(180) Username(240) — Link dst ikut scroll.
+                                    #kol-list-repeater table { min-width: max-content; }
+                                    /* Username: lebar kolom mengikuti nama terpanjang (min 200px, max 520px).
+                                       Wrapper field Filament pakai grid/flex-basis:0 yang menahan intrinsic width,
+                                       jadi rantai wrapper-nya dipaksa max-content dulu supaya sel ikut melebar. */
+                                    #kol-list-repeater table th:nth-child(3), #kol-list-repeater table td:nth-child(3) { width: auto; min-width: 200px; max-width: 520px; white-space: nowrap; }
+                                    #kol-list-repeater table td:nth-child(3) .fi-grid-col,
+                                    #kol-list-repeater table td:nth-child(3) .fi-sc-component,
+                                    #kol-list-repeater table td:nth-child(3) .fi-fo-select-wrp,
+                                    #kol-list-repeater table td:nth-child(3) .fi-fo-field-content-col,
+                                    #kol-list-repeater table td:nth-child(3) .fi-input-wrp { width: max-content; min-width: 100%; max-width: 100%; }
+                                    /* Select isi sisa lebar sel (seragam antar baris) & tombol "+" tetap ikut di dalam sel. */
+                                    #kol-list-repeater table td:nth-child(3) .fi-input-wrp-content-ctn { flex: 1 1 auto; min-width: 0; }
+                                    #kol-list-repeater table td:nth-child(3) .fi-select-input,
+                                    #kol-list-repeater table td:nth-child(3) .fi-select-input-ctn,
+                                    #kol-list-repeater table td:nth-child(3) .fi-select-input-btn { width: 100%; min-width: 0; }
+                                    #kol-list-repeater table td:nth-child(3) .fi-select-input-value-ctn { white-space: nowrap; overflow: visible; text-overflow: clip; flex: none; }
+                                    /* Freeze PIC(200) Status(180) Username(auto) — Link dst ikut scroll.
                                        Tanpa kolom reorder, jadi kolom 1=PIC, 2=Status, 3=Username. */
                                     #kol-list-repeater table th:nth-child(1), #kol-list-repeater table td:nth-child(1) { position: sticky; left: 0; z-index: 2; background-color:#fff; }
-                                    #kol-list-repeater table th:nth-child(2), #kol-list-repeater table td:nth-child(2) { position: sticky; left: 160px; z-index: 2; background-color:#fff; }
-                                    #kol-list-repeater table th:nth-child(3), #kol-list-repeater table td:nth-child(3) { position: sticky; left: 340px; z-index: 2; background-color:#fff; box-shadow: 3px 0 6px -2px rgba(0,0,0,0.10); }
+                                    #kol-list-repeater table th:nth-child(2), #kol-list-repeater table td:nth-child(2) { position: sticky; left: 200px; z-index: 2; background-color:#fff; }
+                                    #kol-list-repeater table th:nth-child(3), #kol-list-repeater table td:nth-child(3) { position: sticky; left: 380px; z-index: 2; background-color:#fff; box-shadow: 3px 0 6px -2px rgba(0,0,0,0.10); }
                                     #kol-list-repeater table thead th:nth-child(1), #kol-list-repeater table thead th:nth-child(2), #kol-list-repeater table thead th:nth-child(3) { background-color:#f9fafb; }
                                     /* Saat dropdown (Username) dibuka, naikkan stacking baris agar list tidak ketutup kolom freeze */
                                     #kol-list-repeater table tbody tr:focus-within td:nth-child(1),
@@ -1015,16 +1108,18 @@ class MediaPlanForm
                                                 $item['data_kol_id'] ?? null,
                                                 $data['name'] ?? null,
                                                 $data['channel'] ?? null,
-                                                (array) ($data['scope_items'] ?? [])
+                                                (array) ($data['scope_items'] ?? []),
+                                                (int) ($data['qty'] ?? $item['qty'] ?? 1)
                                             ));
                                             $component->getChildSchema($arguments['item'])->fill($data);
                                         }),
                                 ])
                                 ->table([
-                                    TableColumn::make('PIC')->width('160px'),
+                                    TableColumn::make('PIC')->width('200px'),
                                     TableColumn::make('Status')->width('180px'),
-                                    TableColumn::make('Username')->width('240px'),
-                                    TableColumn::make('Link')->width('260px'),
+                                    // Tanpa width: lebarnya diatur CSS auto-fit di atas (mengikuti nama terpanjang).
+                                    TableColumn::make('Username'),
+                                    TableColumn::make('Link')->width('340px'),
                                     TableColumn::make('Channel')->width('150px'),
                                     TableColumn::make('Followers')->width('110px'),
                                     TableColumn::make('Tier')->width('90px'),
@@ -1032,6 +1127,7 @@ class MediaPlanForm
                                     TableColumn::make('Avg Views')->width('110px'),
                                     TableColumn::make('Engagement')->width('110px'),
                                     TableColumn::make('SOW (Request)')->width('320px'),
+                                    TableColumn::make('Qty')->width('90px'),
                                     TableColumn::make('Rate per SOW')->width('420px'),
                                     TableColumn::make('Margin %')->width('120px'),
                                     TableColumn::make('Cost (MU PPh)')->width('150px'),
@@ -1097,16 +1193,20 @@ class MediaPlanForm
                                             if ($kol->tipe_pajak_kol) {
                                                 $set('tipe_pajak_kol', $kol->tipe_pajak_kol);
                                             }
-                                            // SOW (Request) otomatis dari rate card KOL (Database KOL)
+                                            // SOW (Request) otomatis dari rate card KOL (Database KOL) —
+                                            // hanya bila baris belum punya SOW (baris auto dari brief jangan ditimpa).
                                             $kolSowLabels = self::kolSowLabels($kol->id);
-                                            if (! empty($kolSowLabels)) {
+                                            $currentScopes = array_filter((array) $get('scope_items'), fn($s) => filled($s));
+                                            if (empty($currentScopes) && ! empty($kolSowLabels)) {
                                                 $set('scope_items', $kolSowLabels);
+                                                $currentScopes = $kolSowLabels;
                                             }
                                             $set('rate', number_format(round(self::computeRateFromSow(
                                                 $kol->id,
                                                 $kol->username,
                                                 $kol->channel,
-                                                ! empty($kolSowLabels) ? $kolSowLabels : (array) $get('scope_items')
+                                                $currentScopes,
+                                                (int) ($get('qty') ?: 1)
                                             )), 0, '.', ','));
                                         })
                                         ->suffixAction(
@@ -1532,7 +1632,25 @@ class MediaPlanForm
                                                 $get('data_kol_id'),
                                                 $get('name'),
                                                 $get('channel'),
-                                                (array) $state
+                                                (array) $state,
+                                                (int) ($get('qty') ?: 1)
+                                            )), 0, '.', ','));
+                                        }),
+
+                                    // Berapa kali SOW baris ini di-request (5x IG Reels → rate × 5).
+                                    TextInput::make('qty')
+                                        ->label('Qty')
+                                        ->numeric()
+                                        ->minValue(1)
+                                        ->default(1)
+                                        ->live(debounce: 500)
+                                        ->afterStateUpdated(function ($state, callable $set, callable $get) {
+                                            $set('rate', number_format(round(self::computeRateFromSow(
+                                                $get('data_kol_id'),
+                                                $get('name'),
+                                                $get('channel'),
+                                                (array) $get('scope_items'),
+                                                (int) ($state ?: 1)
                                             )), 0, '.', ','));
                                         }),
 
@@ -2315,6 +2433,7 @@ class MediaPlanForm
                 'impression' => 0,
                 'engagement' => 0,
                 'scope_items' => [],
+                'qty' => 1,
                 'after_nego' => null,
                 'payment_date' => null,
                 'pic' => null,
@@ -2641,6 +2760,7 @@ class MediaPlanForm
                 'impression' => (int) $kol->impressions,
                 'engagement' => intval($followers * ($er / 100)),
                 'scope_items' => $sowLabels,
+                'qty' => 1,
                 'rate' => $rate,
                 'margin_percent' => null,
                 'after_nego' => null,

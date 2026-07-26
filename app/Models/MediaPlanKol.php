@@ -18,6 +18,7 @@ class MediaPlanKol extends Model
         'tipe_pajak_kol' => 'integer',
         'links' => 'array', // JSON array for multiple links
         'scope_items' => 'array', // JSON array for scope of work items
+        'qty' => 'integer', // berapa kali SOW baris ini di-request
         'followers' => 'integer',
         'impression' => 'integer',
         'engagement' => 'integer',

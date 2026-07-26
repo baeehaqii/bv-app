@@ -36,10 +36,27 @@ class KolsRelationManager extends RelationManager
             ->components([
                 Grid::make(2)
                     ->schema([
-                        TextInput::make('creator_name')
+                        // Hanya KOL yang sudah di-approve client (budget item approved).
+                        Select::make('creator_name')
                             ->label('Creator Name')
+                            ->options(fn($livewire) => $livewire->getOwnerRecord()->approvedKolOptions())
+                            ->searchable()
+                            ->native(false)
+                            ->live()
                             ->required()
-                            ->maxLength(255),
+                            ->helperText('Diambil dari KOL yang sudah disetujui client di Media Plan External.')
+                            ->afterStateUpdated(function (?string $state, callable $set, $livewire) {
+                                $sows = array_keys($livewire->getOwnerRecord()->approvedSowOptions($state));
+                                if (! $sows) {
+                                    return;
+                                }
+
+                                // Platform & content type mengikuti SOW yang di-approve.
+                                ['platform' => $platform, 'content_type' => $contentType] =
+                                    \App\Models\InternalBudget::parseScopeItemToChannel($sows[0]);
+                                $set('platform', $platform);
+                                $set('content_type', $contentType);
+                            }),
 
                         TextInput::make('username')
                             ->label('Username')

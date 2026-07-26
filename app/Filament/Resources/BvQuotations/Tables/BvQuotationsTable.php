@@ -55,17 +55,13 @@ class BvQuotationsTable
                 //
             ])
             ->recordActions([
-                Action::make('downloadPdf')
-                    ->label('PDF')
-                    ->icon('heroicon-o-arrow-down-tray')
-                    ->color('success')
-                    ->url(fn(BvQuotation $record): string => route('bv-quotation.pdf', $record))
-                    ->openUrlInNewTab(),
-                Action::make('previewPdf')
-                    ->label('Preview')
-                    ->icon('heroicon-o-eye')
+                // PDF dihapus: quotation dibagikan lewat Link Quotation (tanda tangan CEO → BD → Client).
+                Action::make('openPublicLink')
+                    ->label('Link Quotation')
+                    ->icon('heroicon-m-link')
                     ->color('info')
-                    ->url(fn(BvQuotation $record): string => route('bv-quotation.preview', $record))
+                    ->visible(fn(BvQuotation $record): bool => $record->is_public)
+                    ->url(fn(BvQuotation $record): ?string => $record->public_url)
                     ->openUrlInNewTab(),
                 EditAction::make(),
             ])

@@ -21,15 +21,17 @@ class InternalBudgetReviewController extends Controller
     {
         $budget = InternalBudget::where('review_token', $token)
             ->where('review_is_public', true)
-            ->with(['items.mediaPlanKol', 'mediaPlan.bvSales.client'])
+            ->with(['items.mediaPlanKol.dataKol', 'mediaPlan.bvSales.client'])
             ->firstOrFail();
 
         $items = $budget->items;
 
         // Group SOW per KOL agar tampil rapi (1 KOL bisa banyak scope item).
-        $groupedItems = $items->groupBy(fn($item) => $item->mediaPlanKol?->name ?? $item->scope_item)
+        // Group by id KOL (bukan nama) supaya baris KOL pengganti dengan nama sama tidak menyatu.
+        $groupedItems = $items->groupBy(fn($item) => $item->media_plan_kol_id ?? 'item-' . $item->id)
             ->map(fn($kolItems) => [
                 'kol_name' => $kolItems->first()->mediaPlanKol?->name ?? $kolItems->first()->scope_item,
+                'kol'      => $kolItems->first()->mediaPlanKol,
                 'items'    => $kolItems->values(),
             ])
             ->values();

@@ -201,7 +201,20 @@ class InternalBudgetForm
                                 // (kalau native(false) dropdown ketutup di belakang sel sticky).
                                 Select::make('kol_status')
                                     ->label('Status KOL')
-                                    ->options(MediaPlanKolStatus::toArrayExternal())
+                                    // Status yang sedang dipakai KOL selalu dimasukkan ke opsi — status lama
+                                    // (mis. "Locked") atau internal-only ("Payment Gateway") kalau tidak ada di
+                                    // daftar akan bikin SEMUA aksi item & Save di halaman ini gagal validasi.
+                                    ->options(function (callable $get): array {
+                                        $options = MediaPlanKolStatus::toArrayExternal();
+                                        $current = $get('kol_status')
+                                            ?: MediaPlanKol::find($get('media_plan_kol_id'))?->status;
+
+                                        if (filled($current) && ! isset($options[$current])) {
+                                            $options[$current] = $current;
+                                        }
+
+                                        return $options;
+                                    })
                                     ->native(true)
                                     ->dehydrated(false)
                                     ->afterStateHydrated(function (Select $component, $state, callable $get) {
@@ -492,6 +505,73 @@ class InternalBudgetForm
                                             ->body("Item \"{$item->scope_item}\" ditandai sebagai Nego.")
                                             ->warning()
                                             ->send();
+
+                                        $component->clearCachedExistingRecords();
+                                        $livewire->refreshFormData(['items']);
+                                    }),
+
+                                // KOL sudah di-ACC client tapi ternyata tidak available / client minta ganti orang.
+                                Action::make('replace_kol')
+                                    ->label('Ganti KOL')
+                                    ->icon('heroicon-m-arrows-right-left')
+                                    ->color('info')
+                                    ->iconButton()
+                                    ->tooltip('Ganti KOL pada SOW ini')
+                                    ->visible(function (array $arguments, Repeater $component): bool {
+                                        $itemUuid = $arguments['item'] ?? null;
+                                        if (!$itemUuid)
+                                            return true;
+
+                                        // Item yang sudah di-reject/diganti tidak bisa diganti lagi.
+                                        return (($component->getRawItemState($itemUuid)['status'] ?? 'pending') !== 'rejected');
+                                    })
+                                    ->form([
+                                        Select::make('data_kol_id')
+                                            ->label('KOL Pengganti')
+                                            ->options(fn() => \App\Models\DataKol::orderBy('username')
+                                                ->get(['id', 'username', 'channel'])
+                                                ->mapWithKeys(fn($k) => [$k->id => trim("{$k->username} ({$k->channel})")])
+                                                ->all())
+                                            ->searchable()
+                                            ->required()
+                                            ->helperText('Rate diambil dari rate card SOW milik KOL pengganti.'),
+
+                                        Textarea::make('reason')
+                                            ->label('Alasan Penggantian')
+                                            ->placeholder('Mis. KOL tidak available / client minta ganti')
+                                            ->rows(2),
+                                    ])
+                                    ->modalHeading('Ganti KOL')
+                                    ->modalDescription('SOW & qty tetap sama. Baris lama disimpan sebagai Rejected (jejak persetujuan client), baris pengganti dibuat status Pending dan link Review Client dibuka lagi agar client meng-ACC penggantinya.')
+                                    ->modalSubmitActionLabel('Ganti KOL')
+                                    ->modalIcon('heroicon-o-arrows-right-left')
+                                    ->action(function (array $arguments, array $data, Repeater $component, $livewire) {
+                                        $itemId = $component->getItemState($arguments['item'] ?? '')['id'] ?? null;
+                                        $item = $itemId ? InternalBudgetItem::find($itemId) : null;
+                                        if (!$item)
+                                            return;
+
+                                        $newItem = $livewire->record->replaceItemKol(
+                                            $item,
+                                            (int) $data['data_kol_id'],
+                                            $data['reason'] ?? null,
+                                        );
+
+                                        Notification::make()
+                                            ->title('KOL Diganti')
+                                            ->body("SOW \"{$newItem->scope_item}\" kini dipegang {$newItem->mediaPlanKol?->name}. Minta client meng-ACC lewat Link Review Client.")
+                                            ->success()
+                                            ->send();
+
+                                        // Rate 0 = KOL pengganti belum punya rate card untuk SOW ini.
+                                        if ((float) $newItem->rate_base <= 0) {
+                                            Notification::make()
+                                                ->title('Rate Pengganti Masih 0')
+                                                ->body("Rate card SOW \"{$newItem->scope_item}\" belum ada di Database KOL {$newItem->mediaPlanKol?->name}. Lengkapi rate card-nya lalu isi Rate (Base) di baris ini.")
+                                                ->warning()
+                                                ->persistent()
+                                                ->send();
+                                        }
 
                                         $component->clearCachedExistingRecords();
                                         $livewire->refreshFormData(['items']);

@@ -123,6 +123,8 @@
                                 </div>
                             </div>
 
+                            @include('campaign.partials.storyline-content-client', ['s' => $s])
+
                             @if ($s->content_angle || $s->key_message || $s->caption_draft)
                                 <div class="mt-4 space-y-2 text-sm">
                                     @if ($s->content_angle)

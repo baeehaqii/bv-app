@@ -154,11 +154,16 @@ class BvQuotationForm
                                     ->afterStateUpdated(function (?string $state, Set $set): void {
                                         $client = $state ? DataClient::where('nama_brand', $state)->first() : null;
 
-                                        $set('client_type', $client?->type);
-                                        // Direct brand: brand = dirinya sendiri. Agency: biarkan user pilih brand handle.
-                                        $set('client_brand', $client?->type === 'direct' ? $client->nama_brand : null);
-                                        $set('client_email', collect($client?->pic_clients ?? [])->pluck('email')->filter()->first()
-                                            ?? collect($client?->pics ?? [])->pluck('email')->filter()->first());
+                                        // Tipe client, brand, email PIC & alamat diambil dari Database Client.
+                                        // Agency: brand yang di-handle tetap dipilih manual.
+                                        foreach ($client?->quotationFields() ?? [
+                                            'client_type' => null,
+                                            'client_brand' => null,
+                                            'client_email' => null,
+                                            'client_address' => null,
+                                        ] as $field => $value) {
+                                            $set($field, $value);
+                                        }
                                     })
                                     ->columnSpan(1),
 
