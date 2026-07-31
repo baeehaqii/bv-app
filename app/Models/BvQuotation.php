@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
 class BvQuotation extends Model
@@ -17,6 +18,41 @@ class BvQuotation extends Model
         'signatories'    => 'array',
         'signatures'     => 'array',
     ];
+
+    /**
+     * Penerimaan kas dari client TIDAK dicatat di sini — pintunya invoice
+     * (lihat BvInvoice). Dua pintu untuk uang yang sama akan bikin penerimaan
+     * dobel di laporan arus kas.
+     */
+    public function invoices(): HasMany
+    {
+        return $this->hasMany(BvInvoice::class, 'bv_quotation_id');
+    }
+
+    /** Nilai yang sudah diterbitkan invoice-nya (invoice batal tidak dihitung). */
+    public function getInvoicedAmountAttribute(): float
+    {
+        return (float) $this->invoices()->where('status', '!=', 'void')->sum('amount');
+    }
+
+    /** Nilai deal yang belum ditagihkan — dasar nominal invoice termin berikutnya. */
+    public function getUninvoicedAmountAttribute(): float
+    {
+        return max(0, (float) $this->total_amount - $this->invoiced_amount);
+    }
+
+    /** Client di quotation hanya disimpan sebagai nama; dicocokkan ke Database Client. */
+    public function dataClientId(): ?int
+    {
+        if (blank($this->client_name)) {
+            return null;
+        }
+
+        return DataClient::query()
+            ->where('nama_brand', $this->client_name)
+            ->orWhere('agency_name', $this->client_name)
+            ->value('id');
+    }
 
     /**
      * Alur tanda tangan quotation — urutannya wajib: CEO dulu, lalu Business

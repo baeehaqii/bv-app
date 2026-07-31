@@ -20,7 +20,7 @@ class BvCashflowResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-banknotes';
     protected static string|\UnitEnum|null $navigationGroup = "Finance";
-    protected static ?int $navigationSort = 1;
+    protected static ?int $navigationSort = 3;
     protected static ?string $navigationLabel = 'Cashflow';
     protected static ?string $modelLabel = 'Cashflow';
     protected static ?string $pluralModelLabel = 'Cashflow';

@@ -3,10 +3,12 @@
 namespace App\Filament\Resources\BvQuotations\Pages;
 
 use App\Filament\Resources\BvQuotations\BvQuotationResource;
+use App\Models\BvInvoice;
 use App\Models\BvQuotation;
 use App\Service\BvNotificationService;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
+use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
@@ -24,6 +26,70 @@ class EditBvQuotation extends EditRecord
             // pengesahannya urut CEO → Business Development → Client.
             self::signAction('ceo'),
             self::signAction('bd'),
+
+            // Invoice = satu-satunya pintu penagihan & penerimaan kas dari client.
+            // Kasnya baru dicatat saat invoice dibayar (SAK: kas saat diterima).
+            Action::make('create_invoice')
+                ->label('Terbitkan Invoice')
+                ->icon('heroicon-m-document-currency-dollar')
+                ->color('success')
+                ->visible(fn($record) => $record->isFullySigned() && $record->uninvoiced_amount > 0)
+                ->modalHeading('Terbitkan Invoice')
+                ->modalDescription(fn($record) => 'Belum ditagihkan: Rp '
+                    . number_format($record->uninvoiced_amount, 0, ',', '.')
+                    . '. Untuk termin (DP / pelunasan), terbitkan beberapa invoice.')
+                ->modalSubmitActionLabel('Terbitkan')
+                ->fillForm(fn($record) => [
+                    'amount' => $record->uninvoiced_amount,
+                    'term_label' => $record->invoiced_amount > 0 ? 'Pelunasan' : 'Tagihan Penuh',
+                    'issue_date' => now()->toDateString(),
+                    'due_date' => now()->addDays(14)->toDateString(),
+                ])
+                ->form([
+                    TextInput::make('amount')
+                        ->label('Nilai Invoice')
+                        ->prefix('Rp')
+                        ->numeric()
+                        ->minValue(1)
+                        ->maxValue(fn($record) => $record->uninvoiced_amount)
+                        ->required(),
+
+                    TextInput::make('term_label')
+                        ->label('Keterangan Termin')
+                        ->placeholder('mis. DP 50%, Pelunasan')
+                        ->maxLength(255),
+
+                    DatePicker::make('issue_date')
+                        ->label('Tanggal Invoice')
+                        ->native(false)
+                        ->required(),
+
+                    DatePicker::make('due_date')
+                        ->label('Jatuh Tempo')
+                        ->native(false)
+                        ->required(),
+                ])
+                ->action(function ($record, array $data) {
+                    try {
+                        $invoice = BvInvoice::createFromQuotation(
+                            quotation: $record,
+                            amount: (float) $data['amount'],
+                            termLabel: $data['term_label'] ?: null,
+                            dueDate: $data['due_date'],
+                            issueDate: $data['issue_date'],
+                        );
+                    } catch (\Throwable $e) {
+                        Notification::make()->title('Gagal Terbitkan Invoice')->body($e->getMessage())->danger()->send();
+
+                        return;
+                    }
+
+                    Notification::make()
+                        ->title("Invoice {$invoice->invoice_number} diterbitkan")
+                        ->body('Catat pembayarannya di menu Finance → Invoice agar masuk ke Cashflow.')
+                        ->success()
+                        ->send();
+                }),
 
             Action::make('generate_public_link')
                 ->label('Generate Link Client')
