@@ -16,12 +16,18 @@ class ViewSpkDocument extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
-            Action::make('print')
-                ->label('Print')
+            // Print dari halaman ini ikut mencetak chrome Filament, jadi arahkan ke PDF-nya.
+            Action::make('download_pdf')
+                ->label('Download PDF')
+                ->icon('heroicon-o-arrow-down-tray')
+                ->url(fn($record) => route('kol-contract.download', $record)),
+
+            Action::make('preview_pdf')
+                ->label('Preview PDF')
                 ->icon('heroicon-o-printer')
-                ->extraAttributes([
-                    'onclick' => 'window.print(); return false;',
-                ]),
+                ->color('gray')
+                ->url(fn($record) => route('kol-contract.preview', $record), shouldOpenInNewTab: true),
+
             EditAction::make(),
         ];
     }

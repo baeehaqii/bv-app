@@ -1,54 +1,55 @@
 <?php
 
-namespace App\Filament\Resources\Spks\Tables;
+namespace App\Filament\Resources\DataKols\RelationManagers;
 
 use App\Filament\Resources\Spks\Actions\SignatureLinkAction;
 use App\Filament\Resources\Spks\SpkResource;
 use Filament\Actions\Action;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
+use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 
-class SpksTable
+/**
+ * Riwayat SPK KOL ini: pernah kontrak di campaign apa saja, nominal berapa,
+ * sudah tanda tangan atau belum. Read-only — SPK diterbitkan dari Internal Budget
+ * (setelah client approve), bukan dibuat manual dari halaman KOL.
+ */
+class SpksRelationManager extends RelationManager
 {
-    public static function configure(Table $table): Table
+    protected static string $relationship = 'spks';
+
+    protected static ?string $title = 'Riwayat SPK / PKS';
+
+    protected static \BackedEnum|string|null $icon = 'heroicon-o-document-check';
+
+    public function table(Table $table): Table
     {
         return $table
+            ->recordTitleAttribute('spk_number')
+            ->emptyStateHeading('Belum ada SPK')
+            ->emptyStateDescription('SPK terbit otomatis dari Internal Budget setelah client approve KOL ini.')
             ->columns([
                 TextColumn::make('spk_number')
-                    ->label('Nomor Contract')
+                    ->label('Nomor SPK')
                     ->searchable()
-                    ->sortable(),
-
-                TextColumn::make('client.nama_brand')
-                    ->label('Client')
-                    ->searchable()
-                    ->sortable()
-                    ->placeholder('-'),
-
-                TextColumn::make('formBrief.title')
-                    ->label('Form Brief')
-                    ->searchable()
-                    ->limit(35)
-                    ->placeholder('-'),
-
-                TextColumn::make('pihak_kedua_nama_lengkap')
-                    ->label('Pihak Kedua')
-                    ->searchable()
-                    ->sortable(),
+                    ->copyable(),
 
                 TextColumn::make('nama_campaign')
                     ->label('Campaign')
                     ->searchable()
-                    ->limit(30),
+                    ->placeholder('—'),
 
                 TextColumn::make('tanggal_perjanjian')
                     ->label('Tanggal')
                     ->date('d M Y')
                     ->sortable(),
+
+                TextColumn::make('nominal_kesepakatan')
+                    ->label('Nominal')
+                    ->money('IDR', 0)
+                    ->alignEnd()
+                    ->summarize(\Filament\Tables\Columns\Summarizers\Sum::make()->money('IDR', 0)->label('Total')),
 
                 TextColumn::make('status')
                     ->badge()
@@ -61,7 +62,7 @@ class SpksTable
                     })
                     ->formatStateUsing(fn(string $state): string => match ($state) {
                         'draft' => 'Draft',
-                        'active' => 'Menunggu TTD KOL',
+                        'active' => 'Menunggu TTD',
                         'signed' => 'Signed',
                         'cancelled' => 'Cancelled',
                         default => ucfirst($state),
@@ -70,17 +71,7 @@ class SpksTable
                 TextColumn::make('signed_at')
                     ->label('Ditandatangani')
                     ->dateTime('d M Y H:i')
-                    ->sortable()
                     ->placeholder('Belum'),
-            ])
-            ->filters([
-                SelectFilter::make('status')
-                    ->options([
-                        'draft' => 'Draft',
-                        'active' => 'Menunggu TTD KOL',
-                        'signed' => 'Signed',
-                        'cancelled' => 'Cancelled',
-                    ]),
             ])
             ->recordActions([
                 SignatureLinkAction::make(),
@@ -91,13 +82,9 @@ class SpksTable
                     ->url(fn($record) => SpkResource::getUrl('document', ['record' => $record]))
                     ->openUrlInNewTab(),
 
-                EditAction::make(),
+                EditAction::make()
+                    ->url(fn($record) => SpkResource::getUrl('edit', ['record' => $record])),
             ])
-            ->toolbarActions([
-                BulkActionGroup::make([
-                    DeleteBulkAction::make(),
-                ]),
-            ])
-            ->defaultSort('created_at', 'desc');
+            ->defaultSort('tanggal_perjanjian', 'desc');
     }
 }

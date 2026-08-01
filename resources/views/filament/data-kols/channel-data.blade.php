@@ -11,13 +11,24 @@
                     <th class="py-2 pr-4">Engagements</th>
                     <th class="py-2 pr-4">Avg Impressions</th>
                     <th class="py-2 pr-4">Update</th>
-                    <th class="py-2">Kartu</th>
+                    <th class="py-2">Aksi</th>
                 </tr>
             </thead>
             <tbody>
                 @foreach ($rows as $row)
-                    <tr class="border-b" @class(['bg-primary-50 dark:bg-primary-950/40' => $row->id === $currentId])>
-                        <td class="py-2 pr-4 font-medium">{{ $row->channel ?: '-' }}</td>
+                    @php $aktif = $row->id === $currentId; @endphp
+                    <tr class="border-b" @class(['bg-primary-50 dark:bg-primary-950/40' => $aktif])>
+                        <td class="py-2 pr-4 font-medium">
+                            {{ $row->channel ?: '-' }}
+                            @if ($aktif)
+                                {{-- Menandai baris mana yang disunting form di bawah: rate card,
+                                     Additional Info, dan data legal semuanya milik baris ini. --}}
+                                <span class="ml-1 cursor-help rounded-full bg-primary-100 px-1.5 py-0.5 text-[10px] font-medium text-primary-700 dark:bg-primary-900 dark:text-primary-200"
+                                    title="Rate Card & Additional Info di bawah adalah milik channel ini. Klik ikon pensil di baris lain untuk menyuntingnya.">
+                                    disunting di bawah
+                                </span>
+                            @endif
+                        </td>
                         <td class="py-2 pr-4">{{ number_format((int) $row->followers) }}</td>
                         <td class="py-2 pr-4">{{ $row->tier ?: '-' }}</td>
                         <td class="py-2 pr-4">{{ number_format((float) $row->engagement_rate, 2) }}%</td>
@@ -25,11 +36,58 @@
                         <td class="py-2 pr-4">{{ number_format((int) $row->impressions) }}</td>
                         <td class="py-2 pr-4">{{ $row->terakhir_update?->format('d M Y') ?? '-' }}</td>
                         <td class="py-2">
-                            <button type="button" title="Lihat kartu KOL"
-                                x-on:click="open = {{ $row->id }}"
-                                class="text-primary-600 hover:text-primary-500">
-                                <x-filament::icon icon="heroicon-o-eye" class="h-5 w-5" />
-                            </button>
+                            <div class="flex items-center gap-2">
+                                <button type="button" title="Lihat kartu KOL"
+                                    x-on:click="open = {{ $row->id }}"
+                                    class="text-primary-600 hover:text-primary-500">
+                                    <x-filament::icon icon="heroicon-o-eye" class="h-5 w-5" />
+                                </button>
+
+                                {{-- Hanya channel yang punya service scraping yang bisa di-refresh. --}}
+                                @if (array_key_exists($row->channel, \App\Service\KolProfileImporter::SCRAPABLE))
+                                    <button type="button" title="Ambil ulang data terbaru dari {{ $row->channel }}"
+                                        wire:click="refreshChannel({{ $row->id }})"
+                                        wire:target="refreshChannel({{ $row->id }})"
+                                        wire:loading.attr="disabled"
+                                        class="text-gray-400 hover:text-primary-500 disabled:opacity-50">
+                                        <x-filament::icon icon="heroicon-o-arrow-path" class="h-5 w-5"
+                                            wire:loading.class="animate-spin"
+                                            wire:target="refreshChannel({{ $row->id }})" />
+                                    </button>
+                                @endif
+
+                                @if (filled($row->link_userprofile))
+                                    <a href="{{ \Illuminate\Support\Str::startsWith($row->link_userprofile, ['http://', 'https://']) ? $row->link_userprofile : '#' }}"
+                                        target="_blank" rel="noopener" title="Buka profil {{ $row->channel }}"
+                                        class="text-gray-400 hover:text-primary-500">
+                                        <x-filament::icon icon="heroicon-o-arrow-top-right-on-square" class="h-5 w-5" />
+                                    </a>
+                                @endif
+
+                                {{-- Rate card & data tiap channel tersimpan di barisnya sendiri,
+                                     jadi untuk menyunting channel lain harus pindah baris. --}}
+                                @unless ($aktif)
+                                    <a href="{{ \App\Filament\Resources\DataKols\DataKolResource::getUrl('edit', ['record' => $row]) }}"
+                                        title="Sunting channel ini" class="text-gray-400 hover:text-primary-500">
+                                        <x-filament::icon icon="heroicon-o-pencil-square" class="h-5 w-5" />
+                                    </a>
+                                @endunless
+
+                                @php
+                                    $jumlahRateCard = $row->rateCards->count();
+                                    $konfirmasi = "Hapus channel {$row->channel} milik @{$row->username}?"
+                                        . ($jumlahRateCard > 0 ? " {$jumlahRateCard} rate card ikut terhapus." : '')
+                                        . ' Tindakan ini tidak bisa dibatalkan.';
+                                @endphp
+                                <button type="button" title="Hapus channel ini"
+                                    wire:click="deleteChannel({{ $row->id }})"
+                                    wire:confirm="{{ $konfirmasi }}"
+                                    wire:target="deleteChannel({{ $row->id }})"
+                                    wire:loading.attr="disabled"
+                                    class="text-gray-400 hover:text-danger-500 disabled:opacity-50">
+                                    <x-filament::icon icon="heroicon-o-trash" class="h-5 w-5" />
+                                </button>
+                            </div>
                         </td>
                     </tr>
                 @endforeach
@@ -61,7 +119,7 @@
                 <div class="mb-4 flex items-start justify-between">
                     <div>
                         <div class="text-xs uppercase tracking-wide text-gray-400">
-                            Rate Card {{ $row->channel }}
+                            Detail {{ $row->channel }}
                         </div>
                         <div class="flex items-center gap-1 text-xl font-bold">
                             &#64;{{ $row->username }}
@@ -76,8 +134,12 @@
                                 <span class="ml-1 rounded-full bg-primary-50 px-2 py-0.5 text-xs text-primary-700 dark:bg-primary-950 dark:text-primary-300">{{ $row->tier }}</span>
                             @endif
                         </div>
-                        @if ($contact)
-                            <div class="mt-1 text-xs text-gray-500">{{ implode(' · ', $contact) }}</div>
+                        @if ($row->link_userprofile)
+                            <a href="{{ \Illuminate\Support\Str::startsWith($row->link_userprofile, ['http://', 'https://']) ? $row->link_userprofile : '#' }}"
+                                target="_blank" rel="noopener"
+                                class="mt-1 inline-block break-all text-xs text-primary-600 underline hover:text-primary-500">
+                                {{ $row->link_userprofile }}
+                            </a>
                         @endif
                     </div>
                     <button type="button" x-on:click="open = null" class="text-gray-400 hover:text-gray-600">
@@ -118,13 +180,34 @@
                     @endforeach
                 </div>
 
-                @if (filled($bio))
-                    <pre class="mt-4 whitespace-pre-wrap rounded bg-gray-50 p-3 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">{{ $bio }}</pre>
-                @endif
-
-                <div class="mt-4 text-right text-xs text-gray-400">
-                    Last updated {{ $row->terakhir_update?->format('Y-m-d') ?? '-' }}
+                {{-- Eks-section "Additional Info". Semuanya hasil scraping, jadi dipindah
+                     ke sini sebagai tampilan saja — tidak ada lagi form untuk mengetiknya
+                     manual. Golongan Pajak pindah ke section Data Legal karena itu SATU-
+                     SATUNYA field di sana yang memang diisi orang, bukan mesin. --}}
+                <div class="mt-4">
+                    <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Additional Info</div>
+                    <dl class="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
+                        @foreach ([
+                            ['Nama Lengkap PIC', $row->full_name],
+                            ['Email', $row->email],
+                            ['No WhatsApp', $row->wa_number],
+                            ['Contact (legacy)', $row->contact],
+                            ['Terakhir Update', $row->terakhir_update?->format('d M Y')],
+                        ] as [$label, $value])
+                            <div class="flex justify-between gap-3 border-b border-gray-100 py-1 dark:border-gray-800">
+                                <dt class="shrink-0 text-xs text-gray-400">{{ $label }}</dt>
+                                <dd class="break-all text-right text-xs">{{ filled($value) ? $value : '—' }}</dd>
+                            </div>
+                        @endforeach
+                    </dl>
                 </div>
+
+                @if (filled($bio))
+                    <div class="mt-4">
+                        <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Notes</div>
+                        <pre class="whitespace-pre-wrap rounded bg-gray-50 p-3 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">{{ $bio }}</pre>
+                    </div>
+                @endif
             </div>
         </div>
         </template>

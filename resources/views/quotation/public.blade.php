@@ -8,8 +8,64 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
+        /* Warna brand — sama persis dengan halaman e-SPK publik (spk/public.blade.php).
+           Lihat catatan di sana soal kenapa gradasi memakai spring green, bukan neon lime. */
+        :root {
+            --bv-purple: #48009F;
+            --bv-lime: #DAFF00;
+            --bv-glow: rgb(216, 254, 0);
+            --bv-green: #00E58F;
+        }
+
         body { font-family: 'Inter', sans-serif; }
+
+        /* Tombol menyalin resources/css/filament/theme/panel/button.css: pill, ungu
+           solid, glow lime. Hover TIDAK mengubah warna latar — hanya angkat + glow. */
+        .bv-btn {
+            border-radius: 9999px;
+            background: var(--bv-purple);
+            color: #ffffff;
+            font-weight: 600;
+            padding: 0.625rem 1.5rem;
+            border: none;
+            transition: all 0.3s ease;
+            box-shadow: 0px 3px 3px 2px var(--bv-glow);
+        }
+
+        .bv-btn:hover {
+            background: var(--bv-purple);
+            color: #ffffff;
+            box-shadow: 0px 3px 2px 2px var(--bv-glow);
+            transform: translateY(-2px);
+        }
+
+        .bv-btn:active { transform: translateY(0); }
+
+        .bv-btn:focus-visible {
+            outline: 2px solid var(--bv-purple);
+            outline-offset: 3px;
+        }
+
+        /* Garis aksen 4px di atas halaman. */
+        .bv-accent {
+            height: 4px;
+            background: linear-gradient(90deg, var(--bv-purple) 0%, var(--bv-green) 100%);
+        }
+
+        /* Chip SOW: ungu tipis, dibuat dari --bv-purple biar ikut kalau warnanya diganti. */
+        .bv-chip {
+            background: color-mix(in srgb, var(--bv-purple) 8%, #fff);
+            color: var(--bv-purple);
+        }
+
+        .bv-input:focus {
+            border-color: var(--bv-purple);
+            box-shadow: 0 0 0 1px var(--bv-purple);
+            outline: none;
+        }
+
         @media print {
+            .bv-accent { display: none !important; }
             .no-print { display: none !important; }
             body { background: white; }
             .bg-gray-50 { background: white !important; }
@@ -19,6 +75,8 @@
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
+
+    <div class="bv-accent"></div>
 
     {{-- Header --}}
     <header class="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm no-print">
@@ -44,10 +102,11 @@
                 <div>
                     <img src="https://res.cloudinary.com/dbr6xazzh/image/upload/v1763576028/01_Logo_Main_f2t5wp.avif"
                          alt="Beyond Viral" class="h-10 object-contain mb-4">
-                    <p class="text-xs font-semibold text-gray-700">PT Beyond Viral Indonesia</p>
-                    <p class="text-xs text-gray-500">Jl. Kemang Raya No. 12, Kemang</p>
-                    <p class="text-xs text-gray-500">Jakarta Selatan, DKI Jakarta 12730</p>
-                    <p class="text-xs text-gray-500">hello@beyondviral.id</p>
+                    <p class="text-xs font-semibold text-gray-700">{{ config('company.name') }}</p>
+                    @foreach (config('company.address_lines') as $baris)
+                        <p class="text-xs text-gray-500">{{ $baris }}</p>
+                    @endforeach
+                    <p class="text-xs text-gray-500">{{ config('company.email') }}</p>
                 </div>
                 <div class="text-left sm:text-right">
                     <p class="text-2xl font-bold text-gray-900">QUOTATION</p>
@@ -107,7 +166,7 @@
                                 <td class="px-4 py-4">
                                     <div class="flex flex-wrap gap-1.5">
                                         @foreach ($group['sow_list'] as $sow)
-                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700">
+                                            <span class="bv-chip inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium">
                                                 {{ $sow }}
                                             </span>
                                         @endforeach

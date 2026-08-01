@@ -5,6 +5,7 @@ use App\Http\Controllers\CampaignPublicController;
 use App\Http\Controllers\FormBriefPublicController;
 use App\Http\Controllers\QuotationPublicController;
 use App\Http\Controllers\KolContractController;
+use App\Http\Controllers\SpkPublicController;
 use App\Http\Controllers\KolImportTemplateController;
 use App\Http\Controllers\MediaPlanPdfController;
 use App\Http\Controllers\MediaPlanExcelController;
@@ -39,6 +40,16 @@ Route::post('/media-plan-review/{token}', [InternalBudgetReviewController::class
 // Campaign On Going Internal — Link Approval Konten (public, no auth)
 Route::get('/campaign-content-review/{token}', [CampaignContentReviewController::class, 'show'])->name('campaign-internal.content-review');
 Route::post('/campaign-content-review/{token}', [CampaignContentReviewController::class, 'submit'])->name('campaign-internal.content-review.submit');
+
+// SPK / PKS — e-sign KOL (public, no auth). Gerbangnya token + langkah verifikasi;
+// verify di-throttle supaya link yang bocor tidak bisa dipakai brute-force data KOL.
+Route::get('/spk-sign/{token}', [SpkPublicController::class, 'show'])->name('spk.public');
+Route::post('/spk-sign/{token}/verify', [SpkPublicController::class, 'verify'])
+    ->middleware('throttle:10,1')
+    ->name('spk.public.verify');
+Route::post('/spk-sign/{token}/sign', [SpkPublicController::class, 'sign'])->name('spk.public.sign');
+Route::get('/spk-sign/{token}/document', [SpkPublicController::class, 'document'])->name('spk.public.document');
+Route::get('/spk-sign/{token}/download', [SpkPublicController::class, 'download'])->name('spk.public.download');
 
 // Media Plan PDF Routes (require auth)
 Route::middleware(['auth'])->group(function () {
@@ -100,6 +111,14 @@ Route::middleware(['auth'])->group(function () {
         ->name('bv-quotation.pdf');
     Route::get('/bv-quotation/{bvQuotation}/preview', [QuotationController::class, 'previewBvQuotation'])
         ->name('bv-quotation.preview');
+
+    // Template impor massal KOL — dibuat on-demand supaya daftar channel di
+    // dropdown-nya selalu ikut KolProfileImporter::SCRAPABLE.
+    Route::get('/data-kol/template-import.xlsx', fn() => response()->streamDownload(
+        fn() => print(\App\Service\KolProfileImporter::templateXlsx()),
+        'template-import-kol.xlsx',
+        ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+    ))->name('data-kol.import-template');
 
     // KOL Contract (SPK) Routes
     Route::get('/kol-contract/{spk}/download', [KolContractController::class, 'download'])

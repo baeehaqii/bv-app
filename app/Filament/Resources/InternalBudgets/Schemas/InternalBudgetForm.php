@@ -345,6 +345,94 @@ class InternalBudgetForm
                                 TableColumn::make('Status')->width('110px'),
                             ])
                             ->extraItemActions([
+                                // Terbitkan SPK untuk KOL di baris ini saja.
+                                // Gerbangnya sama dengan tombol batch di header: status budget
+                                // harus final (client sudah approve) dan itemnya approved.
+                                // Nominalnya tetap SUM(rate_base) semua item approved milik KOL
+                                // itu — jadi satu SPK per KOL, bukan per baris SOW.
+                                Action::make('terbitkan_spk')
+                                    ->label('Terbitkan SPK')
+                                    ->icon('heroicon-m-document-check')
+                                    ->color('warning')
+                                    ->iconButton()
+                                    ->tooltip('Terbitkan SPK untuk KOL ini saja')
+                                    ->visible(function (array $arguments, Repeater $component, $livewire): bool {
+                                        $budget = $livewire->record;
+                                        $itemUuid = $arguments['item'] ?? null;
+
+                                        // Halaman Create belum punya record; uuid kosong saat
+                                        // Filament merender tombol di luar konteks baris.
+                                        if (! $itemUuid || ! $budget
+                                            || ! in_array($budget->status, \App\Models\InternalBudget::STATUS_FINAL, true)) {
+                                            return false;
+                                        }
+
+                                        $state = $component->getRawItemState($itemUuid);
+                                        $kolId = $state['media_plan_kol_id'] ?? null;
+
+                                        return ($state['status'] ?? null) === 'approved'
+                                            && $kolId
+                                            && ! \App\Models\BvSPK::existsForKol($budget, (int) $kolId);
+                                    })
+                                    ->requiresConfirmation()
+                                    ->modalHeading('Terbitkan SPK untuk KOL Ini')
+                                    ->modalIcon('heroicon-o-document-check')
+                                    ->modalIconColor('warning')
+                                    ->modalDescription(function (array $arguments, Repeater $component, $livewire): string {
+                                        $itemUuid = $arguments['item'] ?? null;
+                                        if (! $itemUuid) {
+                                            return 'Terbitkan SPK untuk KOL ini?';
+                                        }
+
+                                        $state = $component->getRawItemState($itemUuid);
+                                        $kolId = (int) ($state['media_plan_kol_id'] ?? 0);
+                                        $kol = MediaPlanKol::find($kolId);
+
+                                        $items = $livewire->record->items()
+                                            ->where('status', 'approved')
+                                            ->where('media_plan_kol_id', $kolId)
+                                            ->get();
+
+                                        $nominal = (float) $items->sum(fn($i) => (float) ($i->rate_base ?? 0));
+
+                                        return 'SPK untuk ' . ($kol?->name ?? 'KOL ini') . ' akan dibuat dengan status Draft. '
+                                            . 'Semua ' . $items->count() . ' SOW approved miliknya digabung jadi satu SPK, '
+                                            . 'nominal Rp ' . number_format($nominal, 0, ',', '.') . ' (netto, di luar pajak). '
+                                            . 'NIK & rekening diambil dari Data KOL.';
+                                    })
+                                    ->modalSubmitActionLabel('Terbitkan')
+                                    ->action(function (array $arguments, Repeater $component, $livewire) {
+                                        $itemUuid = $arguments['item'] ?? null;
+                                        if (! $itemUuid) {
+                                            return;
+                                        }
+
+                                        $state = $component->getRawItemState($itemUuid);
+                                        $kolId = (int) ($state['media_plan_kol_id'] ?? 0);
+
+                                        $spk = \App\Models\BvSPK::createForKol($livewire->record, $kolId);
+
+                                        if (! $spk) {
+                                            Notification::make()
+                                                ->title('SPK Tidak Dibuat')
+                                                ->body('KOL ini sudah punya SPK di budget ini, atau tidak ada item approved.')
+                                                ->warning()
+                                                ->send();
+
+                                            return;
+                                        }
+
+                                        Notification::make()
+                                            ->title('SPK ' . $spk->spk_number . ' Dibuat')
+                                            ->body(blank($spk->pihak_kedua_nik) || blank($spk->nomor_rekening)
+                                                ? 'NIK/rekening masih kosong — lengkapi Data KOL atau isi manual di SPK.'
+                                                : 'Lanjut ke halaman SPK untuk kirim link tanda tangan.')
+                                            ->success()
+                                            ->send();
+
+                                        return redirect(\App\Filament\Resources\Spks\SpkResource::getUrl('edit', ['record' => $spk]));
+                                    }),
+
                                 Action::make('approve_item')
                                     ->label('Approve')
                                     ->icon('heroicon-m-check-circle')

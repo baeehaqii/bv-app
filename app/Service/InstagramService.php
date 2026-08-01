@@ -130,11 +130,22 @@ class InstagramService
                 'endpoint' => 'https://api.scrapecreators.com/v2/instagram/user/posts',
             ]);
 
+            /*
+             * trim=true memangkas bagian paling gemuk dari respons: info encoding
+             * video, sprite sheet, metadata audio, dan belasan varian ukuran gambar.
+             * Yang dipakai calculateEngagementMetrics() semuanya penghitung skalar
+             * di level atas (like_count, comment_count, play_count, taken_at, dst.)
+             * dan itu tetap ada. Tanpa trim, respons radenrauf ~1 MB dan kena timeout.
+             *
+             * `count` sengaja TIDAK dikirim — parameter itu tidak ada di dokumentasi
+             * (yang ada cuma handle, next_max_id, trim), jadi diam-diam diabaikan.
+             * Pembatasan jumlah post dilakukan di sini.
+             */
             $response = Http::withHeaders([
                 'x-api-key' => $this->apiKey,
             ])->get("https://api.scrapecreators.com/v2/instagram/user/posts", [
                         'handle' => $username,
-                        'count' => $count,
+                        'trim' => 'true',
                     ]);
 
             Log::info('📡 Instagram Posts API Response', [
@@ -171,7 +182,7 @@ class InstagramService
                 return [];
             }
 
-            $posts = $data['items'] ?? [];
+            $posts = array_slice($data['items'] ?? [], 0, $count);
 
             // Optionally enrich with detailed metrics per post
             if ($enrichWithDetails && !empty($posts)) {

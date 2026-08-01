@@ -96,6 +96,25 @@ it('menolak tanda tangan client bila internal belum tanda tangan', function () {
     expect($q->refresh()->isSignedBy('client'))->toBeFalse();
 });
 
+it('memakai warna brand, bukan indigo bawaan Tailwind', function () {
+    $q = quotation();
+    $q->generatePublicToken();
+    $q->sign('ceo', 'Bos Besar', 'CEO');
+    $q->sign('bd', 'Mas BD', 'Business Development');   // form TTD client ikut ter-render
+
+    $html = $this->get(route('quotation.public', ['token' => $q->public_token]))
+        ->assertOk()
+        ->getContent();
+
+    expect($html)->toContain('#48009F')->not->toContain('indigo-');
+
+    // Setiap kelas bv-* yang dipakai di markup harus punya definisi di <style>.
+    preg_match_all('/class="[^"]*?\b(bv-[\w-]+)/', $html, $dipakai);
+    foreach (array_unique($dipakai[1]) as $kelas) {
+        expect($html)->toContain(".{$kelas}");
+    }
+});
+
 it('halaman public menampilkan alur tanda tangan, bukan tombol PDF', function () {
     $q = quotation();
     $q->generatePublicToken();

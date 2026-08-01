@@ -75,6 +75,62 @@ class EditInternalBudget extends EditRecord
                     );
                 }),
 
+            // SPK = kontrak ke KOL (uang keluar), lawan dari Quotation/Invoice (uang masuk).
+            // Baru muncul setelah client approve supaya BV tidak terikat ke KOL sebelum
+            // harga ke client deal. Idempoten: klik ulang hanya membuat SPK yang belum ada.
+            Actions\Action::make('create_spk')
+                ->label('Terbitkan SPK')
+                ->icon('heroicon-m-document-check')
+                ->color('warning')
+                ->visible(fn($record) => in_array($record->status, \App\Models\InternalBudget::STATUS_FINAL, true)
+                    && $record->items()->where('status', 'approved')->exists())
+                ->requiresConfirmation()
+                ->modalHeading('Terbitkan SPK ke KOL')
+                ->modalDescription(function ($record) {
+                    $approved = $record->items()->where('status', 'approved')
+                        ->whereNotNull('media_plan_kol_id')
+                        ->distinct()->count('media_plan_kol_id');
+                    $sudah = \App\Models\BvSPK::where('internal_budget_id', $record->id)->count();
+
+                    return "KOL approved: {$approved}. SPK sudah terbit: {$sudah}. "
+                        . 'SPK dibuat satu per KOL (semua SOW-nya digabung) dengan status Draft. '
+                        . 'NIK & rekening diambil dari Data KOL — lengkapi di sana agar tidak kosong.';
+                })
+                ->modalSubmitActionLabel('Terbitkan')
+                ->action(function ($record) {
+                    $created = \App\Models\BvSPK::createFromBudget($record);
+
+                    if ($created->isEmpty()) {
+                        Notification::make()
+                            ->title('Tidak Ada SPK Baru')
+                            ->body('Semua KOL approved sudah punya SPK.')
+                            ->warning()
+                            ->send();
+
+                        return;
+                    }
+
+                    $kosong = $created->filter(fn($spk) => blank($spk->pihak_kedua_nik)
+                        || blank($spk->nomor_rekening))->count();
+
+                    Notification::make()
+                        ->title($created->count() . ' SPK Berhasil Dibuat')
+                        ->body($kosong > 0
+                            ? "{$kosong} SPK masih kosong NIK/rekening — lengkapi Data KOL atau isi manual di SPK."
+                            : 'Cek di menu Campaign Area → Contract.')
+                        ->success()
+                        ->send();
+
+                    if ($created->count() === 1) {
+                        return redirect()->route(
+                            'filament.office.resources.spk.edit',
+                            ['record' => $created->first()->id]
+                        );
+                    }
+
+                    return redirect()->route('filament.office.resources.spk.index');
+                }),
+
             Actions\Action::make('view_quotation')
                 ->label('View Quotation')
                 ->icon('heroicon-m-document-text')

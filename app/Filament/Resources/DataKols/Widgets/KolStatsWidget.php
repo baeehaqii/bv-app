@@ -40,18 +40,29 @@ class KolStatsWidget extends StatsOverviewWidget
             }
         }
 
-        // Total KOL
-        $totalKol = (clone $query)->count();
+        /*
+         * 1 baris data_kols = 1 channel, jadi menghitung baris berarti menghitung
+         * channel, bukan orang. Followers dijumlahkan per username dulu — angkanya
+         * lalu dipakai untuk jumlah KOL sekaligus sebaran tier, supaya sama persis
+         * dengan kolom Tier di tabel daftar.
+         */
+        $followersPerKol = (clone $query)
+            ->selectRaw('username, SUM(followers) as total_followers')
+            ->groupBy('username')
+            ->pluck('total_followers', 'username');
 
-        // Total KOL per Channel
+        $totalKol = $followersPerKol->count();
+        $tierCounts = $followersPerKol->countBy(fn($f) => DataKol::tierFor((int) $f));
+
+        $megaCount = $tierCounts['Mega'] ?? 0;
+        $macroCount = $tierCounts['Macro'] ?? 0;
+        $microCount = $tierCounts['Micro'] ?? 0;
+        $nanoCount = $tierCounts['Nano'] ?? 0;
+        $miniCount = $tierCounts['Mini'] ?? 0;
+
+        // Sebaran platform tetap dihitung per channel — memang jumlah akun, bukan orang.
         $tiktokCount = (clone $query)->where('channel', 'Tiktok')->count();
         $instagramCount = (clone $query)->where('channel', 'Instagram')->count();
-
-        // Total KOL per Tier
-        $megaCount = (clone $query)->where('tier', 'Mega')->count();
-        $macroCount = (clone $query)->where('tier', 'Macro')->count();
-        $microCount = (clone $query)->where('tier', 'Micro')->count();
-        $miniCount = (clone $query)->where('tier', 'Mini')->count();
 
         // Average Engagement Rate (convert string to float)
         $avgEngagementRate = (clone $query)->whereNotNull('engagement_rate')
@@ -108,7 +119,7 @@ class KolStatsWidget extends StatsOverviewWidget
                 ->color('danger'),
 
             Stat::make('KOL Tier Distribution', "Mega: {$megaCount} | Macro: {$macroCount}")
-                ->description("Micro: {$microCount} | Mini: {$miniCount}")
+                ->description("Micro: {$microCount} | Nano: {$nanoCount} | Mini: {$miniCount}")
                 ->descriptionIcon('heroicon-m-star')
                 ->color('primary'),
         ];

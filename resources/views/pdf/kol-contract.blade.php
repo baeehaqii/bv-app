@@ -1,890 +1,598 @@
+@php
+    $pertama = \App\Models\BvSPK::pihakPertama();
+    $perusahaan = $pertama['perusahaan'];
+    $sowLines = collect(preg_split('/\r\n|\r|\n/', (string) $spk->sow_disepakati))
+        ->map(fn($l) => trim($l))
+        ->filter()
+        ->all();
+    $nominal = 'Rp ' . number_format((float) $spk->nominal_kesepakatan, 0, ',', '.');
+
+    $aktif = fn(string $k) => $spk->clauseEnabled($k);
+    // Klausul ditulis BV lewat textarea → escape, tapi izinkan penekanan <strong>/<em>
+    // yang dipakai teks bawaan.
+    $klausul = fn(string $k) => strip_tags($spk->clauseText($k), '<strong><em><br>');
+    $addons = $spk->activeAddons();
+
+    /**
+     * Penomoran ayat otomatis, counter di-reset di setiap pasal.
+     * Draft asli melompat 3 → 6 dan meneruskan nomor ayat lintas pasal (6: 1-3,
+     * 7: 4-10, 8: 11-14); itu salah ketik, jadi pasalnya dirapatkan ke 1-7 dan tiap
+     * pasal mulai dari ayat 1. Klausul yang dimatikan juga tidak meninggalkan
+     * nomor bolong.
+     */
+    $no = 0;
+    $reset = function () use (&$no) { $no = 0; };
+    $next = function () use (&$no) { return ++$no; };
+@endphp
 <!DOCTYPE html>
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
-    <title>Kontrak KOL - {{ $spk->spk_number }}</title>
+    <title>SPK {{ $spk->spk_number }}</title>
     <style>
         @page {
             size: A4 portrait;
-            margin: 15mm 15mm 20mm 15mm;
+            margin: 34mm 20mm 18mm 20mm;
         }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        /*
+         * JANGAN tambahkan `margin` ke selector `*` di sini: di dompdf selector
+         * universal ikut kena ke frame halaman, jadi `* { margin: 0 }` menghapus
+         * margin @page di atas dan seluruh dokumen jadi menempel ke tepi kertas.
+         */
+        * { padding: 0; box-sizing: border-box; }
+        p, div, table, h1, h2, h3 { margin: 0; }
 
+        /*
+         * DejaVu Serif, bukan Times New Roman: di dompdf keluarga Times hanya
+         * punya metrik .afm tanpa file glyph, jadi <strong>/<em> tercetak sama
+         * dengan teks normal — fatal untuk kontrak yang menandai "PIHAK PERTAMA"
+         * dengan bold. DejaVu di-bundle dompdf lengkap dengan Bold & Italic.
+         * DejaVu lebih lebar dari Times, karena itu ukurannya 10pt bukan 11pt.
+         */
         body {
-            font-family: Arial, sans-serif;
-            font-size: 9.5px;
-            color: #1a1a1a;
-            background: #fff;
-            line-height: 1.5;
+            font-family: "DejaVu Serif", serif;
+            font-size: 9pt;
+            line-height: 1.35;
+            color: #000;
         }
 
-        /* ─── HEADER ─────────────────────────────────────────── */
-        .header-wrap {
-            width: 100%;
-            border-bottom: 3px solid #49009F;
-            padding-bottom: 10px;
-            margin-bottom: 10px;
+        /* Kop surat — position:fixed di dompdf ikut tercetak di setiap halaman. */
+        .kop {
+            position: fixed;
+            top: -29mm;
+            left: 0;
+            right: 0;
+            height: 25mm;
         }
 
-        .header-table {
-            width: 100%;
-            border-collapse: collapse;
+        .kop table { width: 100%; border-collapse: collapse; }
+        .kop td { vertical-align: middle; }
+        .kop-logo { width: 34mm; text-align: right; padding-right: 4mm; }
+        .kop-logo img { height: 20mm; }
+        .kop-logo .fallback {
+            font-family: "DejaVu Sans", sans-serif;
+            font-size: 20pt; font-weight: bold; color: #1f3d2b;
         }
+        .kop-text { font-family: "DejaVu Sans", sans-serif; }
+        .kop-nama { font-size: 15pt; font-weight: bold; color: #4b4b4b; letter-spacing: .3px; }
+        .kop-brand { font-size: 12pt; color: #8a8a8a; }
+        .kop-alamat { font-size: 6.5pt; color: #6f6f6f; line-height: 1.35; }
+        .kop-alamat .site { color: #1f7a4d; text-decoration: underline; }
 
-        .header-logo-cell {
-            width: 22%;
-            vertical-align: middle;
-        }
+        .judul { text-align: center; font-weight: bold; margin-bottom: 2mm; }
+        .judul div { line-height: 1.45; }
 
-        .header-logo-cell img {
-            max-height: 55px;
-            width: auto;
-        }
+        p { text-align: justify; margin-bottom: 1.5mm; }
 
-        .header-logo-cell .logo-placeholder {
-            font-size: 16px;
-            font-weight: bold;
-            color: #49009F;
-            letter-spacing: 1px;
-        }
-
-        .header-title-cell {
-            width: 56%;
+        .pasal-head {
             text-align: center;
-            vertical-align: middle;
-            padding: 0 10px;
-        }
-
-        .header-title-id {
-            font-size: 14px;
             font-weight: bold;
-            color: #49009F;
-            text-transform: uppercase;
-            letter-spacing: 1px;
+            margin-top: 3mm;
+            line-height: 1.45;
         }
 
-        .header-title-en {
-            font-size: 9px;
-            color: #555;
-            letter-spacing: 0.5px;
-            margin-top: 2px;
-        }
+        /* Ayat bernomor pakai tabel supaya hanging indent rapi di dompdf. */
+        table.ayat { width: 100%; border-collapse: collapse; }
+        table.ayat td { vertical-align: top; padding: 0 0 1.5mm 0; }
+        table.ayat td.no { width: 8mm; }
+        table.ayat td.isi { text-align: justify; }
 
-        .header-meta-cell {
-            width: 22%;
-            text-align: right;
-            vertical-align: middle;
-        }
+        table.identitas { width: 100%; border-collapse: collapse; }
+        table.identitas td { vertical-align: top; padding: 0 0 .5mm 0; }
+        table.identitas td.label { width: 30mm; }
+        table.identitas td.sep { width: 4mm; }
 
-        .header-meta-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 8.5px;
-        }
+        table.rekening { width: 100%; border-collapse: collapse; margin: 1.5mm 0 1.5mm 12mm; }
+        table.rekening td { vertical-align: top; padding: 1mm 0; }
+        table.rekening td.label { width: 42mm; }
+        table.rekening td.sep { width: 6mm; }
 
-        .header-meta-table td {
-            padding: 1px 3px;
-        }
+        .sow-list { margin: 0 0 0 6mm; }
+        .sow-list div { text-align: justify; }
 
-        .header-meta-table .label {
-            color: #777;
-            white-space: nowrap;
-        }
+        .indent { margin-left: 8mm; }
+        .indent-2 { margin-left: 16mm; }
 
-        .header-meta-table .value {
-            font-weight: bold;
-            color: #1a1a1a;
-        }
-
-        /* SPK badge */
-        .spk-badge {
-            display: inline-block;
-            background: #49009F;
-            color: #DAFF01;
-            padding: 3px 10px;
-            border-radius: 3px;
-            font-size: 9px;
-            font-weight: bold;
-            margin-bottom: 4px;
-            letter-spacing: 0.5px;
-        }
-
-        /* ─── PARTIES BLOCK ──────────────────────────────────── */
-        .parties-block {
-            background: #f8f5ff;
-            border: 1px solid #d9d0f0;
-            border-radius: 4px;
-            padding: 10px 12px;
-            margin-bottom: 12px;
-            font-size: 9px;
-        }
-
-        .parties-block .intro {
-            margin-bottom: 8px;
-            color: #333;
-        }
-
-        .parties-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .parties-table td {
-            padding: 3px 6px;
-            vertical-align: top;
-        }
-
-        .party-label {
-            width: 28%;
-            font-weight: bold;
-            color: #49009F;
-            white-space: nowrap;
-        }
-
-        .party-colon {
-            width: 3%;
-            text-align: center;
-        }
-
-        .party-value {
-            width: 69%;
-        }
-
-        .party-divider {
-            height: 6px;
-        }
-
-        /* ─── PASAL / ARTICLES ───────────────────────────────── */
-        .article {
-            margin-bottom: 10px;
-            page-break-inside: avoid;
-        }
-
-        .article-header {
-            background: #49009F;
-            color: #DAFF01;
-            padding: 4px 10px;
-            font-size: 9.5px;
-            font-weight: bold;
-            border-radius: 3px 3px 0 0;
-        }
-
-        .article-header .en {
-            font-size: 8px;
-            font-weight: normal;
-            color: #e0d0ff;
-            margin-left: 6px;
-        }
-
-        .article-body {
-            border: 1px solid #d9d0f0;
-            border-top: none;
-            border-radius: 0 0 3px 3px;
-            padding: 8px 10px;
-        }
-
-        .bilingual-row {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 5px;
-        }
-
-        .bilingual-row td {
-            vertical-align: top;
-            padding: 0 4px;
-        }
-
-        .bilingual-row .col-id {
-            width: 50%;
-            padding-right: 8px;
-            border-right: 1px solid #e8e0f8;
-        }
-
-        .bilingual-row .col-en {
-            width: 50%;
-            padding-left: 8px;
+        .ttd { width: 100%; border-collapse: collapse; margin-top: 6mm; }
+        .ttd td { width: 50%; text-align: center; vertical-align: top; }
+        .ttd .peran { font-weight: bold; padding-bottom: 2mm; }
+        /* Tinggi tetap: blok tanda tangan tidak boleh mengkerut saat TTD belum ada,
+           supaya versi kosong dan versi bertanda tangan tata letaknya sama. */
+        .ttd .ttd-area { height: 20mm; }
+        .ttd .ttd-area img { height: 18mm; }
+        .ttd .nama { font-weight: bold; }
+        .esign-note {
+            margin-top: 5mm;
+            font-size: 7.5pt;
             color: #444;
-        }
-
-        .lang-badge {
-            display: inline-block;
-            font-size: 7px;
-            font-weight: bold;
-            padding: 1px 4px;
-            border-radius: 2px;
-            margin-bottom: 3px;
-        }
-
-        .lang-id { background: #eef; color: #49009F; }
-        .lang-en { background: #ffe; color: #666; }
-
-        ol.contract-list {
-            padding-left: 18px;
-            margin: 4px 0;
-        }
-
-        ol.contract-list li {
-            margin-bottom: 3px;
-        }
-
-        ul.contract-list {
-            padding-left: 16px;
-            margin: 4px 0;
-        }
-
-        ul.contract-list li {
-            margin-bottom: 3px;
-        }
-
-        /* ─── SOW TABLE ──────────────────────────────────────── */
-        .sow-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 9px;
-            margin-top: 5px;
-        }
-
-        .sow-table th {
-            background: #49009F;
-            color: #DAFF01;
-            padding: 4px 8px;
-            text-align: left;
-            font-size: 8.5px;
-        }
-
-        .sow-table td {
-            border: 1px solid #d9d0f0;
-            padding: 4px 8px;
-            vertical-align: top;
-        }
-
-        .sow-table tr:nth-child(even) td {
-            background: #f9f7ff;
-        }
-
-        /* ─── PAYMENT BLOCK ──────────────────────────────────── */
-        .payment-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 9px;
-        }
-
-        .payment-table td {
-            border: 1px solid #d9d0f0;
-            padding: 4px 8px;
-        }
-
-        .payment-table .lbl {
-            font-weight: bold;
-            background: #f3efff;
-            width: 35%;
-        }
-
-        .payment-table .total-row td {
-            background: #49009F;
-            color: #DAFF01;
-            font-weight: bold;
-        }
-
-        .bank-box {
-            margin-top: 6px;
-            border: 1px dashed #49009F;
-            border-radius: 4px;
-            padding: 6px 10px;
-            background: #faf8ff;
-        }
-
-        .bank-box .bank-title {
-            font-size: 8px;
-            font-weight: bold;
-            color: #49009F;
-            text-transform: uppercase;
-            margin-bottom: 3px;
-        }
-
-        .bank-detail-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 9px;
-        }
-
-        .bank-detail-table td {
-            padding: 1px 3px;
-            vertical-align: top;
-        }
-
-        .bank-detail-table .lbl {
-            width: 35%;
-            color: #555;
-        }
-
-        /* ─── SIGNATURE SECTION ──────────────────────────────── */
-        .signature-section {
-            margin-top: 14px;
-            page-break-inside: avoid;
-        }
-
-        .signature-title {
             text-align: center;
-            font-size: 9px;
-            color: #555;
-            margin-bottom: 10px;
+            font-style: italic;
         }
-
-        .signature-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .signature-table td {
-            width: 50%;
-            text-align: center;
-            vertical-align: top;
-            padding: 0 20px;
-        }
-
-        .sig-box {
-            border: 1px solid #d9d0f0;
-            border-radius: 4px;
-            padding: 8px 10px;
-        }
-
-        .sig-party-label {
-            font-size: 8px;
-            color: #777;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 2px;
-        }
-
-        .sig-party-name {
-            font-size: 9.5px;
-            font-weight: bold;
-            color: #49009F;
-            margin-bottom: 4px;
-        }
-
-        .sig-party-role {
-            font-size: 8px;
-            color: #555;
-        }
-
-        .sig-stamp-area {
-            height: 55px;
-            border-bottom: 1px solid #ccc;
-            margin: 8px 0;
-        }
-
-        .sig-name-line {
-            font-size: 9.5px;
-            font-weight: bold;
-            margin-top: 4px;
-        }
-
-        .sig-role-line {
-            font-size: 8px;
-            color: #555;
-        }
-
-        /* ─── FOOTER ─────────────────────────────────────────── */
-        .doc-footer {
-            margin-top: 10px;
-            border-top: 1px solid #d9d0f0;
-            padding-top: 5px;
-            text-align: center;
-            font-size: 7.5px;
-            color: #aaa;
-        }
-
-        /* ─── UTILITIES ──────────────────────────────────────── */
-        .highlight {
-            font-weight: bold;
-            color: #49009F;
-        }
-
-        .text-center { text-align: center; }
-        .mt4 { margin-top: 4px; }
-        .mb4 { margin-bottom: 4px; }
+        .avoid-break { page-break-inside: avoid; }
     </style>
 </head>
 <body>
 
-<!-- ═══════════════════════════════════════════════════════
-     HEADER
-════════════════════════════════════════════════════════ -->
-<div class="header-wrap">
-    <table class="header-table">
+<div class="kop">
+    <table>
         <tr>
-            <!-- Logo -->
-            <td class="header-logo-cell">
+            <td class="kop-logo">
                 @if($logoBase64)
-                    <img src="{{ $logoBase64 }}" alt="Beyond Viral Logo">
+                    <img src="{{ $logoBase64 }}" alt="BV Network">
                 @else
-                    <span class="logo-placeholder">BEYOND VIRAL</span>
+                    <span class="fallback">BV</span>
                 @endif
             </td>
-
-            <!-- Title -->
-            <td class="header-title-cell">
-                <div class="spk-badge">{{ $spk->spk_number }}</div>
-                <div class="header-title-id">Perjanjian Kerja Sama KOL</div>
-                <div class="header-title-en">KOL Collaboration Agreement</div>
-            </td>
-
-            <!-- Meta -->
-            <td class="header-meta-cell">
-                <table class="header-meta-table">
-                    <tr>
-                        <td class="label">Tgl. Perjanjian</td>
-                        <td class="label">:</td>
-                        <td class="value">{{ $tanggalId }}</td>
-                    </tr>
-                    <tr>
-                        <td class="label">Agreement Date</td>
-                        <td class="label">:</td>
-                        <td class="value">{{ $tanggalEn }}</td>
-                    </tr>
-                    <tr>
-                        <td class="label">Campaign</td>
-                        <td class="label">:</td>
-                        <td class="value">{{ $spk->nama_campaign ?? '-' }}</td>
-                    </tr>
-                    <tr>
-                        <td class="label">Status</td>
-                        <td class="label">:</td>
-                        <td class="value" style="text-transform: capitalize;">{{ $spk->status }}</td>
-                    </tr>
-                </table>
+            <td class="kop-text">
+                <div class="kop-nama">{{ $perusahaan }}</div>
+                <div class="kop-brand">{{ $pertama['brand'] }}</div>
+                <div class="kop-alamat">
+                    <span class="site">{{ config('company.site') }}</span>
+                    {!! implode('<br>', array_map('e', config('company.address_lines'))) !!}
+                </div>
             </td>
         </tr>
     </table>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════
-     PARTIES
-════════════════════════════════════════════════════════ -->
-<div class="parties-block">
-    <div class="intro">
-        Perjanjian Kerja Sama ini (<em>"Perjanjian"</em>) dibuat dan berlaku efektif pada tanggal
-        <span class="highlight">{{ $tanggalId }}</span>, oleh dan antara: &nbsp;|&nbsp;
-        This Collaboration Agreement (<em>"Agreement"</em>) is entered into and made effective on
-        <span class="highlight">{{ $tanggalEn }}</span>, by and between:
-    </div>
-    <table class="parties-table">
-        <!-- Pihak A -->
+<div class="judul">
+    <div>SURAT PERJANJIAN KERJA SAMA</div>
+    <div>SPK NO. {{ $spk->spk_number }}</div>
+    <div>{{ $perusahaan }}</div>
+</div>
+
+<p>
+    Perjanjian Kerja Sama Beyond Viral (selanjutnya disebut &ldquo;Perjanjian&rdquo;) dilangsungkan dan
+    ditandatangani di Jakarta pada tanggal <strong>{{ $tanggalId }}.</strong>
+</p>
+
+<p>
+    Dalam hal ini bertindak untuk dan atas nama {{ $perusahaan }} dalam hal ini diwakili oleh
+    {{ $pertama['nama'] }} selaku {{ $pertama['jabatan'] }} dari dan oleh karenanya sah bertindak untuk
+    dan atas nama serta mewakili kepentingan {{ $perusahaan }} sebagai
+    <strong>&ldquo;PIHAK PERTAMA&rdquo;</strong>
+</p>
+
+<table class="identitas">
+    <tr>
+        <td class="label">Nama</td>
+        <td class="sep">:</td>
+        <td>{{ $pertama['nama'] }}</td>
+    </tr>
+    <tr>
+        <td class="label">Jabatan</td>
+        <td class="sep">:</td>
+        <td>{{ $pertama['jabatan'] }}</td>
+    </tr>
+    <tr>
+        <td class="label">Alamat</td>
+        <td class="sep">:</td>
+        <td>{{ $pertama['alamat'] }}</td>
+    </tr>
+</table>
+
+<p style="text-align: center;">Dan</p>
+
+<p>
+    Dalam hal ini bertindak untuk dan atas nama pribadi (selanjutnya disebut
+    &ldquo;PIHAK KEDUA&rdquo;).
+</p>
+
+<p>Nama Lengkap : {{ $spk->pihak_kedua_nama_lengkap ?: '—' }}</p>
+<p>Nama Akun : {{ $spk->pihak_kedua_nama_akun ?: '—' }}</p>
+<p>NIK : {{ $spk->pihak_kedua_nik ?: '—' }}</p>
+<p>Alamat : {{ $spk->pihak_kedua_alamat ?: '—' }}</p>
+
+<p style="margin-top: 3mm;">
+    <strong>PARA PIHAK</strong> telah sepakat untuk bekerja sama dan mengikatkan diri dalam Perjanjian
+    ini dengan syarat-syarat dan ketentuan-ketentuan sebagai berikut:
+</p>
+
+{{-- ══════════ PASAL 1 ══════════ --}}
+<div class="pasal-head">
+    <div>PASAL 1</div>
+    <div>MAKSUD DAN TUJUAN</div>
+</div>
+
+@php $reset(); @endphp
+<table class="ayat">
+    <tr>
+        <td class="no">{{ $next() }}.</td>
+        <td class="isi">
+            Perjanjian ini dimaksudkan agar <strong>PIHAK PERTAMA</strong> dapat bekerja sama dengan
+            <strong>PIHAK KEDUA</strong> yang sesuai dengan permintaan Pihak Pertama atau di tempat yang
+            ditentukan oleh <strong>PIHAK PERTAMA.</strong>
+        </td>
+    </tr>
+    <tr>
+        <td class="no">{{ $next() }}.</td>
+        <td class="isi">
+            Tujuan dari Perjanjian ini adalah untuk menjamin kelangsungan
+            <strong><em>Campaign {{ $spk->nama_campaign ?: '—' }}</em></strong> yang dilakukan oleh Klien
+            <strong>PIHAK PERTAMA</strong> dan ketersediaan tenaga kerja dalam mendukung pencapaian
+            kinerja dan usaha <strong>PIHAK PERTAMA.</strong>
+        </td>
+    </tr>
+    <tr>
+        <td class="no">{{ $next() }}.</td>
+        <td class="isi">
+            Pihak Kedua berkewajiban menjalankan tugas dan tanggung jawab utama sesuai kesepakatan
+            dengan rincian kesepakatan sebagai berikut:
+            <div class="sow-list">
+                @forelse($sowLines as $line)
+                    <div>-&nbsp;&nbsp;&nbsp;&nbsp;{{ $line }}</div>
+                @empty
+                    <div>-&nbsp;&nbsp;&nbsp;&nbsp;—</div>
+                @endforelse
+                <div style="margin-left: 8mm;">Timeline : <strong>{{ $spk->timeline_kerja_sama ?: '—' }}</strong></div>
+            </div>
+        </td>
+    </tr>
+    @if ($aktif('konten_tidak_dihapus'))
         <tr>
-            <td class="party-label">Pihak A / Party A</td>
-            <td class="party-colon">:</td>
-            <td class="party-value">
-                <strong>PT Bisa Viral Butuh Usaha</strong>, selaku KOL Agency
-                / <em>as KOL Agency</em>
-                (selanjutnya disebut <strong>"Pihak A"</strong> / hereinafter referred to as <strong>"Party A"</strong>)
-            </td>
+            <td class="no">{{ $next() }}.</td>
+            <td class="isi">{!! $klausul('konten_tidak_dihapus') !!}</td>
         </tr>
-        <tr><td colspan="3" class="party-divider"></td></tr>
-        <!-- Pihak B -->
+    @endif
+    <tr>
+        <td class="no">{{ $next() }}.</td>
+        <td class="isi">
+            <strong>PIHAK KEDUA</strong> wajib mengikuti segala arahan/brief yang telah di kirim oleh
+            <strong>PIHAK PERTAMA</strong>
+        </td>
+    </tr>
+    <tr>
+        <td class="no">{{ $next() }}.</td>
+        <td class="isi">
+            <strong>PIHAK KEDUA</strong> wajib mengikuti apabila konten yang telah dibuat tidak sesuai
+            dengan brief yang telah di kirim oleh <strong>PIHAK PERTAMA</strong>
+        </td>
+    </tr>
+    @if ($aktif('insight'))
         <tr>
-            <td class="party-label">Pihak B / Party B</td>
-            <td class="party-colon">:</td>
-            <td class="party-value">
-                <strong>{{ $spk->pihak_kedua_nama_lengkap ?? '-' }}</strong>
-                @if($spk->pihak_kedua_nama_akun)
-                    (akun: <em>{{ $spk->pihak_kedua_nama_akun }}</em>)
-                @endif
-                @if($spk->pihak_kedua_nik)
-                    , NIK: {{ $spk->pihak_kedua_nik }}
-                @endif
-                @if($spk->pihak_kedua_alamat)
-                    , beralamat di {{ $spk->pihak_kedua_alamat }} /
-                    domiciled at {{ $spk->pihak_kedua_alamat }}
-                @endif
-                (selanjutnya disebut <strong>"Pihak B"</strong> / hereinafter referred to as <strong>"Party B"</strong>)
-            </td>
+            <td class="no">{{ $next() }}.</td>
+            <td class="isi">{!! $klausul('insight') !!}</td>
         </tr>
-    </table>
+    @endif
+</table>
+
+{{-- ══════════ PASAL 2 ══════════ --}}
+<div class="pasal-head">
+    <div>PASAL 2</div>
+    <div>JANGKA WAKTU</div>
+    <div>PERJANJIAN</div>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════
-     PASAL 1 – RUANG LINGKUP & DELIVERABLES
-════════════════════════════════════════════════════════ -->
-<div class="article">
-    <div class="article-header">
-        Pasal 1 – Ruang Lingkup & Hasil yang Diharapkan
-        <span class="en">/ Article 1 – Scope & Deliverables</span>
-    </div>
-    <div class="article-body">
-        <table class="bilingual-row">
-            <tr>
-                <td class="col-id">
-                    <span class="lang-badge lang-id">ID</span><br>
-                    Para Pihak sepakat menjalin kerja sama dalam rangka pelaksanaan kampanye
-                    <strong>{{ $spk->nama_campaign ?? '-' }}</strong> selama periode
-                    <strong>{{ $spk->timeline_kerja_sama ?? '-' }}</strong>.
-                </td>
-                <td class="col-en">
-                    <span class="lang-badge lang-en">EN</span><br>
-                    The Parties agree to collaborate for the campaign
-                    <strong>{{ $spk->nama_campaign ?? '-' }}</strong> during the period of
-                    <strong>{{ $spk->timeline_kerja_sama ?? '-' }}</strong>.
-                </td>
-            </tr>
-        </table>
+@php $reset(); @endphp
+<table class="ayat">
+    <tr>
+        <td class="no">{{ $next() }}.</td>
+        <td class="isi">
+            Perjanjian ini berlaku efektif sejak ditandatangani oleh <strong>PARA PIHAK</strong> dan akan
+            berakhir setelah Pekerjaan dan kewajiban-kewajiban diselesaikan seluruhnya, serta hak-hak
+            diperoleh oleh <strong>PARA PIHAK</strong> (selanjutnya disebut sebagai
+            &ldquo;<strong>Jangka Waktu Perjanjian</strong>&rdquo;).
+        </td>
+    </tr>
+    <tr>
+        <td class="no">{{ $next() }}.</td>
+        <td class="isi">
+            <strong>PARA PIHAK</strong> sepakat apabila terdapat perubahan dalam Jangka Waktu Perjanjian,
+            maka akan diatur dalam Addendum Perjanjian yang disepakati dan ditandatangani oleh
+            <strong>PARA PIHAK</strong> di kemudian hari.
+        </td>
+    </tr>
+    @if ($aktif('eksklusivitas'))
+        <tr>
+            <td class="no">{{ $next() }}.</td>
+            <td class="isi">{!! $klausul('eksklusivitas') !!}</td>
+        </tr>
+    @endif
+</table>
 
-        @if($spk->sow_disepakati)
-        <div class="mt4">
-            <strong>Scope of Work yang Disepakati / Agreed Scope of Work:</strong>
-        </div>
-        <table class="sow-table">
-            <thead>
-                <tr>
-                    <th style="width: 5%;">No</th>
-                    <th>Deliverable / Kewajiban</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach(array_filter(explode("\n", trim($spk->sow_disepakati))) as $i => $item)
-                <tr>
-                    <td style="text-align:center;">{{ $i + 1 }}</td>
-                    <td>{{ trim($item) }}</td>
-                </tr>
-                @endforeach
-            </tbody>
-        </table>
-        @endif
-    </div>
+{{-- ══════════ PASAL 3 ══════════ --}}
+<div class="pasal-head">
+    <div>PASAL 3</div>
+    <div>PEMBAYARAN</div>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════
-     PASAL 2 – TANGGUNG JAWAB
-════════════════════════════════════════════════════════ -->
-<div class="article">
-    <div class="article-header">
-        Pasal 2 – Tanggung Jawab Para Pihak
-        <span class="en">/ Article 2 – Responsibilities</span>
-    </div>
-    <div class="article-body">
-        <table class="bilingual-row">
-            <tr>
-                <td class="col-id">
-                    <span class="lang-badge lang-id">ID</span>
-                    <ol class="contract-list">
-                        <li>Pihak A wajib memberikan brief kampanye, aset kreatif, dan arahan konten secara tepat waktu.</li>
-                        <li>Pihak B wajib memproduksi dan mempublikasikan konten sesuai brief dan timeline yang telah disepakati.</li>
-                        <li>Pihak B wajib memberikan laporan tayang (screenshot/link) kepada Pihak A selambat-lambatnya H+3 setelah konten diterbitkan.</li>
-                        <li>Para Pihak wajib mematuhi ketentuan hukum dan peraturan yang berlaku.</li>
-                    </ol>
-                </td>
-                <td class="col-en">
-                    <span class="lang-badge lang-en">EN</span>
-                    <ol class="contract-list">
-                        <li>Party A shall provide campaign briefs, creative assets, and content guidelines in a timely manner.</li>
-                        <li>Party B shall produce and publish content in accordance with the agreed brief and timeline.</li>
-                        <li>Party B shall submit a posting report (screenshot/link) to Party A no later than D+3 after content is published.</li>
-                        <li>Both Parties shall comply with all applicable laws and regulations.</li>
-                    </ol>
-                </td>
-            </tr>
-        </table>
-    </div>
-</div>
-
-<!-- ═══════════════════════════════════════════════════════
-     PASAL 3 – JANGKA WAKTU
-════════════════════════════════════════════════════════ -->
-<div class="article">
-    <div class="article-header">
-        Pasal 3 – Jangka Waktu Perjanjian
-        <span class="en">/ Article 3 – Term of Agreement</span>
-    </div>
-    <div class="article-body">
-        <table class="bilingual-row">
-            <tr>
-                <td class="col-id">
-                    <span class="lang-badge lang-id">ID</span>
-                    Perjanjian ini berlaku selama periode kampanye
-                    <strong>{{ $spk->timeline_kerja_sama ?? '-' }}</strong>.
-                    Apabila dibutuhkan perpanjangan, Para Pihak wajib menyepakatinya secara tertulis
-                    paling lambat 3 hari sebelum berakhirnya perjanjian.
-                </td>
-                <td class="col-en">
-                    <span class="lang-badge lang-en">EN</span>
-                    This Agreement is valid for the campaign period of
-                    <strong>{{ $spk->timeline_kerja_sama ?? '-' }}</strong>.
-                    Any extension requires written mutual consent at least 3 days prior to expiry.
-                </td>
-            </tr>
-        </table>
-    </div>
-</div>
-
-<!-- ═══════════════════════════════════════════════════════
-     PASAL 4 – HARGA & PEMBAYARAN
-════════════════════════════════════════════════════════ -->
-<div class="article">
-    <div class="article-header">
-        Pasal 4 – Harga dan Pembayaran
-        <span class="en">/ Article 4 – Fee and Payment</span>
-    </div>
-    <div class="article-body">
-        <!-- Nominal -->
-        <table class="payment-table mb4">
-            <tr>
-                <td class="lbl">Nominal Kesepakatan / Agreed Fee</td>
-                <td>
-                    <strong class="highlight">{{ $spk->getFormattedNominalAttribute() }}</strong>
-                </td>
-            </tr>
-            @if($spk->nominal_terbilang)
-            <tr>
-                <td class="lbl">Terbilang / In Words</td>
-                <td><em>{{ $spk->nominal_terbilang }}</em></td>
-            </tr>
-            @endif
-            @if($spk->termin_pembayaran_1)
-            <tr>
-                <td class="lbl">Termin 1 / Payment 1</td>
-                <td>{{ $spk->termin_pembayaran_1 }}</td>
-            </tr>
-            @endif
-            @if($spk->termin_pembayaran_2)
-            <tr>
-                <td class="lbl">Termin 2 / Payment 2</td>
-                <td>{{ $spk->termin_pembayaran_2 }}</td>
-            </tr>
-            @endif
-        </table>
-
-        <!-- Bank Info -->
-        @if($spk->nomor_rekening || $spk->nama_bank)
-        <div class="bank-box">
-            <div class="bank-title">Transfer ke / Transfer to:</div>
-            <table class="bank-detail-table">
-                @if($spk->nama_bank)
+@php $reset(); @endphp
+<table class="ayat">
+    <tr>
+        <td class="no">{{ $next() }}.</td>
+        <td class="isi">
+            Perjanjian mengenai harga kesepakatan bersifat pribadi dan rahasia.
+            <strong>PIHAK PERTAMA</strong> dan <strong>PIHAK KEDUA</strong> tidak diperbolehkan
+            membicarakan hal ini kepada pihak yang tidak bersangkutan.
+        </td>
+    </tr>
+    <tr>
+        <td class="no">{{ $next() }}.</td>
+        <td class="isi">
+            <strong>PIHAK KEDUA</strong> dapat menjalankan tugas-tugas dan tanggung jawab lainnya sesuai
+            dengan Pasal 1 yang diberikan oleh <strong>PIHAK PERTAMA</strong> sesuai kebutuhan yang
+            disepakati adalah sebesar <strong>{{ $nominal }}
+            ({{ $spk->nominal_terbilang ?: \App\Models\BvSPK::terbilang((float) $spk->nominal_kesepakatan) }})</strong>{{ $aktif('pajak') ? ' di luar pajak' : '' }}.
+        </td>
+    </tr>
+    <tr>
+        <td class="no">{{ $next() }}.</td>
+        <td class="isi">
+            Menyetujui pembayaran Imbal Jasa Kerja Sama akan ditransfer ke rekening:
+            <table class="rekening">
                 <tr>
-                    <td class="lbl">Bank</td>
-                    <td>: <strong>{{ $spk->nama_bank }}</strong>
-                        @if($spk->kantor_cabang_bank) – {{ $spk->kantor_cabang_bank }} @endif
-                    </td>
+                    <td class="label">Atas Nama</td>
+                    <td class="sep">:</td>
+                    <td>{{ $spk->atas_nama_rekening ?: '—' }}</td>
                 </tr>
-                @endif
-                @if($spk->nomor_rekening)
                 <tr>
-                    <td class="lbl">No. Rekening</td>
-                    <td>: <strong>{{ $spk->nomor_rekening }}</strong></td>
+                    <td class="label">Nomor Rekening</td>
+                    <td class="sep">:</td>
+                    <td>{{ $spk->nomor_rekening ?: '—' }}</td>
                 </tr>
-                @endif
-                @if($spk->atas_nama_rekening)
                 <tr>
-                    <td class="lbl">Atas Nama</td>
-                    <td>: {{ $spk->atas_nama_rekening }}</td>
+                    <td class="label">Bank</td>
+                    <td class="sep">:</td>
+                    <td>{{ $spk->nama_bank ?: '—' }}</td>
                 </tr>
-                @endif
+                <tr>
+                    <td class="label">Kantor Cabang</td>
+                    <td class="sep">:</td>
+                    <td>{{ $spk->kantor_cabang_bank ?: '-' }}</td>
+                </tr>
             </table>
-        </div>
-        @endif
-    </div>
+        </td>
+    </tr>
+    <tr>
+        <td class="no">{{ $next() }}.</td>
+        <td class="isi">
+            Waktu dan cara pembayaran seperti terlampir :
+            <div class="indent-2">a.&nbsp;&nbsp;&nbsp;Termin Pembayaran 1 : {{ $spk->termin_pembayaran_1 ?: \App\Models\BvSPK::TERMIN_1_DEFAULT }}</div>
+            @if(filled($spk->termin_pembayaran_2))
+                <div class="indent-2">b.&nbsp;&nbsp;&nbsp;Termin Pembayaran 2 : {{ $spk->termin_pembayaran_2 }}</div>
+            @endif
+        </td>
+    </tr>
+</table>
+
+@if ($aktif('pajak'))
+    <p>{!! $klausul('pajak') !!}</p>
+@endif
+
+{{-- ══════════ PASAL 4 ══════════ --}}
+{{-- Judulnya di draft tertulis "SANKSI-SANKSI DAN PENGAKHIRAN PERJANJIAN" — sama
+     persis dengan pasal berikutnya, padahal isinya kerahasiaan. Ikut diperbaiki. --}}
+<div class="pasal-head">
+    <div>PASAL 4</div>
+    <div>KERAHASIAAN</div>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════
-     PASAL 5 – KEKAYAAN INTELEKTUAL
-════════════════════════════════════════════════════════ -->
-<div class="article">
-    <div class="article-header">
-        Pasal 5 – Penggunaan Kekayaan Intelektual
-        <span class="en">/ Article 5 – Intellectual Property</span>
-    </div>
-    <div class="article-body">
-        <table class="bilingual-row">
-            <tr>
-                <td class="col-id">
-                    <span class="lang-badge lang-id">ID</span>
-                    Seluruh konten yang dipublikasikan oleh Pihak B dalam rangka kampanye ini dapat digunakan
-                    kembali oleh Pihak A untuk keperluan promosi selama 12 bulan sejak tanggal tayang,
-                    kecuali disepakati lain secara tertulis. Perjanjian ini tidak memindahkan hak kekayaan
-                    intelektual lainnya tanpa kesepakatan tertulis.
-                </td>
-                <td class="col-en">
-                    <span class="lang-badge lang-en">EN</span>
-                    All content published by Party B under this campaign may be repurposed by Party A
-                    for promotional use for 12 months from the posting date, unless otherwise agreed in
-                    writing. This Agreement does not transfer any other intellectual property rights without
-                    written consent.
-                </td>
-            </tr>
-        </table>
-    </div>
+@php $reset(); @endphp
+<table class="ayat">
+    <tr>
+        <td class="no">{{ $next() }}.</td>
+        <td class="isi">
+            <strong>PARA PIHAK</strong> setuju untuk tidak memberitahukan kepada pihak manapun juga atas
+            seluruh informasi baik lisan maupun tertulis dan/atau data, dokumen yang diperoleh dari
+            pelaksanaan Perjanjian ini, termasuk tetapi tidak terbatas pada besarnya Honorarium yang
+            diterima <strong>PIHAK KEDUA</strong>, baik selama Perjanjian ini berlangsung maupun setelah
+            berakhir.
+        </td>
+    </tr>
+    <tr>
+        <td class="no">{{ $next() }}.</td>
+        <td class="isi">
+            <strong>PARA PIHAK</strong> sepakat bahwa seluruh isi Perjanjian ini harus diperlakukan secara
+            rahasia sehingga tidak ada satu pun informasi sehubungan dengan Perjanjian ini dapat
+            diberitahukan oleh salah satu <strong>PIHAK</strong> kepada pihak ketiga tanpa terlebih dahulu
+            mendapat izin tertulis dari <strong>PIHAK</strong> lainnya, kecuali yang merupakan keharusan
+            dalam rangka pelaksanaan Perjanjian ini atau disyaratkan oleh peraturan yang berlaku.
+        </td>
+    </tr>
+    <tr>
+        <td class="no">{{ $next() }}.</td>
+        <td class="isi">
+            Ketentuan Pasal ini tidak berlaku terhadap :
+            <div class="indent">a. informasi yang sudah dimiliki atau sebelumnya telah diketahui oleh pihak penerima informasi pada saat pihak tersebut menerima informasi tersebut dari pihak yang memberikan informasi;</div>
+            <div class="indent">b. informasi yang sudah menjadi milik umum (<em>public domain</em>);</div>
+            <div class="indent">c. informasi tersebut dikembangkan secara independen oleh pihak ketiga tanpa melanggar ketentuan Perjanjian ini; atau d. informasi diminta untuk dibuka karena persyaratan hukum.</div>
+        </td>
+    </tr>
+</table>
+
+{{-- ══════════ PASAL 5 ══════════ --}}
+<div class="pasal-head">
+    <div>PASAL 5</div>
+    <div>SANKSI-SANKSI DAN PENGAKHIRAN PERJANJIAN</div>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════
-     PASAL 6 – KERAHASIAAN
-════════════════════════════════════════════════════════ -->
-<div class="article">
-    <div class="article-header">
-        Pasal 6 – Kerahasiaan
-        <span class="en">/ Article 6 – Confidentiality</span>
-    </div>
-    <div class="article-body">
-        <table class="bilingual-row">
-            <tr>
-                <td class="col-id">
-                    <span class="lang-badge lang-id">ID</span>
-                    Para Pihak sepakat untuk menjaga kerahasiaan seluruh informasi yang dipertukarkan
-                    sehubungan dengan Perjanjian ini. Kewajiban ini tetap berlaku meskipun Perjanjian
-                    telah berakhir. Pihak B dilarang mengungkapkan informasi strategis, materi promosi,
-                    dan produk yang belum diluncurkan ke publik.
-                </td>
-                <td class="col-en">
-                    <span class="lang-badge lang-en">EN</span>
-                    Both Parties agree to maintain strict confidentiality of all information exchanged
-                    in connection with this Agreement. This obligation survives termination. Party B
-                    shall not disclose strategic information, promotional materials, or unreleased products.
-                </td>
-            </tr>
-        </table>
-    </div>
-</div>
-
-<!-- ═══════════════════════════════════════════════════════
-     PASAL 7 – PENGAKHIRAN & FORCE MAJEURE
-════════════════════════════════════════════════════════ -->
-<div class="article">
-    <div class="article-header">
-        Pasal 7 – Pengakhiran & Force Majeure
-        <span class="en">/ Article 7 – Termination & Force Majeure</span>
-    </div>
-    <div class="article-body">
-        <table class="bilingual-row">
-            <tr>
-                <td class="col-id">
-                    <span class="lang-badge lang-id">ID</span>
-                    <ol class="contract-list">
-                        <li>Perjanjian ini tidak dapat diakhiri secara sepihak tanpa persetujuan tertulis pihak lainnya.</li>
-                        <li>Pengakhiran sepihak (di luar force majeure) mewajibkan pihak yang mengakhiri memberikan kompensasi sebesar nilai yang disepakati bersama.</li>
-                        <li>Force Majeure meliputi bencana alam, wabah penyakit, peperangan, kerusuhan sipil, atau perubahan kebijakan pemerintah yang berada di luar kendali Para Pihak.</li>
-                    </ol>
-                </td>
-                <td class="col-en">
-                    <span class="lang-badge lang-en">EN</span>
-                    <ol class="contract-list">
-                        <li>This Agreement may not be unilaterally terminated without the other Party's written consent.</li>
-                        <li>Unilateral termination (except force majeure) obliges the terminating Party to compensate the other in a mutually agreed amount.</li>
-                        <li>Force Majeure includes natural disasters, epidemics, wars, civil unrest, or government policy changes beyond the Parties' control.</li>
-                    </ol>
-                </td>
-            </tr>
-        </table>
-    </div>
-</div>
-
-<!-- ═══════════════════════════════════════════════════════
-     PASAL 8 – PENYELESAIAN SENGKETA
-════════════════════════════════════════════════════════ -->
-<div class="article">
-    <div class="article-header">
-        Pasal 8 – Penyelesaian Sengketa
-        <span class="en">/ Article 8 – Dispute Resolution</span>
-    </div>
-    <div class="article-body">
-        <table class="bilingual-row">
-            <tr>
-                <td class="col-id">
-                    <span class="lang-badge lang-id">ID</span>
-                    Sengketa diselesaikan secara musyawarah. Jika gagal, Para Pihak menunjuk Mediator
-                    bersertifikat (terdaftar di Mahkamah Agung RI). Apabila mediasi tidak berhasil,
-                    sengketa diselesaikan di Pengadilan Negeri Jakarta Selatan.
-                </td>
-                <td class="col-en">
-                    <span class="lang-badge lang-en">EN</span>
-                    Disputes shall first be resolved amicably. If unsuccessful, the Parties shall appoint
-                    a certified Mediator (registered with the Supreme Court of Indonesia). Unresolved
-                    disputes shall be settled under the jurisdiction of the South Jakarta District Court.
-                </td>
-            </tr>
-        </table>
-    </div>
-</div>
-
-<!-- ═══════════════════════════════════════════════════════
-     PASAL 9 – PENUTUP
-════════════════════════════════════════════════════════ -->
-<div class="article">
-    <div class="article-header">
-        Pasal 9 – Penutup
-        <span class="en">/ Article 9 – Closing</span>
-    </div>
-    <div class="article-body">
-        <table class="bilingual-row">
-            <tr>
-                <td class="col-id">
-                    <span class="lang-badge lang-id">ID</span>
-                    Perjanjian ini dibuat dalam dua (2) rangkap asli, masing-masing dibubuhi materai
-                    yang cukup dan memiliki kekuatan hukum yang sama, serta dipahami dan dilaksanakan
-                    oleh Para Pihak tanpa paksaan dari pihak mana pun. Hal-hal yang belum diatur
-                    akan disepakati secara tertulis.
-                </td>
-                <td class="col-en">
-                    <span class="lang-badge lang-en">EN</span>
-                    This Agreement is made in two (2) original copies, each bearing adequate duty stamps
-                    and having equal legal force, to be fully understood and executed by the Parties
-                    without coercion. Any unaddressed matters shall be agreed upon in writing.
-                </td>
-            </tr>
-        </table>
-    </div>
-</div>
-
-<!-- ═══════════════════════════════════════════════════════
-     SIGNATURE SECTION
-════════════════════════════════════════════════════════ -->
-<div class="signature-section">
-    <div class="signature-title">
-        Ditandatangani pada / Signed on: <strong>{{ $tanggalId }}</strong> / <strong>{{ $tanggalEn }}</strong>
-    </div>
-    <table class="signature-table">
+@php $reset(); @endphp
+<table class="ayat">
+    <tr>
+        <td class="no">{{ $next() }}.</td>
+        <td class="isi">
+            Apabila <strong>PIHAK KEDUA</strong> membatalkan/memutuskan Perjanjian yang masih berlangsung
+            secara sepihak, maka <strong>PIHAK KEDUA</strong> diwajibkan membayar ganti rugi sebesar jumlah
+            Honorarium yang telah diterima dan biaya pelaksanaan pekerjaan lainnya atas kerugian yang
+            dialami oleh <strong>PIHAK PERTAMA</strong>.
+        </td>
+    </tr>
+    <tr>
+        <td class="no">{{ $next() }}.</td>
+        <td class="isi">
+            Apabila <strong>PIHAK PERTAMA</strong> membatalkan/memutuskan Perjanjian yang masih berlangsung
+            secara sepihak, maka <strong>PIHAK PERTAMA</strong> berkewajiban membayarkan ganti rugi kepada
+            <strong>PIHAK KEDUA</strong> sesuai dengan <em>progress</em> pekerjaan yang telah dikerjakan
+            oleh <strong>PIHAK KEDUA</strong> atas kesepakatan <strong>PARA PIHAK</strong>.
+        </td>
+    </tr>
+    @if ($aktif('napza'))
         <tr>
-            <!-- Pihak A -->
-            <td>
-                <div class="sig-box">
-                    <div class="sig-party-label">Pihak A / Party A</div>
-                    <div class="sig-party-name">PT Bisa Viral Butuh Usaha</div>
-                    <div class="sig-party-role">KOL Agency</div>
-                    <div class="sig-stamp-area"></div>
-                    <div class="sig-name-line">Gerry Hutomo</div>
-                    <div class="sig-role-line">Direktur / Director</div>
-                </div>
-            </td>
-            <!-- Pihak B -->
-            <td>
-                <div class="sig-box">
-                    <div class="sig-party-label">Pihak B / Party B</div>
-                    <div class="sig-party-name">{{ $spk->pihak_kedua_nama_lengkap ?? '-' }}</div>
-                    @if($spk->pihak_kedua_nama_akun)
-                    <div class="sig-party-role">{{ $spk->pihak_kedua_nama_akun }}</div>
-                    @else
-                    <div class="sig-party-role">Content Creator / KOL</div>
+            <td class="no">{{ $next() }}.</td>
+            <td class="isi">{!! $klausul('napza') !!}</td>
+        </tr>
+    @endif
+    <tr>
+        <td class="no">{{ $next() }}.</td>
+        <td class="isi">
+            Apabila selama Jangka Waktu Perjanjian salah satu <strong>PIHAK</strong> melanggar Perjanjian,
+            maka <strong>PIHAK</strong> yang dirugikan berhak memberikan teguran baik secara tulisan berupa
+            surat peringatan dan/atau teguran secara lisan untuk memperbaiki pelanggaran dalam kurun waktu
+            selambat-lambatnya 14 (empat belas) hari kalender ke keadaan semula.
+        </td>
+    </tr>
+    @if ($aktif('denda'))
+        <tr>
+            <td class="no">{{ $next() }}.</td>
+            <td class="isi">{!! $klausul('denda') !!}</td>
+        </tr>
+    @endif
+    <tr>
+        <td class="no">{{ $next() }}.</td>
+        <td class="isi">
+            Apabila terdapat perubahan nama akun media sosial dari setiap <strong>KOL</strong> dan/atau
+            berpindah tangan kepada pihak lain, maka <strong>PIHAK KEDUA</strong> wajib memberitahukan
+            informasi dan tersebut kepada <strong>PIHAK PERTAMA</strong>, apabila tidak dilakukan maka
+            <strong>PIHAK KEDUA</strong> wajib bertanggungjawab atas segala kerugian yang timbul.
+        </td>
+    </tr>
+    <tr>
+        <td class="no">{{ $next() }}.</td>
+        <td class="isi">
+            Perjanjian ini akan berakhir apabila salah satu hal dibawah ini terjadi :
+            <div class="indent">a. Berakhirnya Jangka Waktu Perjanjian sebagaimana ditentukan di dalam Pasal 2 Perjanjian ini; atau</div>
+            <div class="indent">b. Berdasarkan kesepakatan tertulis <strong>PARA PIHAK</strong> pada setiap saat; atau</div>
+            <div class="indent">c. Atas permintaan salah satu <strong>PIHAK</strong>, apabila <strong>PIHAK</strong> lainnya tidak melaksanakan kewajiban-kewajibannya sesuai dengan ketentuan dalam Perjanjian ini dan kewajiban tersebut tetap tidak dipenuhi sejak adanya permintaan pemenuhan kewajiban dari <strong>PIHAK</strong> lainnya tersebut.</div>
+        </td>
+    </tr>
+</table>
+
+{{-- ══════════ PASAL 6 ══════════ --}}
+<div class="pasal-head">
+    <div>PASAL 6</div>
+    <div>HUKUM YANG BERLAKU DAN PENYELESAIAN</div>
+    <div>PERMASALAHAN.</div>
+</div>
+
+@php $reset(); @endphp
+<table class="ayat">
+    <tr>
+        <td class="no">{{ $next() }}.</td>
+        <td class="isi">
+            <strong>PARA PIHAK</strong> sepakat bahwa Perjanjian dan pelaksanaanya tunduk dan ditafsirkan
+            sesuai dengan ketentuan hukum Negara Republik Indonesia.
+        </td>
+    </tr>
+    <tr>
+        <td class="no">{{ $next() }}.</td>
+        <td class="isi">
+            Apabila terjadi perselisihan dan perbedaan penafsiran dalam pelaksanaan Perjanjian ini, maka
+            <strong>PARA PIHAK</strong> sepakat akan menyelesaikan perselisihan tersebut secara
+            kekeluargaan melalui musyawarah mufakat.
+        </td>
+    </tr>
+    <tr>
+        <td class="no">{{ $next() }}.</td>
+        <td class="isi">
+            Bilamana terjadi perselisihan dalam hal pelaksanaan Perjanjian ini dan tidak dapat diselesaikan
+            dengan jalan musyawarah dalam waktu 30 (tiga puluh) hari sejak timbulnya perselisihan tersebut,
+            maka <strong>PARA PIHAK</strong> sepakat memilih tempat kediaman hukum yang tetap dan se umum
+            nya di kantor Kepaniteraan Pengadilan Negeri Jakarta Selatan.
+        </td>
+    </tr>
+    <tr>
+        <td class="no">{{ $next() }}.</td>
+        <td class="isi">
+            <strong>PARA PIHAK</strong> Menyetujui selama berlangsungnya kerjasama akan membuat unggahan
+            yang tidak melanggar etika dan tidak melanggar ketentuan hukum yang berlaku.
+        </td>
+    </tr>
+</table>
+
+{{-- ══════════ PASAL 7 — hanya muncul bila ada add-on ══════════ --}}
+@if ($addons)
+    <div class="pasal-head">
+        <div>PASAL 7</div>
+        <div>KETENTUAN TAMBAHAN</div>
+    </div>
+
+    @php $reset(); @endphp
+    <table class="ayat">
+        @foreach ($addons as $addon)
+            <tr>
+                <td class="no">{{ $next() }}.</td>
+                <td class="isi">
+                    @if ($addon['title'] !== '')
+                        <strong>{{ $addon['title'] }}.</strong>
                     @endif
-                    <div class="sig-stamp-area"></div>
-                    <div class="sig-name-line">{{ $spk->pihak_kedua_nama_lengkap ?? '___________________' }}</div>
-                    <div class="sig-role-line">Content Creator / KOL</div>
-                </div>
+                    {{ $addon['text'] }}
+                </td>
+            </tr>
+        @endforeach
+    </table>
+@endif
+
+<div class="avoid-break">
+    <p style="margin-top: 4mm;">
+        Demikian Perjanjian ini dibuat atas persetujuan bersama dan ditandatangani oleh Para Pihak pada
+        tanggal sebagaimana tercantum pada awal naskah Perjanjian ini, dibuat dalam dua rangkap yang
+        masing-masing memiliki kekuatan hukum yang sama.
+    </p>
+
+    <table class="ttd">
+        <tr>
+            <td class="peran">Pihak Pertama</td>
+            <td class="peran">Pihak Kedua</td>
+        </tr>
+        <tr>
+            <td class="ttd-area">&nbsp;</td>
+            <td class="ttd-area">
+                @if(!empty($signatureBase64))
+                    <img src="{{ $signatureBase64 }}" alt="Tanda tangan {{ $spk->pihak_kedua_nama_lengkap }}">
+                @endif
             </td>
         </tr>
+        <tr>
+            <td class="nama">{{ $pertama['nama'] }}</td>
+            <td class="nama">{{ $spk->pihak_kedua_nama_lengkap ?: '—' }}</td>
+        </tr>
     </table>
-</div>
 
-<!-- ═══════════════════════════════════════════════════════
-     FOOTER
-════════════════════════════════════════════════════════ -->
-<div class="doc-footer">
-    Dokumen ini digenerate otomatis oleh sistem Beyond Viral &nbsp;|&nbsp;
-    Generated: {{ $generatedAt }} &nbsp;|&nbsp;
-    No. SPK: {{ $spk->spk_number }}
+    @if($spk->signed_at)
+        @php
+            // translatedFormat ikut app.locale (masih 'en'), jadi pakai peta bulan
+            // yang sama dengan tanggal perjanjian di atas supaya konsisten Indonesia.
+            $ttd = $spk->signed_at;
+            $tanggalTtd = $ttd->day . ' ' . \App\Models\BvSPK::MONTHS_ID[$ttd->month] . ' ' . $ttd->year
+                . ', ' . $ttd->format('H:i');
+        @endphp
+        <p class="esign-note">
+            Ditandatangani secara elektronik oleh {{ $spk->pihak_kedua_nama_lengkap }} pada
+            {{ $tanggalTtd }} WIB{{ $spk->signed_ip ? ' (IP ' . $spk->signed_ip . ')' : '' }}.
+            Dokumen ini sah tanpa tanda tangan basah.
+        </p>
+    @endif
 </div>
 
 </body>

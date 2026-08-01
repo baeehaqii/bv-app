@@ -74,12 +74,12 @@
                 <div>
                     <label class="block text-xs font-medium text-gray-600 mb-1">Nama Penanda Tangan *</label>
                     <input type="text" name="name" required value="{{ old('name', $quotation->client_name) }}"
-                           class="w-full text-sm rounded-lg border border-gray-200 px-3 py-2 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400 outline-none">
+                           class="bv-input w-full text-sm rounded-lg border border-gray-200 px-3 py-2 outline-none">
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-gray-600 mb-1">Jabatan</label>
                     <input type="text" name="job_title" value="{{ old('job_title') }}" placeholder="Mis. Marketing Manager"
-                           class="w-full text-sm rounded-lg border border-gray-200 px-3 py-2 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400 outline-none">
+                           class="bv-input w-full text-sm rounded-lg border border-gray-200 px-3 py-2 outline-none">
                 </div>
             </div>
 
@@ -100,8 +100,7 @@
             </label>
 
             <div class="mt-5 flex justify-end">
-                <button type="submit"
-                        class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl px-6 py-3 transition shadow-sm">
+                <button type="submit" class="bv-btn inline-flex items-center gap-2 text-sm">
                     Setuju & Tanda Tangani
                 </button>
             </div>

@@ -119,29 +119,43 @@ class TiktokService
     protected function getUserVideos(string $username, int $amount = 9): array
     {
         try {
+            // Path benar per docs: /v3/tiktok/profile/videos (BUKAN "profile-videos",
+            // yang selalu 404 dan membuat semua scraping TikTok jatuh ke estimasi).
+            // `amount` bukan parameter yang didukung — pembatasan dilakukan di sini.
             $response = Http::withHeaders([
                 'x-api-key' => $this->apiKey,
-            ])->get("https://api.scrapecreators.com/v3/tiktok/profile-videos", [
+            ])->get("https://api.scrapecreators.com/v3/tiktok/profile/videos", [
                         'handle' => $username,
-                        'amount' => $amount,
                         'sort_by' => 'latest',
                     ]);
 
             if (!$response->successful()) {
-                Log::warning('Instagram Videos API Error', [
+                Log::warning('TikTok Videos API Error', [
                     'status' => $response->status(),
                     'username' => $username,
+                    'body' => $response->body(),
                 ]);
                 return [];
             }
 
-            $videos = $response->json();
+            // Respons berupa objek {success, aweme_list: [...], max_cursor, ...},
+            // bukan array video telanjang.
+            $videos = $response->json('aweme_list');
 
             if (!is_array($videos)) {
+                Log::warning('TikTok Videos API: aweme_list kosong / bukan array', [
+                    'username' => $username,
+                    'keys' => array_keys((array) $response->json()),
+                ]);
                 return [];
             }
 
-            return $videos;
+            Log::info('🎬 TikTok Videos Fetched', [
+                'username' => $username,
+                'count' => count($videos),
+            ]);
+
+            return array_slice($videos, 0, $amount);
 
         } catch (Exception $e) {
             Log::warning('Failed to fetch user videos', [

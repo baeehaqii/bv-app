@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\DataKols\Schemas;
 
 use Filament\Schemas\Schema;
+use App\Filament\Resources\DataKols\Actions\AddChannelAction;
 use App\Service\InstagramService;
 use App\Service\TiktokService;
 use App\Service\YoutubeChannelsService;
@@ -179,6 +180,10 @@ class DataKolForm
                         ? "Social Media Data - @{$username}"
                         : 'Social Media Data')
                     ->columnSpanFull()
+                    // Jangan tambahkan ->key() di sini: itu mem-prefix nama field anaknya
+                    // dan memecah assertFormFieldIsHidden() di DataKolEditHiddenFieldsTest.
+                    // Hanya di edit: butuh $record untuk tahu channel ini digabung ke KOL mana.
+                    ->afterHeader(fn($record) => $record ? [AddChannelAction::make()] : [])
                     ->schema([
                         Select::make('channel')
                             ->label('Channel')
@@ -425,7 +430,8 @@ class DataKolForm
                         // 1 KOL bisa punya beberapa channel (1 baris DataKol per channel).
                         // Tampilkan hasil scraping seluruh channel-nya + kartu KOL per channel.
                         Placeholder::make('channel_data')
-                            ->label('Data Per Channel')
+                            // Judul section sudah "Social Media Data - @username".
+                            ->hiddenLabel()
                             ->columnSpanFull()
                             ->visible(fn($record) => $record !== null)
                             ->content(fn($record) => view('filament.data-kols.channel-data', [
@@ -436,26 +442,43 @@ class DataKolForm
 
                 $rateCardSection,
 
-                Section::make('Additional Info')
+                // Section "Additional Info" dihapus: isinya (nama PIC, email, WA, contact
+                // legacy, terakhir update, notes) semuanya hasil scraping, jadi cuma perlu
+                // dilihat — sekarang tampil di modal ikon mata pada tabel per-channel.
+
+                // Dipakai sebagai PIHAK KEDUA saat SPK diterbitkan dari KOL approved.
+                // Kalau kosong, SPK tetap terbit tapi field ini harus diisi manual.
+                Section::make('Data Legal & Rekening (untuk SPK)')
+                    ->description('Sumber data PIHAK KEDUA & rekening transfer di Surat Perjanjian Kerja Sama.')
                     ->columnSpanFull()
                     ->schema([
-                        TextInput::make('full_name')
-                            ->label('Nama Lengkap PIC')
-                            ->placeholder('Nama lengkap PIC / penanggung jawab KOL')
-                            ->prefixIcon('heroicon-o-user'),
+                        TextInput::make('nik')
+                            ->label('NIK')
+                            ->placeholder('16 digit sesuai KTP')
+                            ->maxLength(32)
+                            ->prefixIcon('heroicon-o-identification'),
 
-                        TextInput::make('email')
-                            ->label('Email')
-                            ->email()
-                            ->placeholder('email@example.com')
-                            ->prefixIcon('heroicon-o-envelope'),
+                        TextInput::make('bank_account_name')
+                            ->label('Atas Nama Rekening')
+                            ->placeholder('Sesuai buku tabungan')
+                            ->prefixIcon('heroicon-o-user-circle'),
 
-                        TextInput::make('wa_number')
-                            ->label('No WhatsApp')
-                            ->tel()
-                            ->placeholder('08xxxxxxxxxx')
-                            ->prefixIcon('heroicon-o-phone'),
+                        TextInput::make('bank_account_number')
+                            ->label('Nomor Rekening')
+                            ->maxLength(64)
+                            ->prefixIcon('heroicon-o-credit-card'),
 
+                        TextInput::make('bank_name')
+                            ->label('Bank')
+                            ->placeholder('mis. SeaBank, BCA')
+                            ->prefixIcon('heroicon-o-building-library'),
+
+                        TextInput::make('bank_branch')
+                            ->label('Kantor Cabang')
+                            ->placeholder('Kosongkan bila bank digital'),
+
+                        // Satu-satunya eks-field "Additional Info" yang diisi manusia,
+                        // dan memang dipakai menghitung potongan pajak di SPK.
                         Select::make('tipe_pajak_kol')
                             ->label('Golongan Pajak')
                             ->options(fn() => \App\Models\MasterPph::active()
@@ -470,20 +493,10 @@ class DataKolForm
                             ->placeholder('Pilih golongan pajak')
                             ->prefixIcon('heroicon-o-receipt-percent'),
 
-                        TextInput::make('contact')
-                            ->label('Contact (Legacy)')
-                            ->helperText('Field lama — gunakan Email & WA di atas')
-                            ->disabled()
-                            ->dehydrated()
-                            ->visible(fn($state) => !empty($state)),
-
-                        DatePicker::make('terakhir_update')
-                            ->label('Terakhir Update')
-                            ->default(now()),
-
-                        Textarea::make('notes')
-                            ->label('Notes')
-                            ->rows(5)
+                        Textarea::make('address')
+                            ->label('Alamat Lengkap')
+                            ->placeholder('Jalan, RT/RW, Kelurahan, Kecamatan, Kota, Provinsi')
+                            ->rows(3)
                             ->columnSpanFull(),
                     ])->columns(3),
             ]);

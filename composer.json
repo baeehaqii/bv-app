@@ -18,6 +18,7 @@
         "leandrocfe/filament-apex-charts": "^5.0",
         "livewire/volt": "^1.7.0",
         "maatwebsite/excel": "^3.1",
+        "phpoffice/phpspreadsheet": "^1.30",
         "relaticle/flowforge": "^4.0"
     },
     "require-dev": {

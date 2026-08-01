@@ -24,6 +24,28 @@ beforeEach(function () {
     Gate::before(fn () => true);
 });
 
+it('memindahkan Additional Info ke modal detail per channel', function () {
+    $kol = DataKol::create([
+        'channel' => 'Instagram',
+        'link_userprofile' => 'https://instagram.com/budi',
+        'username' => 'budi',
+        'followers' => 856870,
+        'full_name' => 'Budi PIC',
+        'email' => 'budi@example.test',
+        'wa_number' => '08123456789',
+        'notes' => "Bio: Halo saya Budi\nTier: Macro",
+    ]);
+
+    Livewire::test(EditDataKol::class, ['record' => $kol->getRouteKey()])
+        ->assertSee('Additional Info')
+        ->assertSee('Budi PIC')
+        ->assertSee('budi@example.test')
+        ->assertSee('08123456789')
+        // Baris statistik di notes dibuang, bio-nya tetap tampil.
+        ->assertSee('Bio: Halo saya Budi')
+        ->assertDontSee('Tier: Macro');
+});
+
 it('menyembunyikan field channel..tier di edit dan tidak mengosongkannya saat save', function () {
     $kol = DataKol::create([
         'channel' => 'Instagram',
@@ -48,12 +70,20 @@ it('menyembunyikan field channel..tier di edit dan tidak mengosongkannya saat sa
         ->assertFormFieldIsHidden('impressions')
         ->assertFormFieldIsHidden('followers')
         ->assertFormFieldIsHidden('tier')
-        ->fillForm(['full_name' => 'Budi Ganti'])
+        // full_name & kawan-kawannya ikut hilang bersama section "Additional Info";
+        // sekarang cuma tampil di modal detail. Yang tersisa untuk diketik manusia
+        // adalah data legal/rekening.
+        ->assertFormFieldDoesNotExist('full_name')
+        ->assertFormFieldDoesNotExist('notes')
+        ->assertFormFieldExists('tipe_pajak_kol')   // pindah ke section Data Legal
+        ->fillForm(['bank_name' => 'SeaBank'])
         ->call('save')
         ->assertHasNoFormErrors();
 
     expect($kol->refresh())
-        ->full_name->toBe('Budi Ganti')
+        ->bank_name->toBe('SeaBank')
+        // Tidak lagi ada di form → save tidak boleh mengosongkannya.
+        ->full_name->toBe('Budi PIC')
         ->channel->toBe('Instagram')
         ->username->toBe('budi')
         ->followers->toBe(856870)

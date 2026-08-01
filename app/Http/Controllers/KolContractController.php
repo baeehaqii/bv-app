@@ -9,41 +9,43 @@ use Illuminate\Http\Request;
 
 class KolContractController extends Controller
 {
-    private function getLogoBase64(): ?string
+    private static function getLogoBase64(): ?string
     {
-        $logoPath = public_path('images/logo-bv.png');
+        $logoPath = public_path('images/logo_bv.png');
         if (file_exists($logoPath)) {
             return 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath));
         }
         return null;
     }
 
-    private function prepareData(BvSPK $spk): array
+    /** Public & static supaya SpkPublicController (halaman e-sign) memakai data yang sama. */
+    public static function prepareData(BvSPK $spk): array
     {
         $tanggal = $spk->tanggal_perjanjian
             ? Carbon::parse($spk->tanggal_perjanjian)
             : Carbon::now();
 
-        $bulanId = [
-            1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
-            5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
-            9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember',
-        ];
-
-        $bulanEn = [
-            1 => 'January', 2 => 'February', 3 => 'March', 4 => 'April',
-            5 => 'May', 6 => 'June', 7 => 'July', 8 => 'August',
-            9 => 'September', 10 => 'October', 11 => 'November', 12 => 'December',
-        ];
-
         return [
-            'spk'            => $spk,
-            'client'         => $spk->client,
-            'tanggalId'      => $tanggal->day . ' ' . $bulanId[$tanggal->month] . ' ' . $tanggal->year,
-            'tanggalEn'      => $bulanEn[$tanggal->month] . ' ' . $tanggal->day . ', ' . $tanggal->year,
-            'logoBase64'     => $this->getLogoBase64(),
-            'generatedAt'    => Carbon::now()->format('d M Y H:i'),
+            'spk'        => $spk,
+            'client'     => $spk->client,
+            'tanggalId'  => $tanggal->day . ' ' . BvSPK::MONTHS_ID[$tanggal->month] . ' ' . $tanggal->year,
+            'logoBase64' => self::getLogoBase64(),
+            // dompdf tidak bisa memuat URL storage; gambar TTD harus di-inline base64.
+            'signatureBase64' => self::getSignatureBase64($spk),
         ];
+    }
+
+    private static function getSignatureBase64(BvSPK $spk): ?string
+    {
+        if (blank($spk->signature_path)) {
+            return null;
+        }
+
+        $disk = \Illuminate\Support\Facades\Storage::disk('public');
+
+        return $disk->exists($spk->signature_path)
+            ? 'data:image/png;base64,' . base64_encode($disk->get($spk->signature_path))
+            : null;
     }
 
     /**
@@ -51,7 +53,7 @@ class KolContractController extends Controller
      */
     public function download(BvSPK $spk)
     {
-        $data = $this->prepareData($spk);
+        $data = self::prepareData($spk);
 
         $pdf = Pdf::loadView('pdf.kol-contract', $data);
         $pdf->setPaper('a4', 'portrait');
@@ -67,7 +69,7 @@ class KolContractController extends Controller
      */
     public function preview(BvSPK $spk)
     {
-        $data = $this->prepareData($spk);
+        $data = self::prepareData($spk);
 
         $pdf = Pdf::loadView('pdf.kol-contract', $data);
         $pdf->setPaper('a4', 'portrait');
@@ -80,7 +82,7 @@ class KolContractController extends Controller
      */
     public function html(BvSPK $spk)
     {
-        $data = $this->prepareData($spk);
+        $data = self::prepareData($spk);
         return view('pdf.kol-contract', $data);
     }
 }

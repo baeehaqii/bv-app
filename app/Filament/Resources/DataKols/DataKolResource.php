@@ -58,7 +58,7 @@ class DataKolResource extends Resource
     public static function getRelations(): array
     {
         return [
-            //
+            RelationManagers\SpksRelationManager::class,
         ];
     }
 

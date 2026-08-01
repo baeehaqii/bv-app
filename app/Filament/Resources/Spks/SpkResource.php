@@ -24,11 +24,11 @@ class SpkResource extends Resource
 
     protected static ?int $navigationSort = 2;
 
-    protected static ?string $navigationLabel = 'Contract';
+    protected static ?string $navigationLabel = 'SPK KOL';
 
-    protected static ?string $modelLabel = 'Contract';
+    protected static ?string $modelLabel = 'SPK KOL';
 
-    protected static ?string $pluralModelLabel = 'Contracts';
+    protected static ?string $pluralModelLabel = 'SPK KOL';
 
     protected static ?string $slug = 'spk';
 

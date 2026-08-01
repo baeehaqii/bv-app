@@ -109,8 +109,14 @@ return [
 
         /**
          * Whether to enable font subsetting or not.
+         *
+         * WAJIB true sejak SPK memakai DejaVu Serif: tanpa subsetting dompdf
+         * menanamkan seluruh file font (Regular+Bold+Italic+BoldItalic) sehingga
+         * satu SPK jadi ~1,9 MB, padahal isinya cuma 5 halaman teks. Dengan
+         * subsetting hanya glyph yang terpakai ikut, ukurannya turun drastis.
+         * PDF lain (quotation) pakai Arial → base-14, tidak terpengaruh.
          */
-        'enable_font_subsetting' => false,
+        'enable_font_subsetting' => true,
 
         /**
          * The PDF rendering backend to use
