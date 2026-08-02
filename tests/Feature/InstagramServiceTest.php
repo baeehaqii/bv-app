@@ -61,12 +61,13 @@ it('meminta respons post yang sudah di-trim', function () {
 });
 
 it('membatasi jumlah post di sisi PHP, bukan mengandalkan server', function () {
-    // Server mengabaikan `count`, jadi kirim 20 post; hanya 9 yang boleh dipakai.
+    // Server mengabaikan `count`, jadi kirim 20 post; yang dipakai hanya sebanyak
+    // yang dibutuhkan KOL Analyzer (10 postingan terakhir).
     fakeInstagramApi(array_map(fn() => fakePost(1_000, 100, 50_000), range(1, 20)));
 
     $posts = (new InstagramService())->getUserPosts('radenrauf');
 
-    expect($posts)->toHaveCount(9);
+    expect($posts)->toHaveCount(\App\Service\KolPostNormalizer::LIMIT);
 });
 
 it('tetap menghitung engagement dari field yang selamat dari trim', function () {

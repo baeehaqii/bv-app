@@ -70,3 +70,9 @@ it('List & View Campaign Ongoing External ter-render (Tracker RelationManager)',
     $this->get('/office/campaign-ongoing-external')->assertSuccessful();
     $this->get("/office/campaign-ongoing-external/{$this->campaign->id}")->assertSuccessful();
 });
+
+it('menu KOL Area ter-render: KOL Data, KOL Analyzer, KOL SPK', function () {
+    $this->get('/office/data-kol')->assertSuccessful();
+    $this->get('/office/kol-analyzer')->assertSuccessful()->assertSee('Klik satu baris');
+    $this->get('/office/spk')->assertSuccessful();
+});

@@ -27,8 +27,64 @@ class CampaignKolPayment extends Model
     /** Status bayar berubah → arus kas ikut menyesuaikan (SAK: kas dicatat saat cair). */
     protected static function booted(): void
     {
+        static::updating(function (self $payment) {
+            // Sekali PAID, arus kasnya sudah diposting → status dikunci supaya
+            // posting kas tidak bisa dicabut diam-diam lewat form.
+            // Pembatalan sungguhan: jurnal koreksi di modul Cashflow, atau
+            // forceFill()->saveQuietly() dari tinker kalau memang salah input.
+            if ($payment->getOriginal('payment_status') === 'paid') {
+                $payment->payment_status = 'paid';
+            }
+        });
+
         static::saved(fn(self $payment) => $payment->syncCashflow());
         static::deleted(fn(self $payment) => BvCashflow::unpost($payment));
+    }
+
+    /**
+     * Isi form edit: nilai tersimpan, dengan field yang MASIH KOSONG diambil dari
+     * Database KOL. Baris lama (dibuat sebelum autofill ada) jadi ikut terisi begitu
+     * dibuka — user tidak perlu klik "Sync dari KOL" dulu, dan tidak perlu mengetik
+     * ulang data yang sudah ada di Database KOL.
+     */
+    public function formDefaults(): array
+    {
+        $data = $this->attributesToArray();
+        $profile = $this->campaign?->resolveKolProfileMap()[$this->kol_name] ?? [];
+
+        foreach ($profile as $field => $value) {
+            if (blank($data[$field] ?? null) && filled($value)) {
+                $data[$field] = $value;
+            }
+        }
+
+        return $data;
+    }
+
+    /** Status sudah terkunci (sudah PAID & terposting ke arus kas)? */
+    public function isPaymentLocked(): bool
+    {
+        return $this->payment_status === 'paid';
+    }
+
+    /**
+     * SPK KOL ini dari modul SPK KOL. Tidak disimpan sebagai FK: SPK biasanya
+     * dibuat SETELAH baris pembayaran ada, jadi FK hasil sync gampang basi.
+     * Dicocokkan lewat kunci unik SPK sendiri: (internal_budget_id, media_plan_kol_id).
+     */
+    public function resolveSpk(): ?BvSPK
+    {
+        return once(function () {
+            $budgetId = $this->campaign?->mediaPlan?->internalBudget?->id;
+
+            if (! $budgetId) {
+                return null;
+            }
+
+            return BvSPK::where('internal_budget_id', $budgetId)
+                ->whereHas('mediaPlanKol', fn($q) => $q->where('name', $this->kol_name))
+                ->first();
+        });
     }
 
     /**

@@ -16,7 +16,8 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Resources\RelationManagers\RelationManager;
-use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Wizard;
+use Filament\Schemas\Components\Wizard\Step;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\BadgeColumn;
 use Filament\Tables\Columns\TextColumn;
@@ -33,9 +34,25 @@ class StorylinesRelationManager extends RelationManager
 
     public function form(Schema $schema): Schema
     {
-        return $schema
-            ->components([
-                Grid::make(2)->schema([
+        return $schema->components([
+            Wizard::make($this->storylineSteps())->columnSpanFull(),
+        ]);
+    }
+
+    /**
+     * Langkah wizard Tambah/Edit Storyline. Dipakai dua kali: sebagai isi modal
+     * action (lewat ->steps()) dan sebagai fallback form() milik RelationManager.
+     *
+     * @return array<int, Step>
+     */
+    protected function storylineSteps(): array
+    {
+        return [
+            Step::make('KOL & SOW')
+                ->description('Pilih KOL yang di-approve client')
+                ->icon('heroicon-o-user')
+                ->columns(2)
+                ->schema([
                     // Hanya KOL yang sudah di-approve client (budget item approved).
                     Select::make('kol_name')
                         ->label('Nama KOL / Creator')
@@ -62,9 +79,7 @@ class StorylinesRelationManager extends RelationManager
                         ->label('Platform')
                         ->options(CampaignStoryline::PLATFORMS)
                         ->native(false),
-                ]),
 
-                Grid::make(2)->schema([
                     Select::make('sow')
                         ->label('SOW (Scope of Work)')
                         ->options(fn($livewire, callable $get) => $livewire->getOwnerRecord()->approvedSowOptions($get('kol_name')))
@@ -86,43 +101,49 @@ class StorylinesRelationManager extends RelationManager
                         ->displayFormat('d M Y'),
                 ]),
 
-                TextInput::make('content_angle')
-                    ->label('Content Angle')
-                    ->placeholder('e.g. Lifestyle, Review, Tutorial')
-                    ->maxLength(255)
-                    ->columnSpanFull(),
+            Step::make('Brief Konten')
+                ->description('Angle, key message, caption')
+                ->icon('heroicon-o-light-bulb')
+                ->schema([
+                    TextInput::make('content_angle')
+                        ->label('Content Angle')
+                        ->placeholder('e.g. Lifestyle, Review, Tutorial')
+                        ->maxLength(255),
 
-                Textarea::make('key_message')
-                    ->label('Key Message')
-                    ->placeholder('Pesan utama yang harus disampaikan...')
-                    ->rows(3)
-                    ->columnSpanFull(),
+                    Textarea::make('key_message')
+                        ->label('Key Message')
+                        ->placeholder('Pesan utama yang harus disampaikan...')
+                        ->rows(3),
 
-                Textarea::make('caption_draft')
-                    ->label('Caption Draft')
-                    ->placeholder('Draft caption untuk posting...')
-                    ->rows(4)
-                    ->columnSpanFull(),
+                    Textarea::make('caption_draft')
+                        ->label('Caption Draft')
+                        ->placeholder('Draft caption untuk posting...')
+                        ->rows(4),
+                ]),
 
-                // Konten yang dibuat tim KOL internal — ikut tampil di Link Approval Konten.
-                FileUpload::make('images')
-                    ->label('Gambar Konten (maks ' . CampaignStoryline::MAX_IMAGES . ')')
-                    ->image()
-                    ->multiple()
-                    ->reorderable()
-                    ->maxFiles(CampaignStoryline::MAX_IMAGES)
-                    ->directory('storyline-contents')
-                    ->disk('public')
-                    ->panelLayout('grid')
-                    ->columnSpanFull(),
+            Step::make('Materi & Status')
+                ->description('Gambar / link konten yang dilihat client')
+                ->icon('heroicon-o-photo')
+                ->columns(2)
+                ->schema([
+                    // Konten yang dibuat tim KOL internal — ikut tampil di Link Approval Konten.
+                    FileUpload::make('images')
+                        ->label('Gambar Konten (maks ' . CampaignStoryline::MAX_IMAGES . ')')
+                        ->image()
+                        ->multiple()
+                        ->reorderable()
+                        ->maxFiles(CampaignStoryline::MAX_IMAGES)
+                        ->directory('storyline-contents')
+                        ->disk('public')
+                        ->panelLayout('grid')
+                        ->columnSpanFull(),
 
-                TextInput::make('content_link')
-                    ->label('Link Konten / Video')
-                    ->placeholder('https://drive.google.com/... atau link video')
-                    ->url()
-                    ->columnSpanFull(),
+                    TextInput::make('content_link')
+                        ->label('Link Konten / Video')
+                        ->placeholder('https://drive.google.com/... atau link video')
+                        ->url()
+                        ->columnSpanFull(),
 
-                Grid::make(2)->schema([
                     Select::make('status')
                         ->label('Status')
                         ->options(CampaignStoryline::STATUSES)
@@ -135,7 +156,7 @@ class StorylinesRelationManager extends RelationManager
                         ->placeholder('Catatan revisi atau feedback client...')
                         ->rows(2),
                 ]),
-            ]);
+        ];
     }
 
     public function table(Table $table): Table
@@ -237,7 +258,9 @@ class StorylinesRelationManager extends RelationManager
             ])
             ->headerActions([
                 CreateAction::make()
-                    ->label('Tambah Storyline'),
+                    ->label('Tambah Storyline')
+                    ->steps($this->storylineSteps())
+                    ->skippableSteps(),
             ])
             ->actions([
                 Action::make('send_to_client')
@@ -280,7 +303,9 @@ class StorylinesRelationManager extends RelationManager
                         'storyline' => $record,
                     ])),
 
-                EditAction::make(),
+                EditAction::make()
+                    ->steps($this->storylineSteps())
+                    ->skippableSteps(),
                 DeleteAction::make(),
             ])
             ->bulkActions([

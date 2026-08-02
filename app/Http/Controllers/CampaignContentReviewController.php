@@ -20,12 +20,18 @@ class CampaignContentReviewController extends Controller
 {
     /**
      * Storyline yang ditampilkan ke client: yang sedang menunggu approval atau
-     * sudah pernah diputuskan (approved/revision) — bukan draft mentah.
+     * sudah pernah diputuskan (approved/revision), PLUS draft yang materinya
+     * (gambar / link konten) sudah diisi supaya client bisa langsung preview.
+     * Draft yang masih kosong tetap disembunyikan.
      */
     protected function reviewableStorylines(BvCampign $campaign)
     {
         return $campaign->storylines()
-            ->whereIn('status', ['waiting_approval', 'revision', 'approved'])
+            ->where(fn($q) => $q
+                ->whereIn('status', ['waiting_approval', 'revision', 'approved'])
+                ->orWhere(fn($q) => $q->whereNotNull('content_link')->where('content_link', '!=', ''))
+                // images = kolom JSON: baris tanpa gambar bisa NULL, '[]', atau 'null'.
+                ->orWhere(fn($q) => $q->whereNotNull('images')->whereNotIn('images', ['[]', 'null', ''])))
             ->with('contents')
             ->orderBy('posting_deadline')
             ->get();

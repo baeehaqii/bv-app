@@ -2,6 +2,7 @@
 
 namespace App\Service;
 
+use App\Service\KolPostNormalizer;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Exception;
@@ -106,7 +107,7 @@ class YoutubeChannelsService
      * @param int $count Number of videos to fetch (default 9)
      * @return array
      */
-    protected function getChannelVideos(string $channelIdentifier, int $count = 9): array
+    protected function getChannelVideos(string $channelIdentifier, int $count = KolPostNormalizer::LIMIT): array
     {
         try {
             Log::info('📡 Fetching YouTube Channel Videos', [

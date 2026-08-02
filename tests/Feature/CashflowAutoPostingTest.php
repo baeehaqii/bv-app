@@ -82,11 +82,21 @@ it('memecah pembayaran KOL yang cair jadi Beban Pokok Pendapatan + Pembayaran Pa
     expect(BvCashflow::count())->toBe(2);
 });
 
-it('menarik kembali baris kas bila status pembayaran KOL dibatalkan', function () {
+it('status PAID terkunci — arus kas tidak bisa dicabut lewat ubah status', function () {
     $payment = kolPayment(['payment_status' => 'paid']);
     expect(BvCashflow::count())->toBe(2);
 
     $payment->update(['payment_status' => 'waiting_payment']);
+
+    expect($payment->fresh()->payment_status)->toBe('paid')
+        ->and(BvCashflow::count())->toBe(2);
+});
+
+it('baris kas tetap tercabut bila baris pembayaran KOL dihapus', function () {
+    $payment = kolPayment(['payment_status' => 'paid']);
+    expect(BvCashflow::count())->toBe(2);
+
+    $payment->delete();
     expect(BvCashflow::count())->toBe(0);
 });
 

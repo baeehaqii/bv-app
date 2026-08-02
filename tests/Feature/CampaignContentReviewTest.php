@@ -131,3 +131,37 @@ it('campaign internal & external sama-sama muncul di query Campaign Ongoing Exte
     expect($externalQuery)->toContain($external->id);
     expect($externalQuery)->toContain($internal->id);
 });
+
+it('draft dengan gambar / link konten tetap muncul di halaman client, draft kosong tidak', function () {
+    $c = makeInternalCampaign();
+
+    CampaignStoryline::create([
+        'bv_campaign_id' => $c->id,
+        'kol_name' => 'punya-link',
+        'platform' => 'tiktok',
+        'status' => 'draft',
+        'content_link' => 'https://drive.google.com/preview-abc',
+    ]);
+    CampaignStoryline::create([
+        'bv_campaign_id' => $c->id,
+        'kol_name' => 'punya-gambar',
+        'platform' => 'instagram',
+        'status' => 'draft',
+        'images' => ['storyline-contents/foo.jpg'],
+    ]);
+    CampaignStoryline::create([
+        'bv_campaign_id' => $c->id,
+        'kol_name' => 'draft-kosong',
+        'platform' => 'instagram',
+        'status' => 'draft',
+        'images' => [],
+    ]);
+
+    $this->get(route('campaign-internal.content-review', ['token' => $c->generateContentReviewToken()]))
+        ->assertOk()
+        ->assertSee('punya-link')
+        ->assertSee('https://drive.google.com/preview-abc')
+        ->assertSee('storyline-contents/foo.jpg')
+        ->assertSee('punya-gambar')
+        ->assertDontSee('draft-kosong');
+});

@@ -2,6 +2,7 @@
 
 namespace App\Service;
 
+use App\Service\KolPostNormalizer;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Exception;
@@ -81,7 +82,7 @@ class InstagramService
             // NOTE: enrichWithDetails DISABLED - causes timeout (each post = 3-5s API call)
             // v2 API provides: likes, views (for videos) - sufficient for engagement calculation
             // For accurate comments data, use background job: EnrichInstagramPostsJob
-            $postsData = $this->getUserPosts($username, 9, false);
+            $postsData = $this->getUserPosts($username, KolPostNormalizer::LIMIT, false);
 
             Log::info('📊 Instagram Posts Fetched', [
                 'username' => $username,
@@ -120,7 +121,7 @@ class InstagramService
      * @param bool $enrichWithDetails Whether to fetch detailed metrics for each post (costs more credits)
      * @return array
      */
-    public function getUserPosts(string $username, int $count = 9, bool $enrichWithDetails = false): array
+    public function getUserPosts(string $username, int $count = KolPostNormalizer::LIMIT, bool $enrichWithDetails = false): array
     {
         try {
             Log::info('📡 Fetching Instagram Posts via v2 API', [
@@ -468,8 +469,11 @@ class InstagramService
             'has_channel' => $userData['has_channel'] ?? false,
             'highlight_reel_count' => $userData['highlight_reel_count'] ?? 0,
 
-            // Recent Media (first post if available)
-            'recent_media' => $this->parseRecentMedia($recentMedia),
+            // Endpoint profil v2 tidak lagi mengirim edge_owner_to_timeline_media, jadi
+            // postingan yang dipakai KOL Analyzer diambil dari hasil /user/posts (v2).
+            'recent_media' => $postsData
+                ? $this->parseRecentMediaV2($postsData)
+                : $this->parseRecentMedia($recentMedia),
 
             // Raw data (for debugging or additional processing)
             'raw_data' => $userData,
@@ -883,6 +887,37 @@ class InstagramService
      * @param array $mediaEdges
      * @return array
      */
+    /**
+     * Versi untuk item dari endpoint /v2/instagram/user/posts — bentuknya datar
+     * (like_count, comment_count, code) bukan bersarang di node GraphQL.
+     *
+     * @param  array<int, array<string, mixed>>  $posts
+     */
+    protected function parseRecentMediaV2(array $posts): array
+    {
+        return array_map(function (array $post) {
+            $mediaType = $post['media_type'] ?? 1;
+            $productType = $post['product_type'] ?? '';
+            $isVideo = $mediaType == 2 || in_array($productType, ['clips', 'igtv'], true);
+
+            return [
+                'id' => $post['id'] ?? ($post['pk'] ?? null),
+                'shortcode' => $post['code'] ?? null,
+                'type' => $productType ?: null,
+                'is_video' => $isVideo,
+                'display_url' => $post['image_versions2']['candidates'][0]['url'] ?? $post['thumbnail_url'] ?? null,
+                'thumbnail_src' => $post['image_versions2']['candidates'][0]['url'] ?? $post['thumbnail_url'] ?? null,
+                'video_url' => $post['video_url'] ?? null,
+                'video_view_count' => $post['play_count'] ?? $post['ig_play_count'] ?? 0,
+                'caption' => $post['caption']['text'] ?? '',
+                'likes_count' => max(0, (int) ($post['like_count'] ?? 0)),
+                'comments_count' => max(0, (int) ($post['comment_count'] ?? 0)),
+                'taken_at_timestamp' => $post['taken_at'] ?? null,
+                'taken_at' => isset($post['taken_at']) ? date('Y-m-d H:i:s', (int) $post['taken_at']) : null,
+            ];
+        }, array_slice(array_values($posts), 0, 12));
+    }
+
     protected function parseRecentMedia(array $mediaEdges): array
     {
         return array_map(function ($edge) {

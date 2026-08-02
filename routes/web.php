@@ -120,6 +120,12 @@ Route::middleware(['auth'])->group(function () {
         ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
     ))->name('data-kol.import-template');
 
+    // Proxy thumbnail KOL — CDN Instagram/TikTok menolak hotlink (403), jadi
+    // gambarnya diambil server-side dengan Referer yang benar lalu di-cache.
+    Route::get('/kol-image', \App\Http\Controllers\KolImageController::class)
+        ->middleware('signed')
+        ->name('kol-image');
+
     // KOL Contract (SPK) Routes
     Route::get('/kol-contract/{spk}/download', [KolContractController::class, 'download'])
         ->name('kol-contract.download');

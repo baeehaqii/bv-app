@@ -49,6 +49,7 @@ class OfficePanelProvider extends PanelProvider
                 'Sales',
                 'Media Planning',
                 'Campaign Area',
+                'KOL Area',
                 'Finance',
                 'Human Capital ',
                 'Database',

@@ -544,3 +544,15 @@ it('membaca file xlsx yang diunggah, bukan cuma CSV', function () {
 
     unlink($path);
 });
+
+it('mengekstrak username dari link profil apa pun bentuknya', function () {
+    expect(KolProfileImporter::usernameFromUrl('https://www.instagram.com/awkarin'))->toBe('awkarin')
+        ->and(KolProfileImporter::usernameFromUrl('https://www.instagram.com/awkarin/'))->toBe('awkarin')
+        ->and(KolProfileImporter::usernameFromUrl('https://www.tiktok.com/@windahbasudara'))->toBe('windahbasudara')
+        // Link tanpa "@" (yang dipakai di Media Plan) dan link dengan path lanjutan.
+        ->and(KolProfileImporter::usernameFromUrl('https://www.tiktok.com/windahbasudara'))->toBe('windahbasudara')
+        ->and(KolProfileImporter::usernameFromUrl('https://www.tiktok.com/@justeen/video/12345'))->toBe('justeen')
+        ->and(KolProfileImporter::usernameFromUrl('https://www.youtube.com/@kanal'))->toBe('kanal')
+        ->and(KolProfileImporter::usernameFromUrl('https://www.instagram.com/'))->toBeNull()
+        ->and(KolProfileImporter::usernameFromUrl(null))->toBeNull();
+});

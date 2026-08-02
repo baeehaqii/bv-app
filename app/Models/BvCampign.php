@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Service\KolProfileImporter;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -190,6 +191,24 @@ class BvCampign extends Model
         return $options;
     }
 
+    /**
+     * Username channel KOL, untuk isi otomatis form KOL Performance.
+     * Sumbernya Database KOL lewat media_plan_kols.data_kol_id; media plan lama
+     * bisa belum ter-link, jadi ada fallback cocokkan nama.
+     */
+    public function approvedKolUsername(?string $kolName): ?string
+    {
+        if (blank($kolName)) {
+            return null;
+        }
+
+        $kol = $this->mediaPlan?->kols()->where('name', $kolName)->with('dataKol')->first();
+
+        return $kol?->dataKol?->username
+            ?: DataKol::where('full_name', $kolName)->value('username')
+            ?: KolProfileImporter::usernameFromUrl($kol?->links[0] ?? null);
+    }
+
     /** @return array<string, string> SOW milik KOL tersebut (value = label) */
     public function approvedSowOptions(?string $kolName): array
     {
@@ -210,13 +229,15 @@ class BvCampign extends Model
      * Buat/relink baris pembayaran dari daftar KOL aktif.
      * Pakai (campaign_id + kol_name) sebagai kunci agar data bayar (status/bukti transfer)
      * TIDAK hilang saat KOL di-wipe & dibuat ulang oleh sync InternalBudget.
-     * Field snapshot hanya di-seed saat baris baru; baris lama hanya di-relink pointernya.
+     * Nominal hanya di-seed saat baris baru; identitas & rekening diambil dari
+     * Database KOL setiap sync, tapi hanya untuk field yang masih kosong.
      */
     public function syncPaymentRowsFromKols(): void
     {
         // Biaya AKTUAL ke KOL diambil dari approved budget items (Real Cost = rate dasar,
         // Cost + Tax = mu_pph) — BUKAN harga client (price = sudah kena markup).
         $costByName = $this->resolveKolCostMap();
+        $profileByName = $this->resolveKolProfileMap();
 
         foreach ($this->kols as $kol) {
             $name = $kol->creator_name ?: '—';
@@ -229,15 +250,62 @@ class BvCampign extends Model
             $payment->bv_campaign_kol_id = $kol->id;
 
             if (! $payment->exists) {
-                $payment->username = $kol->username;
-                $payment->platform = $kol->platform;
                 $payment->real_cost = $costByName[$name]['real_cost'] ?? 0;
                 $payment->cost_tax = $costByName[$name]['cost_tax'] ?? 0;
                 $payment->payment_status = 'waiting_payment';
             }
 
+            // Identitas & rekening tidak perlu diketik ulang — semuanya sudah ada di
+            // Database KOL. Hanya field yang MASIH KOSONG yang diisi, supaya koreksi
+            // manual (mis. rekening berbeda untuk campaign ini) tidak ketimpa tiap sync.
+            $profile = $profileByName[$name] ?? [];
+            $profile['username'] ??= $kol->username;
+            $profile['platform'] = $kol->platform;
+
+            foreach ($profile as $field => $value) {
+                if (blank($payment->{$field}) && filled($value)) {
+                    $payment->{$field} = $value;
+                }
+            }
+
             $payment->save();
         }
+    }
+
+    /**
+     * Peta nama KOL → identitas, rekening & SOW dari Database KOL (lewat media_plan_kols).
+     * Sekali query dengan eager load dataKol (hindari N+1).
+     *
+     * @return array<string, array<string, ?string>>
+     */
+    public function resolveKolProfileMap(): array
+    {
+        $mediaPlan = $this->mediaPlan;
+
+        if (! $mediaPlan) {
+            return [];
+        }
+
+        $sows = $this->approvedKolSows();
+
+        return $mediaPlan->kols()->with('dataKol')->get()
+            ->reduce(function (array $map, MediaPlanKol $kol) use ($sows): array {
+                $data = $kol->dataKol;
+
+                $map[$kol->name] = [
+                    // Belum ter-link ke Database KOL → username diambil dari link platformnya.
+                    'username' => $data?->username
+                        ?: KolProfileImporter::usernameFromUrl($kol->links[0] ?? null),
+                    'alamat' => $data?->address,
+                    'ktp' => $data?->nik,
+                    'nama_bank' => $data?->bank_name,
+                    'nomor_rekening' => $data?->bank_account_number,
+                    'nama_rekening' => $data?->bank_account_name ?: $data?->full_name,
+                    'detail_sow' => implode(', ', $sows[$kol->name] ?? []),
+                ];
+
+                return $map;
+            }, []);
     }
 
     /**

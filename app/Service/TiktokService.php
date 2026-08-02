@@ -2,6 +2,7 @@
 
 namespace App\Service;
 
+use App\Service\KolPostNormalizer;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Exception;
@@ -24,9 +25,46 @@ class TiktokService
         $this->apiKey = $apiKey;
     }
 
+    /** Biaya endpoint audiens, jauh di atas endpoint lain — jangan dipanggil otomatis. */
+    public const AUDIENCE_CREDITS = 26;
+
+    /**
+     * Sebaran negara audiens. SATU-SATUNYA data demografi audiens yang tersedia
+     * di ScrapeCreators, dan hanya untuk TikTok — kota, umur, dan gender tidak ada
+     * di endpoint mana pun. Mahal (26 kredit), jadi dipanggil on-demand saja.
+     *
+     * @return array<int, array{country: string, countryCode: ?string, count: int, percentage: float}>
+     */
+    public function getAudienceCountries(string $linkUserProfile): array
+    {
+        $username = $this->extractUsername($linkUserProfile);
+
+        $response = Http::withHeaders(['x-api-key' => $this->apiKey])
+            ->get("{$this->baseUrl}/user/audience", ['handle' => $username]);
+
+        if (! $response->successful()) {
+            Log::error('❌ TikTok Audience API Error', [
+                'username' => $username,
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+
+            throw new Exception('Gagal mengambil data audiens TikTok: ' . $response->status());
+        }
+
+        $negara = $response->json('countries') ?? $response->json('data.countries') ?? [];
+
+        return array_map(fn(array $baris) => [
+            'country' => $baris['country'] ?? '—',
+            'countryCode' => $baris['countryCode'] ?? null,
+            'count' => (int) ($baris['count'] ?? 0),
+            'percentage' => (float) ($baris['percentage'] ?? 0),
+        ], $negara);
+    }
+
     /**
      * Get TikTok profile data from username or profile URL
-     * 
+     *
      * @param string $linkUserProfile TikTok username or profile URL
      * @return array
      * @throws Exception
@@ -116,7 +154,7 @@ class TiktokService
      * @param int $amount Number of videos to fetch (default 9)
      * @return array
      */
-    protected function getUserVideos(string $username, int $amount = 9): array
+    protected function getUserVideos(string $username, int $amount = KolPostNormalizer::LIMIT): array
     {
         try {
             // Path benar per docs: /v3/tiktok/profile/videos (BUKAN "profile-videos",

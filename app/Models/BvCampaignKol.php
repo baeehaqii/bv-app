@@ -20,6 +20,8 @@ class BvCampaignKol extends Model
         'visit_date'       => 'date',
         'posting_date'     => 'date',
         'event_attendance' => 'boolean',
+        'comments_data'    => 'array',
+        'comments_fetched_at' => 'datetime',
     ];
 
     public const PLATFORMS = [
@@ -161,5 +163,62 @@ class BvCampaignKol extends Model
         return 0;
     }
 
-}
+    /** Riwayat harian postingan ini — sumber tabel Retrieve History. */
+    public function snapshots(): HasMany
+    {
+        return $this->hasMany(CampaignKolSnapshot::class, 'bv_campaign_kol_id')->orderBy('captured_on');
+    }
 
+    /**
+     * Catat kondisi postingan hari ini. Dipanggil setiap kali performa di-fetch.
+     * Satu baris per tanggal — fetch berulang dalam sehari memperbarui, bukan menumpuk.
+     */
+    public function recordSnapshot(): void
+    {
+        $angka = [
+            'followers' => (int) $this->followers_count,
+            'cost' => (float) $this->price,
+            'views' => (int) $this->views,
+            'likes' => (int) $this->likes,
+            'comments' => (int) $this->comments,
+            'shares' => (int) $this->shares,
+            'saves' => (int) $this->saves,
+            'engagement' => (int) $this->total_engagement,
+        ];
+
+        // whereDate(), bukan updateOrCreate(['captured_on' => ...]): cast `date`
+        // menyimpan bentuk datetime sementara query builder tidak ikut meng-cast.
+        $hariIni = $this->snapshots()->whereDate('captured_on', now()->toDateString())->first();
+
+        $hariIni
+            ? $hariIni->update($angka)
+            : $this->snapshots()->create([...$angka, 'captured_on' => now()->toDateString()]);
+    }
+
+    /** Sudah tayang? Dipakai menghitung "Total Content yang sudah ter-posting". */
+    public function isPublished(): bool
+    {
+        return filled($this->post_url);
+    }
+
+    /** @return array<int, string> teks komentar yang tersimpan. */
+    public function commentTexts(): array
+    {
+        return array_values(array_filter((array) ($this->comments_data ?? []), 'is_string'));
+    }
+
+    public function cpe(): float
+    {
+        return $this->total_engagement > 0 ? round((float) $this->price / $this->total_engagement, 2) : 0.0;
+    }
+
+    public function cpv(): float
+    {
+        return $this->views > 0 ? round((float) $this->price / $this->views, 2) : 0.0;
+    }
+
+    public function cpm(): float
+    {
+        return $this->views > 0 ? round((float) $this->price / $this->views * 1000, 2) : 0.0;
+    }
+}

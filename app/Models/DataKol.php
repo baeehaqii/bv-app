@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Service\KolPostNormalizer;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -14,6 +15,10 @@ class DataKol extends Model
     protected $casts = [
         'category' => 'array',
         'terakhir_update' => 'date',
+        'latest_posts' => 'array',
+        'audience_countries' => 'array',
+        'audience_fetched_at' => 'datetime',
+        'is_verified' => 'boolean',
     ];
 
     /**
@@ -91,5 +96,91 @@ class DataKol extends Model
     public function tipePajakKol(): BelongsTo
     {
         return $this->belongsTo(MasterPph::class, 'tipe_pajak_kol');
+    }
+
+    /** Riwayat followers channel ini — sumber grafik Follower Growth. */
+    public function snapshots(): HasMany
+    {
+        return $this->hasMany(DataKolSnapshot::class)->orderBy('captured_on');
+    }
+
+    /**
+     * Catat kondisi channel hari ini. Dipanggil tiap kali channel di-scrape.
+     * Satu baris per tanggal — refresh berkali-kali sehari memperbarui, bukan menumpuk.
+     */
+    public function recordSnapshot(): void
+    {
+        $angka = [
+            'followers' => (int) $this->followers,
+            'engagement_rate' => (float) $this->engagement_rate,
+            'engagements' => (int) $this->engagements,
+            'impressions' => (int) $this->impressions,
+        ];
+
+        // whereDate(), bukan updateOrCreate(['captured_on' => ...]): cast `date`
+        // menyimpan '2026-08-01 00:00:00' sedangkan query builder tidak ikut meng-cast,
+        // jadi pencocokan string mentah meleset dan malah melanggar unique index.
+        $hariIni = $this->snapshots()->whereDate('captured_on', now()->toDateString())->first();
+
+        $hariIni
+            ? $hariIni->update($angka)
+            : $this->snapshots()->create([...$angka, 'captured_on' => now()->toDateString()]);
+    }
+
+    /** @return array<int, array<string, mixed>> 10 postingan terakhir hasil normalisasi. */
+    public function latestPosts(): array
+    {
+        return $this->latest_posts ?? [];
+    }
+
+    /** @return array<string, int> hashtag => berapa postingan memakainya. */
+    public function topHashtags(int $limit = 10): array
+    {
+        return KolPostNormalizer::topHashtags($this->latestPosts(), $limit);
+    }
+
+    /**
+     * View-Through Rate: rata-rata views dibanding followers.
+     * >100% berarti kontennya tembus ke luar followers (FYP/Explore) — itu wajar,
+     * jadi tidak di-clamp seperti ER.
+     */
+    public function viewThroughRate(): ?float
+    {
+        if (! $this->followers || ! $this->average_views) {
+            return null;
+        }
+
+        return round(($this->average_views / $this->followers) * 100, 2);
+    }
+
+    /**
+     * Estimasi rate card per postingan (min/median/max) — BUKAN harga resmi.
+     * ScrapeCreators tidak menyediakan harga, jadi ini murni turunan followers dan
+     * ER terhadap benchmark channel. Semua asumsinya ada di config/kol.php.
+     *
+     * @return array{min: int, median: int, max: int}|null null bila channel belum punya benchmark.
+     */
+    public function estimatedRateCard(): ?array
+    {
+        $config = config('kol.rate_estimate');
+        $perFollower = $config['rate_per_follower'][$this->channel] ?? null;
+        $benchmark = $config['benchmark_er'][$this->channel] ?? null;
+
+        if (! $perFollower || ! $benchmark || ! $this->followers) {
+            return null;
+        }
+
+        // ER 0 (belum pernah di-scrape postingannya) tidak boleh membuat harga jadi nol.
+        $pengali = $this->engagement_rate > 0
+            ? max($config['er_multiplier_min'], min($config['er_multiplier_max'], $this->engagement_rate / $benchmark))
+            : 1.0;
+
+        $median = (int) round($this->followers * $perFollower * $pengali);
+
+        return [
+            'min' => (int) round($median * $config['spread']['min']),
+            'median' => $median,
+            'max' => (int) round($median * $config['spread']['max']),
+        ];
     }
 }

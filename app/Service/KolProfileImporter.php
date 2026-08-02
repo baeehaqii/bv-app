@@ -65,6 +65,20 @@ class KolProfileImporter
         return ($pola && $username !== '') ? sprintf($pola, $username) : null;
     }
 
+    /**
+     * Kebalikan canonicalUrl(): username dari link profil apa pun bentuknya —
+     * dengan/tanpa "@", dengan/tanpa "www", dan link yang menyertakan path lanjutan
+     * ("/video/123"). Dipakai saat KOL belum ter-link ke Database KOL tapi link
+     * platformnya sudah ada di Media Plan.
+     */
+    public static function usernameFromUrl(?string $url): ?string
+    {
+        $path = parse_url(trim((string) $url), PHP_URL_PATH) ?: '';
+        $segmen = explode('/', trim($path, '/'))[0] ?? '';
+
+        return ltrim($segmen, '@') ?: null;
+    }
+
     /** @return array<string, string> Untuk dipakai langsung sebagai options Select. */
     public static function channelOptions(): array
     {
@@ -236,10 +250,10 @@ class KolProfileImporter
         if ($existing) {
             $existing->update($data);
 
-            return $existing;
+            return tap($existing)->recordSnapshot();
         }
 
-        return DataKol::create($data);
+        return tap(DataKol::create($data))->recordSnapshot();
     }
 
     public function import(string $channel, string $url, ?string $username = null): DataKol
@@ -335,6 +349,22 @@ class KolProfileImporter
             'status' => 'New List',
             'terakhir_update' => now()->format('Y-m-d'),
             'notes' => $this->buildNotes($profile, $channel),
+
+            // Dipakai KOL Analyzer. Sebelumnya angka-angka ini cuma jadi teks di `notes`.
+            'profile_pic_url' => $profile['profile_pic_url_hd'] ?? $profile['profile_pic_url'] ?? null,
+            'biography' => $profile['biography'] ?? null,
+            'following_count' => $profile['following_count'] ?? 0,
+            'media_count' => $profile['media_count'] ?? 0,
+            'is_verified' => (bool) ($profile['is_verified'] ?? false),
+            'average_likes' => $profile['average_likes'] ?? 0,
+            'average_comments' => $profile['average_comments'] ?? 0,
+            // average_impressions memang rata-rata views (lihat calculateEngagementMetrics).
+            'average_views' => $profile['average_impressions'] ?? 0,
+            'latest_posts' => KolPostNormalizer::normalize(
+                $channel,
+                $profile['recent_media'] ?? [],
+                $profile['username'] ?? null,
+            ),
         ];
 
         $categoryName = $profile['category_name']

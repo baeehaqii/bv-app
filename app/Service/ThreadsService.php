@@ -2,6 +2,7 @@
 
 namespace App\Service;
 
+use App\Service\KolPostNormalizer;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Exception;
@@ -348,7 +349,7 @@ class ThreadsService
                 'reshares' => $appInfo['reshare_count'] ?? 0,
                 'taken_at' => $post['taken_at'] ?? null,
             ];
-        }, array_slice($posts, 0, 9));
+        }, array_slice($posts, 0, KolPostNormalizer::LIMIT));
     }
 
     /**

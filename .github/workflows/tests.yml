@@ -85,6 +85,16 @@ jobs:
           echo "http_code=$HTTP_CODE" >> $GITHUB_OUTPUT
           echo "Deploy triggered at $(date) | HTTP $HTTP_CODE | $BODY"
 
+          # curl -s hanya gagal saat TIDAK BISA konek. Kalau webhook menjawab 4xx/5xx
+          # (mis. token salah, script deploy error), curl tetap exit 0 dan step ini
+          # dianggap sukses — notifikasinya lalu mengabarkan "DEPLOY BERHASIL"
+          # padahal server menolak. Status HTTP-nya harus ikut diperiksa.
+          case "$HTTP_CODE" in
+            2*) ;;
+            *)  echo "::error::Webhook deploy menjawab HTTP $HTTP_CODE — deploy dianggap GAGAL."
+                exit 1 ;;
+          esac
+
       - name: Notify Telegram - Deploy Status
         if: always()
         env:

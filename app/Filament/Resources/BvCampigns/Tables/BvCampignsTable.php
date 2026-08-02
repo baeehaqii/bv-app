@@ -126,7 +126,7 @@ class BvCampignsTable
                     ->label('KOL Performance')
                     ->icon('heroicon-o-chart-bar')
                     ->color('info')
-                    ->url(fn($record) => \App\Filament\Resources\BvCampigns\BvCampignResource::getUrl('kol-performance', ['record' => $record])),
+                    ->url(fn($record) => \App\Filament\Pages\CampaignSummaryList::getUrl(['campaign' => $record->getKey()])),
                 EditAction::make(),
             ])
             ->toolbarActions([

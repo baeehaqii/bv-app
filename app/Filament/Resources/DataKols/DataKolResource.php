@@ -19,11 +19,11 @@ class DataKolResource extends Resource
     protected static ?string $model = DataKol::class;
 
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-star';
-    protected static string|\UnitEnum|null $navigationGroup = "Database";
-    protected static ?int $navigationSort = 0;
-    protected static ?string $navigationLabel = 'Database KOL';
-    protected static ?string $modelLabel = 'Database KOL';
-    protected static ?string $pluralModelLabel = 'Database KOL';
+    protected static string|\UnitEnum|null $navigationGroup = 'KOL Area';
+    protected static ?int $navigationSort = 1;
+    protected static ?string $navigationLabel = 'KOL Data';
+    protected static ?string $modelLabel = 'KOL Data';
+    protected static ?string $pluralModelLabel = 'KOL Data';
     protected static ?string $slug = 'data-kol';
 
     // Enable global search

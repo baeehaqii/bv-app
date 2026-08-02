@@ -32,68 +32,73 @@ class KolsRelationManager extends RelationManager
 
     public function form(Schema $schema): Schema
     {
+        // Field ditaruh langsung di schema modal (tanpa Grid pembungkus) — Grid bersarang
+        // hanya dapat 1 kolom dari grid modal, jadi field-nya menyempit separuh.
         return $schema
+            ->columns(2)
             ->components([
-                Grid::make(2)
-                    ->schema([
-                        // Hanya KOL yang sudah di-approve client (budget item approved).
-                        Select::make('creator_name')
-                            ->label('Creator Name')
-                            ->options(fn($livewire) => $livewire->getOwnerRecord()->approvedKolOptions())
-                            ->searchable()
-                            ->native(false)
-                            ->live()
-                            ->required()
-                            ->helperText('Diambil dari KOL yang sudah disetujui client di Media Plan External.')
-                            ->afterStateUpdated(function (?string $state, callable $set, $livewire) {
-                                $sows = array_keys($livewire->getOwnerRecord()->approvedSowOptions($state));
-                                if (! $sows) {
-                                    return;
-                                }
+                // Hanya KOL yang sudah di-approve client (budget item approved).
+                Select::make('creator_name')
+                    ->label('Creator Name')
+                    ->options(fn($livewire) => $livewire->getOwnerRecord()->approvedKolOptions())
+                    ->searchable()
+                    ->native(false)
+                    ->live()
+                    ->required()
+                    ->helperText('Diambil dari KOL yang sudah disetujui client di Media Plan External.')
+                    ->afterStateUpdated(function (?string $state, callable $set, $livewire) {
+                        $campaign = $livewire->getOwnerRecord();
 
-                                // Platform & content type mengikuti SOW yang di-approve.
-                                ['platform' => $platform, 'content_type' => $contentType] =
-                                    \App\Models\InternalBudget::parseScopeItemToChannel($sows[0]);
-                                $set('platform', $platform);
-                                $set('content_type', $contentType);
-                            }),
+                        $set('username', $campaign->approvedKolUsername($state));
 
-                        TextInput::make('username')
-                            ->label('Username')
-                            ->placeholder('@username')
-                            ->maxLength(255),
+                        $sows = array_keys($campaign->approvedSowOptions($state));
+                        if (! $sows) {
+                            return;
+                        }
 
-                        Select::make('platform')
-                            ->label('Platform')
-                            ->options(BvCampaignKol::PLATFORMS)
-                            ->required()
-                            ->live(),
+                        // Platform & content type mengikuti SOW yang di-approve.
+                        ['platform' => $platform, 'content_type' => $contentType] =
+                            \App\Models\InternalBudget::parseScopeItemToChannel($sows[0]);
+                        $set('platform', $platform);
+                        $set('content_type', $contentType);
+                    }),
 
-                        Select::make('content_type')
-                            ->label('Content Type')
-                            ->options(fn($get) => BvCampaignKol::CONTENT_TYPES[$get('platform')] ?? [])
-                            ->required(),
+                TextInput::make('username')
+                    ->label('Username')
+                    ->placeholder('@username')
+                    ->maxLength(255),
 
-                        TextInput::make('post_url')
-                            ->label('Post URL')
-                            ->placeholder('https://...')
-                            ->url()
-                            ->columnSpanFull(),
+                Select::make('platform')
+                    ->label('Platform')
+                    ->options(BvCampaignKol::PLATFORMS)
+                    ->required()
+                    ->live(),
 
-                        TextInput::make('price')
-                            ->label('Price')
-                            ->prefix('Rp')
-                            ->numeric()
-                            ->default(0),
+                Select::make('content_type')
+                    ->label('Content Type')
+                    ->options(fn($get) => BvCampaignKol::CONTENT_TYPES[$get('platform')] ?? [])
+                    ->required(),
 
-                        Select::make('status')
-                            ->label('Status')
-                            ->options(BvCampaignKol::STATUSES)
-                            ->default('pending'),
-                    ]),
+                TextInput::make('post_url')
+                    ->label('Post URL')
+                    ->placeholder('https://...')
+                    ->url()
+                    ->columnSpanFull(),
+
+                TextInput::make('price')
+                    ->label('Price')
+                    ->prefix('Rp')
+                    ->numeric()
+                    ->default(0),
+
+                Select::make('status')
+                    ->label('Status')
+                    ->options(BvCampaignKol::STATUSES)
+                    ->default('pending'),
 
                 // Performance Metrics (readonly, filled by API)
                 Grid::make(4)
+                    ->columnSpanFull()
                     ->schema([
                         TextInput::make('views')
                             ->label('Views')

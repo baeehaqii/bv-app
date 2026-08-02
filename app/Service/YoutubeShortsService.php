@@ -2,6 +2,7 @@
 
 namespace App\Service;
 
+use App\Service\KolPostNormalizer;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Exception;
@@ -107,7 +108,7 @@ class YoutubeShortsService
      * @param int $amount Number of shorts to fetch (default 9)
      * @return array
      */
-    protected function getChannelShorts(string $channelIdentifier, int $amount = 9): array
+    protected function getChannelShorts(string $channelIdentifier, int $amount = KolPostNormalizer::LIMIT): array
     {
         try {
             Log::info('📡 Fetching YouTube Channel Shorts', [

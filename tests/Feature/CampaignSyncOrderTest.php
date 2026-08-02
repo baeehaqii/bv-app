@@ -97,3 +97,107 @@ it('sync idempotent: memanggil ulang tidak menggandakan KOL / storyline', functi
     expect($campaign->refresh()->kols()->count())->toBe(3);
     expect($campaign->storylines()->count())->toBe(3); // seed idempotent (tidak duplikat)
 });
+
+it('username KOL terisi otomatis dari Database KOL lewat data_kol_id', function () {
+    [$sales, $mediaPlan, $budget] = buildApprovedBudget();
+    $budget->approve();
+    $sales->update(['status' => 'campaign_live']);
+    $campaign = $sales->refresh()->campaign;
+
+    $kol = $mediaPlan->kols()->first();
+
+    // Belum ter-link & nama tidak ada di Database KOL → form tidak mengisi apa-apa.
+    expect($campaign->approvedKolUsername($kol->name))->toBeNull();
+    expect($campaign->approvedKolUsername(null))->toBeNull();
+
+    // full_name sengaja beda: membuktikan resolusi lewat data_kol_id, bukan cocok nama.
+    $dataKol = \App\Models\DataKol::create([
+        'username' => 'si_kreator',
+        'full_name' => 'Nama Beda',
+        'channel' => 'Tiktok',
+        'link_userprofile' => 'https://www.tiktok.com/@si_kreator',
+    ]);
+    $kol->update(['data_kol_id' => $dataKol->id]);
+
+    expect($campaign->approvedKolUsername($kol->name))->toBe('si_kreator');
+});
+
+it('kolom SPK di Pembayaran KOL menemukan SPK dari modul SPK KOL', function () {
+    [$sales, $mediaPlan, $budget] = buildApprovedBudget();
+    $budget->approve();
+    $sales->update(['status' => 'campaign_live']);
+    $campaign = $sales->refresh()->campaign;
+    $campaign->syncPaymentRowsFromKols();
+
+    $kol = $mediaPlan->kols()->first();
+    $payment = $campaign->payments()->where('kol_name', $kol->name)->sole();
+
+    // SPK belum diterbitkan → kolom kosong, bukan error.
+    expect($payment->resolveSpk())->toBeNull();
+
+    $spk = \App\Models\BvSPK::createForKol($budget, $kol->id);
+
+    expect($payment->fresh()->resolveSpk()?->id)->toBe($spk->id)
+        // KOL lain di budget yang sama tidak ikut kebawa SPK ini.
+        ->and($campaign->payments()->where('kol_name', '!=', $kol->name)->get()
+            ->every(fn($p) => $p->resolveSpk() === null))->toBeTrue();
+});
+
+it('sync pembayaran menarik identitas & rekening dari Database KOL, tanpa menimpa isian manual', function () {
+    [$sales, $mediaPlan, $budget] = buildApprovedBudget();
+    $budget->approve();
+    $sales->update(['status' => 'campaign_live']);
+    $campaign = $sales->refresh()->campaign;
+
+    $kol = $mediaPlan->kols()->first();
+    $dataKol = \App\Models\DataKol::create([
+        'username' => 'si_kreator',
+        'channel' => 'Tiktok',
+        'link_userprofile' => 'https://www.tiktok.com/@si_kreator',
+        'full_name' => 'Nama Lengkap KOL',
+        'nik' => '3201132001000006',
+        'address' => 'Jl. Tugu 4, Bekasi',
+        'bank_name' => 'SeaBank',
+        'bank_account_number' => '901323084234',
+        'bank_account_name' => 'Nama Lengkap KOL',
+    ]);
+    $kol->update(['data_kol_id' => $dataKol->id]);
+
+    // Rekening sengaja dikoreksi manual duluan → sync tidak boleh menimpanya.
+    $campaign->payments()->where('kol_name', $kol->name)
+        ->update(['nomor_rekening' => '999-rekening-khusus']);
+
+    $campaign->load('kols')->syncPaymentRowsFromKols();
+
+    $payment = $campaign->payments()->where('kol_name', $kol->name)->sole();
+
+    expect($payment->username)->toBe('si_kreator')
+        ->and($payment->alamat)->toBe('Jl. Tugu 4, Bekasi')
+        ->and($payment->ktp)->toBe('3201132001000006')
+        ->and($payment->nama_bank)->toBe('SeaBank')
+        ->and($payment->nama_rekening)->toBe('Nama Lengkap KOL')
+        ->and($payment->detail_sow)->toBe('TT Video')
+        ->and($payment->nomor_rekening)->toBe('999-rekening-khusus');
+});
+
+it('form edit pembayaran mengisi field kosong dari Database KOL tanpa perlu Sync dulu', function () {
+    [$sales, $mediaPlan, $budget] = buildApprovedBudget();
+    $budget->approve();
+    $sales->update(['status' => 'campaign_live']);
+    $campaign = $sales->refresh()->campaign;
+
+    $kol = $mediaPlan->kols()->first();
+    // Link platform saja, TANPA data_kol_id → username diambil dari URL-nya.
+    $kol->update(['links' => ['https://www.instagram.com/akun_dari_link'], 'data_kol_id' => null]);
+
+    $payment = $campaign->payments()->where('kol_name', $kol->name)->sole();
+    $payment->update(['username' => null, 'pic' => 'Baehaqi']);
+
+    $data = $payment->fresh()->formDefaults();
+
+    expect($data['username'])->toBe('akun_dari_link')
+        // Nilai tersimpan menang atas isian dari Database KOL.
+        ->and($data['pic'])->toBe('Baehaqi')
+        // Yang di-fill hanya untuk form; baris DB belum berubah sampai disimpan.
+        ->and($payment->fresh()->username)->toBeNull();
+});

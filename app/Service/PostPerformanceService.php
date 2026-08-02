@@ -171,7 +171,12 @@ class PostPerformanceService
             'engagement_rate' => $updateData['engagement_rate'],
         ]);
 
-        return $kol->fresh();
+        // Retrieve History dicatat di sini, bukan di halaman — supaya jalur single
+        // fetch, bulk fetch, dan pemanggilan dari kode lain semuanya ikut tercatat.
+        $kol = $kol->fresh();
+        $kol->recordSnapshot();
+
+        return $kol;
     }
 
 
