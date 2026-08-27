@@ -8,14 +8,12 @@
 --}}
 @php
     $channel = $this->channel;
-    $rate = $channel?->estimatedRateCard();
     $latest = $this->latestStats;
     $growth = $this->growth;
     $hashtags = $this->topHashtags;
     $audience = $channel?->audience_countries ?? [];
 
     $angka = fn($n) => number_format((int) $n, 0, ',', '.');
-    $rupiah = fn($n) => 'Rp ' . number_format((int) $n, 0, ',', '.');
 @endphp
 
 <x-filament-panels::page>
@@ -104,22 +102,6 @@
                 </div>
             </div>
 
-            {{-- Estimasi rate card --}}
-            <div style="flex:0 0 15rem">
-                <div class="kolz-label">Estimasi Rate Card / Post</div>
-                @if ($rate)
-                    <div class="kolz-value" style="margin-top:.2rem">{{ $rupiah($rate['median']) }}</div>
-                    <div class="kolz-muted">{{ $rupiah($rate['min']) }} – {{ $rupiah($rate['max']) }}</div>
-                    <p class="kolz-muted" style="margin-top:.4rem;line-height:1.35">
-                        Estimasi dari followers &amp; ER, bukan harga resmi KOL.
-                        Asumsinya bisa disetel di <code>config/kol.php</code>.
-                    </p>
-                @else
-                    <p class="kolz-muted" style="margin-top:.3rem">
-                        Belum bisa dihitung — followers kosong atau channel ini belum punya benchmark di config.
-                    </p>
-                @endif
-            </div>
         </div>
 
         {{-- 2. Tabel semua channel milik KOL ini --}}

@@ -65,32 +65,13 @@ it('Analyzer mulai dari daftar KOL, lalu klik baris untuk membuka analisis', fun
     // Klik baris → detail analisis KOL itu.
     $page->callAction(TestAction::make('analisis')->table($raffi))
         ->assertSet('channelId', $raffi->id)
-        ->assertSee('Estimasi Rate Card')
+        ->assertDontSee('Estimasi Rate Card')
         ->assertSee('Social Data');
 
     // Dan bisa balik ke daftar.
     $page->callAction('kembali')
         ->assertSet('channelId', null)
         ->assertSee('Klik satu baris');
-});
-
-it('estimasi rate card memakai followers, ER, dan asumsi di config', function () {
-    config()->set('kol.rate_estimate.rate_per_follower.Instagram', 100);
-    config()->set('kol.rate_estimate.benchmark_er.Instagram', 1.5);
-
-    // ER 3% vs benchmark 1.5% → pengali 2.0 (tepat di batas atas).
-    $rate = kolChannel(['engagement_rate' => 3.0])->estimatedRateCard();
-
-    expect($rate['median'])->toBe(400_000_000)
-        ->and($rate['min'])->toBe(280_000_000)
-        ->and($rate['max'])->toBe(560_000_000);
-
-    // ER ekstrem tidak boleh melahirkan angka absurd — pengali di-clamp.
-    expect(kolChannel(['username' => 'er-gila', 'engagement_rate' => 90.0])->estimatedRateCard()['median'])
-        ->toBe(400_000_000);
-
-    // Channel tanpa benchmark di config → tidak mengarang angka.
-    expect(kolChannel(['username' => 'x-user', 'channel' => 'X'])->estimatedRateCard())->toBeNull();
 });
 
 it('VTR dihitung dari avg views terhadap followers', function () {

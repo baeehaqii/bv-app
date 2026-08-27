@@ -48,6 +48,10 @@ class DatabaseSeeder extends Seeder
         $this->call(MasterPphSeeder::class);
         $this->command->info('MasterPph seeding completed!');
 
+        // Jalankan MasterServiceSeeder (master data 7 layanan BV Network)
+        $this->call(MasterServiceSeeder::class);
+        $this->command->info('MasterService seeding completed!');
+
         // Jalankan MasterSowSeeder (master data SOW untuk Rate Card KOL)
         $this->call(MasterSowSeeder::class);
         $this->command->info('MasterSow seeding completed!');

@@ -37,8 +37,8 @@ class DataClientsTable
                     ->formatStateUsing(fn(string $state, $record): string => match (true) {
                         $state === 'agency' => 'Agency',
                         // Brand hasil sync dari daftar "Brand yang Di-handle" milik agency.
-                        $state === 'direct' && $record->agency_client_id => 'Di-handle Agency',
-                        $state === 'direct' => 'Direct Brand',
+                        $state === 'direct' && $record->agency_client_id => 'Agency',
+                        $state === 'direct' => 'Direct',
                         default => $state,
                     }),
 
@@ -266,7 +266,7 @@ class DataClientsTable
                 SelectFilter::make('type')
                     ->label('Client Type')
                     ->options([
-                        'direct' => 'Direct Brand',
+                        'direct' => 'Direct',
                         'agency' => 'Agency',
                     ]),
 

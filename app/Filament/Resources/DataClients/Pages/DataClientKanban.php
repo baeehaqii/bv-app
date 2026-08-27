@@ -114,7 +114,7 @@ class DataClientKanban extends BoardResourcePage
             Select::make('type')
                 ->label('Client Type')
                 ->options([
-                    'direct' => 'Direct Brand',
+                    'direct' => 'Direct',
                     'agency' => 'Agency',
                 ])
                 ->default('direct')

@@ -152,35 +152,4 @@ class DataKol extends Model
 
         return round(($this->average_views / $this->followers) * 100, 2);
     }
-
-    /**
-     * Estimasi rate card per postingan (min/median/max) — BUKAN harga resmi.
-     * ScrapeCreators tidak menyediakan harga, jadi ini murni turunan followers dan
-     * ER terhadap benchmark channel. Semua asumsinya ada di config/kol.php.
-     *
-     * @return array{min: int, median: int, max: int}|null null bila channel belum punya benchmark.
-     */
-    public function estimatedRateCard(): ?array
-    {
-        $config = config('kol.rate_estimate');
-        $perFollower = $config['rate_per_follower'][$this->channel] ?? null;
-        $benchmark = $config['benchmark_er'][$this->channel] ?? null;
-
-        if (! $perFollower || ! $benchmark || ! $this->followers) {
-            return null;
-        }
-
-        // ER 0 (belum pernah di-scrape postingannya) tidak boleh membuat harga jadi nol.
-        $pengali = $this->engagement_rate > 0
-            ? max($config['er_multiplier_min'], min($config['er_multiplier_max'], $this->engagement_rate / $benchmark))
-            : 1.0;
-
-        $median = (int) round($this->followers * $perFollower * $pengali);
-
-        return [
-            'min' => (int) round($median * $config['spread']['min']),
-            'median' => $median,
-            'max' => (int) round($median * $config['spread']['max']),
-        ];
-    }
 }

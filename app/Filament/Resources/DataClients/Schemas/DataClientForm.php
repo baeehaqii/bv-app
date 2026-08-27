@@ -59,7 +59,7 @@ class DataClientForm
                         ->label('Client Type')
                         ->helperText('Wajib & harus jelas — dipakai di Quotation dan Invoice pembayaran.')
                         ->options([
-                            'direct' => 'Direct Brand',
+                            'direct' => 'Direct',
                             'agency' => 'Agency',
                         ])
                         ->default('direct')

@@ -23,3 +23,6 @@ yarn-error.log
 /.zed
 /.claude
 .gstack/
+
+# Export/data client mentah di root (jangan masuk repo)
+/*.xlsx

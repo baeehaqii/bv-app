@@ -1129,7 +1129,7 @@ class MediaPlanForm
                                     TableColumn::make('SOW (Request)')->width('320px'),
                                     TableColumn::make('Qty')->width('90px'),
                                     TableColumn::make('Rate per SOW')->width('420px'),
-                                    TableColumn::make('Margin %')->width('120px'),
+                                    TableColumn::make('Margin %')->width('150px'),
                                     TableColumn::make('Cost (MU PPh)')->width('150px'),
                                     TableColumn::make('Client Price')->width('150px'),
                                     TableColumn::make('Quotation')->width('90px'),
@@ -1665,6 +1665,9 @@ class MediaPlanForm
                                         ->content(fn(callable $get) => self::renderSowRateBreakdown($get)),
 
                                     // Margin % editable per KOL — diterapkan ke semua SOW-nya saat generate budget.
+                                    // Helper text = margin aktual (Client Price - Cost) / Client Price, sama dengan
+                                    // kolom "Margin %" di sheet KOL List client. Beda dari input di atasnya karena
+                                    // Client Price dibulatkan ke atas per 100rb, dan kosong = fallback MasterMargin.
                                     TextInput::make('margin_percent')
                                         ->label('Margin %')
                                         ->numeric()
@@ -1672,6 +1675,20 @@ class MediaPlanForm
                                         ->minValue(0)
                                         ->maxValue(99)
                                         ->placeholder('Auto')
+                                        ->helperText(function (callable $get) {
+                                            $totals = self::computeKolTotals($get);
+
+                                            if ($totals['client'] <= 0) {
+                                                return null;
+                                            }
+
+                                            $aktual = (($totals['client'] - $totals['cost']) / $totals['client']) * 100;
+
+                                            return new \Illuminate\Support\HtmlString(
+                                                '<span style="font-size:11px;font-weight:600;color:#059669;white-space:nowrap;">Aktual '
+                                                . number_format($aktual, 1, ',', '.') . '%</span>'
+                                            );
+                                        })
                                         ->live(debounce: 500),
 
                                     // Cost (MU PPh) — total seluruh SOW, read-only, dihitung otomatis.
