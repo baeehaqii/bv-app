@@ -269,11 +269,10 @@ class InternalBudgetItem extends Model
     /**
      * Calculate Auto Target Margin based on subtotal
      * Formula J
-     * 
-     * Range 1: 100,000 - 2,999,999 -> 80%
-     * Range 2: 3,000,000 - 50,000,000 -> 40%
-     * Range 3: > 50,000,000 -> 30%
-     * 
+     *
+     * Tabel margin diatur di panel admin (Master Margin). Default sesuai
+     * sheet KOL List: flat 50% (AA = Z / 0.5) untuk semua nominal.
+     *
      * If use_flexible_margin is true, uses margin_percent_override instead
      */
     public function calculateAutoTargetMargin(): float
@@ -283,16 +282,7 @@ class InternalBudgetItem extends Model
             return (float) $this->margin_percent_override;
         }
 
-        // Otherwise use auto calculation based on subtotal
-        $subtotal = $this->subtotal ?? 0;
-
-        if ($subtotal > 50000000) {
-            return 30.0;
-        } elseif ($subtotal >= 3000000) {
-            return 40.0;
-        } else {
-            return 80.0;
-        }
+        return MasterMargin::getMarginForAmount((float) ($this->subtotal ?? 0));
     }
 
     /**

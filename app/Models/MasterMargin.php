@@ -36,8 +36,9 @@ class MasterMargin extends Model
             ->orderBy('order')
             ->first();
 
-        // Fallback to default if no margin found
-        return $margin ? (float) $margin->margin_percent : 30.0;
+        // ponytail: default sheet KOL List = flat 50%; tabel bertingkat
+        // tinggal ditambah lewat panel admin Master Margin
+        return $margin ? (float) $margin->margin_percent : 50.0;
     }
 
     /**
