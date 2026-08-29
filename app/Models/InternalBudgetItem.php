@@ -249,6 +249,24 @@ class InternalBudgetItem extends Model
     }
 
     /**
+     * Nilai kolom "Tax" (kolom Y sheet KOL List client) sebagai desimal:
+     * 0.11 untuk PT PKP, 0 untuk tipe pajak lain. PPh-nya sendiri TIDAK di sini —
+     * itu sudah terwakili koefisien gross-up di kolom sebelahnya.
+     */
+    public function taxRateDecimal(): float
+    {
+        if ($this->use_flexible_tax && $this->tax_rate_percent !== null) {
+            return (float) $this->tax_rate_percent / 100;
+        }
+
+        $pph = $this->masterPph;
+
+        return ($pph && $pph->include_ppn && $pph->ppn_percent)
+            ? (float) $pph->ppn_percent / 100
+            : 0.0;
+    }
+
+    /**
      * Calculate Auto Target Margin based on subtotal
      * Formula J
      * 

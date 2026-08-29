@@ -25,17 +25,24 @@ class MasterPph extends Model
     ];
 
     /**
-     * Get coefficient for selected PPH type
-     * If include_ppn is true, calculate with PPN
+     * Pembagi tunggal untuk menghitung MU PPh (real cost): `subtotal / coefficient`.
+     *
+     * PPN MENAMBAH uang yang keluar, bukan mengurangi. Rumus resminya (sheet KOL
+     * List client, kolom Z; sama dengan InternalBudgetItem::calculateMuPph()):
+     *
+     *   PT PKP : (subtotal / 0.98) + (subtotal * 11%)
+     *   lainnya: subtotal / koefisien
+     *
+     * Baris PPN dikembalikan sebagai pembagi ekuivalen supaya semua pemanggil
+     * tetap memakai satu bentuk `subtotal / coefficient`.
      */
     public function getCalculatedCoefficient(): float
     {
         $coefficient = (float) $this->coefficient;
 
         if ($this->include_ppn && $this->ppn_percent) {
-            // PT PKP = 0.98 + PPN 11% = 0.98 * 1.11 = 1.0878
-            $ppnMultiplier = 1 + ($this->ppn_percent / 100);
-            return $coefficient * $ppnMultiplier;
+            // 1 / (1/0.98 + 0.11) = 0.884637 → subtotal / 0.884637 = subtotal * 1.130408
+            return 1 / (1 / $coefficient + (float) $this->ppn_percent / 100);
         }
 
         return $coefficient;

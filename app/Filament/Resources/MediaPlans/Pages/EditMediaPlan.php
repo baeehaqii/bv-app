@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\MediaPlans\Pages;
 
 use App\Filament\Resources\MediaPlans\MediaPlanResource;
+use App\Filament\Resources\MediaPlans\Schemas\MediaPlanForm;
 use App\Models\InternalBudgetItem;
 use App\Service\BvNotificationService;
 use Filament\Actions;
@@ -107,6 +108,8 @@ class EditMediaPlan extends EditRecord
 
     protected function mutateFormDataBeforeSave(array $data): array
     {
+        $this->guardKolRateCards($data['kols'] ?? []);
+
         // Store kols data temporarily and remove from main data
         $this->kolsData = $data['kols'] ?? [];
         $this->budgetItemsData = $data['budget_items'] ?? [];
@@ -115,6 +118,56 @@ class EditMediaPlan extends EditRecord
         unset($data['budget_items']); // handled in afterSave
 
         return $data;
+    }
+
+    /**
+     * Tolak simpan bila ada KOL yang SOW-nya sudah dipilih tapi rate card-nya
+     * belum ada di Database KOL — tanpa rate card, Cost & Client Price-nya nol
+     * dan budget yang tergenerate diam-diam salah.
+     *
+     * Baris yang belum punya SOW dibiarkan lewat: itu masih draft, belum dihitung.
+     *
+     * @param  array<int, array<string, mixed>>  $kols
+     */
+    protected function guardKolRateCards(array $kols): void
+    {
+        $tanpaRateCard = [];
+
+        foreach ($kols as $kol) {
+            $nama = trim((string) ($kol['name'] ?? ''));
+            $scopes = array_filter((array) ($kol['scope_items'] ?? []), fn($s) => filled($s));
+
+            if ($nama === '' || empty($scopes)) {
+                continue;
+            }
+
+            $rate = MediaPlanForm::computeRateFromSow(
+                $kol['data_kol_id'] ?? null,
+                $nama,
+                $kol['channel'] ?? null,
+                $scopes,
+                (int) ($kol['qty'] ?? 1),
+            );
+
+            if ($rate <= 0) {
+                $tanpaRateCard[] = $nama . ' (' . ($kol['channel'] ?: '—') . ')';
+            }
+        }
+
+        if (empty($tanpaRateCard)) {
+            return;
+        }
+
+        Notification::make()
+            ->danger()
+            ->title('Rate card KOL belum diisi')
+            ->body('Belum bisa disimpan. Isi dulu rate card di Database KOL untuk: '
+                . implode(', ', array_unique($tanpaRateCard))
+                . '. Pastikan SOW yang dipilih sama dengan SOW di rate card-nya.')
+            ->persistent()
+            ->send();
+
+        $this->halt();
     }
 
     protected function afterSave(): void

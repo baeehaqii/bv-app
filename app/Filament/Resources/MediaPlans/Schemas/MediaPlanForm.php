@@ -300,6 +300,76 @@ class MediaPlanForm
     }
 
     /**
+     * Baris DataKol mana yang dimaksud untuk `username` ini. Satu KOL bisa punya
+     * beberapa baris (1 per channel), jadi channel-lah yang menentukan barisnya —
+     * tanpa ini `->first()` mengambil channel sembarang dan rate card-nya meleset.
+     */
+    private static function resolveKol(?string $username, ?string $channel): ?DataKol
+    {
+        if (blank($username)) {
+            return null;
+        }
+
+        $rows = DataKol::where('username', $username)->get();
+
+        return $rows->first(fn($k) => filled($channel) && strcasecmp((string) $k->channel, (string) $channel) === 0)
+            ?? $rows->first();
+    }
+
+    /** Channel yang benar-benar dimiliki username ini, untuk dropdown Channel per baris. */
+    private static function kolChannelsFor(?string $username): array
+    {
+        if (blank($username)) {
+            return [];
+        }
+
+        return DataKol::where('username', $username)
+            ->pluck('channel', 'channel')
+            ->filter()
+            ->toArray();
+    }
+
+    /**
+     * Isi satu baris KOL List dari record DataKol terpilih.
+     * Dipakai saat Username dipilih DAN saat Channel diganti — keduanya harus
+     * menghasilkan baris yang sama, termasuk rate per SOW-nya.
+     */
+    private static function fillRowFromKol(DataKol $kol, callable $set, callable $get): void
+    {
+        $set('data_kol_id', $kol->id);
+        // PIC tidak di-auto-fill: dipilih manual dari dropdown KOL Specialist.
+        $set('channel', $kol->channel);
+        $set('links', $kol->link_userprofile);
+        $set('followers', number_format((int) $kol->followers, 0, '.', ','));
+        $set('tier', $kol->tier);
+        $set('er_percent', (float) $kol->engagement_rate);
+        $set('impression', number_format((int) $kol->impressions, 0, '.', ','));
+        $set('engagement', number_format(intval($kol->followers * ($kol->engagement_rate / 100)), 0, '.', ','));
+
+        // Tax: ambil golongan pajak dari detail KOL agar otomatis di budget items.
+        if ($kol->tipe_pajak_kol) {
+            $set('tipe_pajak_kol', $kol->tipe_pajak_kol);
+        }
+
+        // SOW (Request) otomatis dari rate card KOL (Database KOL) — hanya bila baris
+        // belum punya SOW (baris auto dari brief jangan ditimpa).
+        $kolSowLabels = self::kolSowLabels($kol->id);
+        $currentScopes = array_filter((array) $get('scope_items'), fn($s) => filled($s));
+        if (empty($currentScopes) && ! empty($kolSowLabels)) {
+            $set('scope_items', $kolSowLabels);
+            $currentScopes = $kolSowLabels;
+        }
+
+        $set('rate', number_format(round(self::computeRateFromSow(
+            $kol->id,
+            $kol->username,
+            $kol->channel,
+            $currentScopes,
+            (int) ($get('qty') ?: 1)
+        )), 0, '.', ','));
+    }
+
+    /**
      * Ambil koleksi rate card KOL (eager-load masterSow) untuk lookup rate + expiry.
      * Aman bila data_kol_id null (fallback by username + channel, pola sama computeRateFromSow).
      *
@@ -309,9 +379,7 @@ class MediaPlanForm
     {
         $dataKol = $dataKolId
             ? DataKol::find($dataKolId)
-            : DataKol::where('username', $name)
-                ->when($channel, fn($q) => $q->where('channel', $channel))
-                ->first();
+            : self::resolveKol($name, $channel);
 
         return $dataKol
             ? $dataKol->rateCards()->with('masterSow')->get()
@@ -362,9 +430,7 @@ class MediaPlanForm
 
         $dataKol = $dataKolId
             ? DataKol::find($dataKolId)
-            : DataKol::where('username', $name)
-                ->when($channel, fn($q) => $q->where('channel', $channel))
-                ->first();
+            : self::resolveKol($name, $channel);
 
         if (!$dataKol) {
             return 0;
@@ -1161,11 +1227,18 @@ class MediaPlanForm
                                         ->label('Username')
                                         ->placeholder('Cari KOL...')
                                         ->searchable()
+                                        // Satu opsi per USERNAME, tapi labelnya menyebut semua channel yang
+                                        // dimiliki. Satu KOL bisa punya beberapa baris DataKol (1 baris per
+                                        // channel); dulu di-mapWithKeys per baris sehingga channel yang lain
+                                        // saling menimpa dan cuma satu yang muncul di hasil pencarian.
                                         ->getSearchResultsUsing(
                                             fn(string $search) => DataKol::where('username', 'like', "%{$search}%")
-                                                ->limit(50)
+                                                ->orderBy('username')
+                                                ->limit(100)
                                                 ->get()
-                                                ->mapWithKeys(fn($kol) => [$kol->username => "{$kol->username} ({$kol->channel})"])
+                                                ->groupBy('username')
+                                                ->map(fn($rows, $username) => $username
+                                                    . ' (' . $rows->pluck('channel')->filter()->unique()->implode(', ') . ')')
                                                 ->toArray()
                                         )
                                         ->getOptionLabelUsing(fn($value) => $value)
@@ -1175,39 +1248,12 @@ class MediaPlanForm
                                                 return;
                                             }
 
-                                            $kol = DataKol::where('username', $state)->first();
+                                            $kol = self::resolveKol($state, $get('channel'));
                                             if (!$kol) {
                                                 return;
                                             }
 
-                                            $set('data_kol_id', $kol->id);
-                                            // PIC tidak di-auto-fill: dipilih manual dari dropdown KOL Specialist.
-                                            $set('channel', $kol->channel);
-                                            $set('links', $kol->link_userprofile);
-                                            $set('followers', number_format((int) $kol->followers, 0, '.', ','));
-                                            $set('tier', $kol->tier);
-                                            $set('er_percent', (float) $kol->engagement_rate);
-                                            $set('impression', number_format((int) $kol->impressions, 0, '.', ','));
-                                            $set('engagement', number_format(intval($kol->followers * ($kol->engagement_rate / 100)), 0, '.', ','));
-                                            // Tax: ambil golongan pajak dari detail KOL agar otomatis di budget items
-                                            if ($kol->tipe_pajak_kol) {
-                                                $set('tipe_pajak_kol', $kol->tipe_pajak_kol);
-                                            }
-                                            // SOW (Request) otomatis dari rate card KOL (Database KOL) —
-                                            // hanya bila baris belum punya SOW (baris auto dari brief jangan ditimpa).
-                                            $kolSowLabels = self::kolSowLabels($kol->id);
-                                            $currentScopes = array_filter((array) $get('scope_items'), fn($s) => filled($s));
-                                            if (empty($currentScopes) && ! empty($kolSowLabels)) {
-                                                $set('scope_items', $kolSowLabels);
-                                                $currentScopes = $kolSowLabels;
-                                            }
-                                            $set('rate', number_format(round(self::computeRateFromSow(
-                                                $kol->id,
-                                                $kol->username,
-                                                $kol->channel,
-                                                $currentScopes,
-                                                (int) ($get('qty') ?: 1)
-                                            )), 0, '.', ','));
+                                            self::fillRowFromKol($kol, $set, $get);
                                         })
                                         ->suffixAction(
                                             Action::make('tambah_kol')
@@ -1545,10 +1591,33 @@ class MediaPlanForm
                                             ? array_values(array_filter($state))
                                             : array_values(array_filter(array_map('trim', explode(',', (string) $state))))),
 
+                                    // Channel MENENTUKAN baris DataKol yang dipakai (rate card ikut channel).
+                                    // Kalau username-nya sudah dipilih, batasi ke channel yang benar-benar
+                                    // dimiliki KOL itu supaya tidak bisa memilih channel tanpa rate card.
                                     Select::make('channel')
                                         ->label('Channel')
-                                        ->options(self::kolChannelOptions())
-                                        ->default('Instagram'),
+                                        ->options(function (callable $get): array {
+                                            $opsi = self::kolChannelsFor($get('name')) ?: self::kolChannelOptions();
+
+                                            // Nilai yang sudah tersimpan WAJIB tetap ada di daftar — kalau
+                                            // tidak, Filament menolaknya sebagai "selected channel is invalid"
+                                            // dan Media Plan lama tidak bisa disimpan sama sekali.
+                                            $current = $get('channel');
+                                            if (filled($current) && ! isset($opsi[$current])) {
+                                                $opsi[$current] = $current;
+                                            }
+
+                                            return $opsi;
+                                        })
+                                        ->default('Instagram')
+                                        ->live()
+                                        ->afterStateUpdated(function (?string $state, callable $set, callable $get) {
+                                            $kol = self::resolveKol($get('name'), $state);
+
+                                            if ($kol) {
+                                                self::fillRowFromKol($kol, $set, $get);
+                                            }
+                                        }),
 
                                     TextInput::make('followers')
                                         ->label('Followers')
@@ -2301,10 +2370,12 @@ class MediaPlanForm
         $schedules = \App\Helpers\PaymentScheduleHelper::getUpcomingSchedules();
         $paymentKey = $item['payment_date'] ?? null;
 
-        // Fetch rate cards from DataKol database
-        $dataKol = \App\Models\DataKol::where('username', $item['name'] ?? null)
-            ->where('channel', $item['channel'] ?? null)
-            ->first();
+        // Channel menentukan baris DataKol (satu KOL bisa punya beberapa channel),
+        // jadi pakai resolver yang sama dengan KOL List — kalau tidak, modal ini
+        // kosong untuk KOL multi-channel.
+        $dataKol = ($item['data_kol_id'] ?? null)
+            ? \App\Models\DataKol::find($item['data_kol_id'])
+            : self::resolveKol($item['name'] ?? null, $item['channel'] ?? null);
         $rateCards = $dataKol ? $dataKol->rateCards()->with('masterSow')->get() : collect();
 
         // Resolve PIC ke nama (legacy data bisa menyimpan user ID)
