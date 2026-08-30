@@ -5,6 +5,7 @@ namespace App\Filament\Pages;
 use App\Filament\Resources\BvCampigns\BvCampignResource;
 use App\Models\BvCampaignKol;
 use App\Models\BvCampign;
+use App\Service\AiWriter;
 use App\Service\CampaignSummary;
 use App\Service\PostCommentsFetcher;
 use App\Service\PostPerformanceService;
@@ -270,6 +271,37 @@ class CampaignSummaryList extends Page implements HasTable
                         ->title('Performa diperbarui')
                         ->body("{$hasil['success']} dari {$hasil['total']} postingan berhasil.")
                         ->send();
+                }),
+
+            Action::make('ringkasan_ai')
+                ->label('Ringkasan AI')
+                ->icon('heroicon-o-sparkles')
+                ->color('info')
+                ->visible(fn() => $detail() && AiWriter::configured())
+                ->requiresConfirmation()
+                ->modalHeading('Tulis Ulang Ringkasan AI')
+                ->modalDescription('Sekali klik memakai satu panggilan berbayar ke Gemini. '
+                    . 'Hasilnya disimpan, jadi tidak perlu diklik lagi sampai angkanya berubah.')
+                ->modalSubmitActionLabel('Ya, tulis sekarang')
+                ->action(function () {
+                    try {
+                        $teks = AiWriter::write(
+                            'Kamu analis kampanye influencer di agency Indonesia. Tulis ringkasan '
+                            . 'performa campaign dalam Bahasa Indonesia, 3 paragraf pendek: (1) hasil '
+                            . 'secara umum, (2) metrik yang menonjol dan yang lemah beserta alasannya, '
+                            . '(3) satu rekomendasi konkret untuk campaign berikutnya. Jangan mengarang '
+                            . 'angka di luar data yang diberikan, dan jangan memakai format markdown.',
+                            $this->summary->factsForAi(),
+                        );
+                    } catch (Exception $e) {
+                        Notification::make()->danger()->title('Ringkasan gagal dibuat')->body($e->getMessage())->send();
+
+                        return;
+                    }
+
+                    $this->campaign->update(['ai_summary' => $teks, 'ai_summary_at' => now()]);
+
+                    Notification::make()->success()->title('Ringkasan AI diperbarui')->send();
                 }),
 
             Action::make('analyze_sentiment')

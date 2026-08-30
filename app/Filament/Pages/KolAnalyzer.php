@@ -4,6 +4,7 @@ namespace App\Filament\Pages;
 
 use App\Filament\Resources\DataKols\Tables\DataKolsTable;
 use App\Models\DataKol;
+use App\Service\AiWriter;
 use App\Service\TiktokService;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
@@ -146,6 +147,47 @@ class KolAnalyzer extends Page implements HasTable
                 ->color('gray')
                 ->visible(fn() => $this->channelId !== null)
                 ->action(fn() => $this->channelId = null),
+
+            Action::make('kartu_ai')
+                ->label(fn() => $this->channel?->ai_insight ? 'Tulis Ulang Kartu AI' : 'Buat Kartu AI')
+                ->icon('heroicon-o-sparkles')
+                ->color('info')
+                ->visible(fn() => $this->channelId !== null && AiWriter::configured())
+                ->requiresConfirmation()
+                ->modalHeading('Tulis Kartu Profil AI')
+                ->modalDescription('Sekali klik memakai satu panggilan berbayar ke Gemini. '
+                    . 'Hasilnya disimpan di KOL ini dan bisa diunduh sebagai PDF.')
+                ->modalSubmitActionLabel('Ya, tulis sekarang')
+                ->action(function () {
+                    $channel = $this->channel;
+
+                    try {
+                        $teks = AiWriter::write(
+                            'Kamu analis influencer di agency Indonesia. Tulis kartu profil KOL dalam '
+                            . 'Bahasa Indonesia untuk dibaca tim sales: 1 paragraf pembuka tentang siapa '
+                            . 'dan kekuatannya, lalu baris-baris pendek berisi jenis brand yang cocok dan '
+                            . 'catatan risiko bila ada. Jangan mengarang angka di luar data yang diberikan, '
+                            . 'dan jangan memakai format markdown.',
+                            $channel->factsForAi(),
+                        );
+                    } catch (\Throwable $e) {
+                        Notification::make()->danger()->title('Kartu AI gagal dibuat')->body($e->getMessage())->send();
+
+                        return;
+                    }
+
+                    $channel->update(['ai_insight' => $teks, 'ai_insight_at' => now()]);
+
+                    Notification::make()->success()->title('Kartu AI tersimpan')->send();
+                }),
+
+            Action::make('unduh_kartu_ai')
+                ->label('Download Kartu (PDF)')
+                ->icon('heroicon-o-arrow-down-tray')
+                ->color('gray')
+                ->visible(fn() => filled($this->channel?->ai_insight))
+                ->url(fn() => route('kol-card.pdf', ['dataKol' => $this->channelId]))
+                ->openUrlInNewTab(),
 
             Action::make('fetch_audience')
                 ->label('Ambil Data Audiens')

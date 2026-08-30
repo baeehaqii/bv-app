@@ -87,6 +87,11 @@
     @endforeach
 </table>
 
+@if ($campaign->ai_summary)
+    <div class="sec">Ringkasan AI</div>
+    <div class="box" style="white-space:pre-line">{{ $campaign->ai_summary }}</div>
+@endif
+
 <div class="sec">Campaign Performance</div>
 <table style="width:100%">
     <tr>

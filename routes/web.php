@@ -10,6 +10,7 @@ use App\Http\Controllers\KolImportTemplateController;
 use App\Http\Controllers\MediaPlanPdfController;
 use App\Http\Controllers\MediaPlanExcelController;
 use App\Http\Controllers\CampaignSummaryPdfController;
+use App\Http\Controllers\KolCardPdfController;
 use App\Http\Controllers\InternalBudgetPdfController;
 use App\Http\Controllers\InternalBudgetReviewController;
 use App\Http\Controllers\QuotationController;
@@ -96,6 +97,10 @@ Route::middleware(['auth'])->group(function () {
     // Campaign Summary PDF
     Route::get('/campaign/{bvCampign}/summary/pdf', [CampaignSummaryPdfController::class, 'generate'])
         ->name('campaign-summary.pdf');
+
+    // Kartu profil KOL (hasil AI)
+    Route::get('/kol/{dataKol}/kartu/pdf', [KolCardPdfController::class, 'generate'])
+        ->name('kol-card.pdf');
 
     // Internal Budget PDF Routes
     Route::get('/internal-budget/{internalBudget}/pdf', [InternalBudgetPdfController::class, 'generate'])

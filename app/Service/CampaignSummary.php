@@ -217,4 +217,49 @@ class CampaignSummary
             fn(BvCampaignKol $k) => PostCommentsFetcher::supports($k->platform) && $k->comments_fetched_at === null,
         );
     }
+
+    /**
+     * Fakta campaign yang dikirim ke model AI. Sengaja angka mentah dalam teks
+     * datar, bukan JSON penuh: yang dinilai model cuma angkanya, dan prompt yang
+     * pendek lebih murah. Tidak ada nama client/brand di sini — model tidak perlu
+     * tahu identitas untuk menilai performa.
+     */
+    public function factsForAi(): string
+    {
+        $t = $this->totals();
+        $sentimen = $this->sentiment();
+        $skor = $this->successScore();
+        $angka = fn($n) => number_format((int) $n, 0, ',', '.');
+
+        $baris = [
+            'Periode konten: ' . $this->published()->count() . ' dari ' . $this->kols->count() . ' KOL sudah tayang.',
+            'Views: ' . $angka($t['views']) . '. Engagement: ' . $angka($t['engagement'])
+                . ' (like ' . $angka($t['likes']) . ', comment ' . $angka($t['comments'])
+                . ', share ' . $angka($t['shares']) . ', save ' . $angka($t['saves']) . ').',
+            'Cost ke client: IDR ' . $angka($t['cost']) . '. CPE IDR ' . $angka($this->cpe())
+                . ', CPV IDR ' . $angka($this->cpv()) . ', CPM IDR ' . $angka($this->cpm()) . '.',
+            'Engagement rate ' . number_format($this->engagementRate(), 2) . '%, VTR '
+                . number_format($this->viewThroughRate(), 2) . '%.',
+            'Penilaian terhadap benchmark internal: ' . $skor['score'] . ' dari ' . $skor['max'] . ' metrik lolos.',
+        ];
+
+        foreach ($this->metricsOverview() as $m) {
+            $baris[] = 'Metrik ' . $m['label'] . ' = ' . $m['value'] . ' (' . $m['verdict'] . ').';
+        }
+
+        $baris[] = $sentimen['total'] > 0
+            ? 'Sentimen dari ' . $angka($sentimen['total']) . ' komentar, skor ' . $sentimen['score'] . '/5, sebaran: '
+                . collect($sentimen['percentages'])->map(fn($p, $k) => $k . ' ' . number_format($p, 1) . '%')->implode(', ') . '.'
+            : 'Komentar belum pernah diambil, jadi sentimen tidak diketahui.';
+
+        $teratas = $this->topCreators()
+            ->map(fn(BvCampaignKol $k) => ($k->username ?: $k->creator_name) . ' (' . $angka($k->total_engagement) . ' engagement)')
+            ->implode(', ');
+
+        if ($teratas !== '') {
+            $baris[] = 'Creator dengan engagement tertinggi: ' . $teratas . '.';
+        }
+
+        return implode("\n", $baris);
+    }
 }

@@ -18,6 +18,7 @@ class DataKol extends Model
         'latest_posts' => 'array',
         'audience_countries' => 'array',
         'audience_fetched_at' => 'datetime',
+        'ai_insight_at' => 'datetime',
         'is_verified' => 'boolean',
     ];
 
@@ -164,6 +165,49 @@ class DataKol extends Model
     public function topHashtags(int $limit = 10): array
     {
         return KolPostNormalizer::topHashtags($this->latestPosts(), $limit);
+    }
+
+    /**
+     * Fakta KOL yang dikirim ke model AI untuk kartu profil. Angka mentah dalam
+     * teks datar — model cuma perlu angkanya, dan prompt pendek lebih murah.
+     */
+    public function factsForAi(): string
+    {
+        $gab = $this->crossChannelSummary();
+        $angka = fn($n) => number_format((int) $n, 0, ',', '.');
+
+        $baris = [
+            'KOL @' . $this->username . ($this->full_name ? ' (' . $this->full_name . ')' : '') . '.',
+            'Tier ' . $gab['tier'] . ', aktif di ' . $gab['channels'] . ' channel, total '
+                . $angka($gab['followers']) . ' followers.',
+            'Gabungan: engagement ' . $angka($gab['engagements']) . ', ER '
+                . number_format($gab['engagement_rate'], 2) . '%, rata-rata views '
+                . $angka($gab['average_views']) . '.',
+        ];
+
+        foreach ($this->channelSiblings() as $channel) {
+            $baris[] = 'Channel ' . $channel->channel . ': ' . $angka($channel->followers)
+                . ' followers, ER ' . number_format((float) $channel->engagement_rate, 2)
+                . '%, avg views ' . $angka($channel->average_views)
+                . ', ' . $angka($channel->media_count) . ' postingan.';
+        }
+
+        if ($this->biography) {
+            $baris[] = 'Bio: ' . $this->biography;
+        }
+
+        if ($hashtag = $this->topHashtags(8)) {
+            $baris[] = 'Hashtag yang sering dipakai: ' . implode(', ', array_keys($hashtag)) . '.';
+        }
+
+        if ($this->audience_countries) {
+            $negara = collect($this->audience_countries)->take(5)
+                ->map(fn($n) => ($n['country'] ?? '?') . ' ' . number_format((float) ($n['percentage'] ?? 0), 1) . '%')
+                ->implode(', ');
+            $baris[] = 'Sebaran audiens: ' . $negara . '.';
+        }
+
+        return implode("\n", $baris);
     }
 
     /**

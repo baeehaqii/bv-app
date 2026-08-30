@@ -16,6 +16,7 @@ class BvCampign extends Model
     protected $guarded = [];
 
     protected $casts = [
+        'ai_summary_at' => 'datetime',
         'media_platforms' => 'array',
         'client_brief_files' => 'array',
         'start_date' => 'date',

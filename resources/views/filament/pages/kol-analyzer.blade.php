@@ -168,6 +168,19 @@
             </div>
         </div>
 
+        {{-- Kartu AI. Muncul hanya setelah tombol "Buat Kartu AI" diklik —
+             tiap panggilan berbayar, jadi tidak pernah jalan otomatis. --}}
+        @if ($channel->ai_insight)
+            <div class="kolz-card">
+                <div class="kolz-label" style="margin-bottom:.4rem">Kartu AI</div>
+                <p style="white-space:pre-line;font-size:.9rem;line-height:1.55">{{ $channel->ai_insight }}</p>
+                <div class="kolz-muted" style="font-size:.75rem;margin-top:.5rem">
+                    Ditulis {{ $channel->ai_insight_at?->diffForHumans() }}. Unduh versi PDF-nya lewat
+                    tombol "Download Kartu (PDF)" di header.
+                </div>
+            </div>
+        @endif
+
         {{-- 3. Tab --}}
         <div class="kolz-card">
             <div style="display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap">

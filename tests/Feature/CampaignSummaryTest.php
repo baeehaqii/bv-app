@@ -303,3 +303,36 @@ it('mengekspor Campaign Summary jadi PDF', function () {
 
     expect($response->getContent())->toStartWith('%PDF');
 });
+
+it('menulis ringkasan AI ke campaign lewat aksi header', function () {
+    Gate::before(fn() => true);
+    config(['ai.providers.gemini.key' => 'key-palsu']);
+
+    // agent() menghasilkan AnonymousAgent, jadi fake-nya dipasang di kelas itu.
+    \Laravel\Ai\Ai::fakeAgent(\Laravel\Ai\AnonymousAgent::class, ['Campaign berjalan baik. Engagement di atas benchmark.']);
+
+    $campaign = summaryCampaign([
+        ['views' => 100_000, 'likes' => 5_000, 'comments' => 100, 'price' => 5_000_000, 'followers_count' => 200_000],
+    ]);
+
+    Livewire::actingAs(summaryUser())
+        ->test(CampaignSummaryList::class, ['campaignId' => $campaign->id])
+        ->callAction('ringkasan_ai')
+        ->assertHasNoActionErrors();
+
+    $campaign->refresh();
+
+    expect($campaign->ai_summary)->toContain('Engagement di atas benchmark')
+        ->and($campaign->ai_summary_at)->not->toBeNull();
+});
+
+it('menyembunyikan tombol Ringkasan AI saat API key belum diisi', function () {
+    Gate::before(fn() => true);
+    config(['ai.providers.gemini.key' => null]);
+
+    $campaign = summaryCampaign([['views' => 100]]);
+
+    Livewire::actingAs(summaryUser())
+        ->test(CampaignSummaryList::class, ['campaignId' => $campaign->id])
+        ->assertActionHidden('ringkasan_ai');
+});

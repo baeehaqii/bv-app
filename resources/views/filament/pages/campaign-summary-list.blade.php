@@ -79,6 +79,20 @@
         @endforeach
     </div>
 
+    {{-- Ringkasan AI. Hanya muncul setelah tombol "Ringkasan AI" diklik —
+         tiap panggilan berbayar, jadi tidak pernah jalan otomatis. --}}
+    @if ($campaign->ai_summary)
+        <div class="cs-card cs-section">
+            <div class="cs-h">Ringkasan AI</div>
+            <p style="white-space:pre-line;font-size:.9rem;margin-top:.4rem">{{ $campaign->ai_summary }}</p>
+            <div class="cs-hint" style="margin-top:.5rem">
+                Ditulis {{ $campaign->ai_summary_at?->diffForHumans() }} oleh
+                {{ config('ai.providers.' . config('ai.default') . '.models.text.default', config('ai.default')) }}.
+                Klik "Ringkasan AI" di header untuk menulis ulang setelah performa di-refresh.
+            </div>
+        </div>
+    @endif
+
     {{-- 3. Campaign Performance --}}
     <div class="cs-card cs-section">
         <div class="cs-h">Campaign Performance</div>

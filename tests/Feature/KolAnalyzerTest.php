@@ -262,3 +262,34 @@ it('meringkas angka gabungan seluruh channel milik satu KOL', function () {
         ->assertSee('120.000')
         ->assertSee('2 channel · tier Macro', escape: false);
 });
+
+it('menulis kartu AI KOL lalu mengunduhnya sebagai PDF', function () {
+    config(['ai.providers.gemini.key' => 'key-palsu']);
+    \Laravel\Ai\Ai::fakeAgent(\Laravel\Ai\AnonymousAgent::class, [
+        'Kreator gaming dengan audiens loyal. Cocok untuk brand gadget.',
+    ]);
+
+    $kol = kolChannel();
+
+    Livewire::actingAs(analyzerUser())
+        ->test(KolAnalyzer::class, ['channelId' => $kol->id])
+        ->callAction('kartu_ai')
+        ->assertHasNoActionErrors();
+
+    $kol->refresh();
+    expect($kol->ai_insight)->toContain('brand gadget')
+        ->and($kol->ai_insight_at)->not->toBeNull();
+
+    $response = $this->actingAs(analyzerUser())->get(route('kol-card.pdf', ['dataKol' => $kol->id]));
+
+    $response->assertOk()->assertHeader('content-type', 'application/pdf');
+    expect($response->getContent())->toStartWith('%PDF');
+});
+
+it('menolak unduh kartu PDF sebelum kartu AI pernah dibuat', function () {
+    $kol = kolChannel();
+
+    $this->actingAs(analyzerUser())
+        ->get(route('kol-card.pdf', ['dataKol' => $kol->id]))
+        ->assertNotFound();
+});
