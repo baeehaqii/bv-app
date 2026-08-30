@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Internal Budget - {{ $internalBudget->mediaPlan->campaign_name ?? 'Beyond Viral' }}</title>
+    <title>Media Plan External - {{ $internalBudget->mediaPlan->campaign_name ?? 'Beyond Viral' }}</title>
     <style>
         * {
             margin: 0;
@@ -377,7 +377,7 @@
 
         <!-- Main Title -->
         <div class="main-title">
-            INTERNAL BUDGET
+            MEDIA PLAN EXTERNAL
         </div>
         <div class="subtitle">
             (INTERNAL PURPOSES PLEASE DO NOT SHARE)

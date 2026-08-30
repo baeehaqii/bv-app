@@ -63,7 +63,7 @@ class CreateMediaPlan extends CreateRecord
 
             // Determine margin for this KOL
             $useGlobalMargin = $data['use_global_margin'] ?? true;
-            $globalMargin = $data['margin_percent'] ?? 30;
+            $globalMargin = $data['margin_percent'] ?? \App\Models\MasterMargin::getMarginForAmount(0);
 
             // Default to global
             $useFlexible = false;

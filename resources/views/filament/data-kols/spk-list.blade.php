@@ -10,7 +10,7 @@
 
 @if ($spks->isEmpty())
     <p class="py-6 text-center text-sm text-gray-500">
-        Belum ada SPK. SPK terbit otomatis dari Internal Budget setelah client approve KOL ini.
+        Belum ada SPK. SPK terbit otomatis dari Media Plan External setelah client approve KOL ini.
     </p>
 @else
     <div style="overflow-x:auto;">

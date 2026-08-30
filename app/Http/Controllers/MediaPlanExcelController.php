@@ -20,7 +20,7 @@ class MediaPlanExcelController extends Controller
         $internalBudget = $mediaPlan->internalBudget;
 
         if (!$internalBudget || $internalBudget->status !== 'approved') {
-            abort(403, 'Internal Budget harus di-approve terlebih dahulu sebelum export Excel.');
+            abort(403, 'Media Plan External harus di-approve terlebih dahulu sebelum export Excel.');
         }
 
         // Generate safe filename
@@ -39,7 +39,7 @@ class MediaPlanExcelController extends Controller
         $internalBudget = $mediaPlan->internalBudget;
 
         if (!$internalBudget || $internalBudget->status !== 'approved') {
-            abort(403, 'Internal Budget harus di-approve terlebih dahulu sebelum export CSV.');
+            abort(403, 'Media Plan External harus di-approve terlebih dahulu sebelum export CSV.');
         }
 
         // Generate safe filename
@@ -58,7 +58,7 @@ class MediaPlanExcelController extends Controller
         $internalBudget = $mediaPlan->internalBudget;
 
         if (!$internalBudget || $internalBudget->status !== 'approved') {
-            abort(403, 'Internal Budget harus di-approve terlebih dahulu.');
+            abort(403, 'Media Plan External harus di-approve terlebih dahulu.');
         }
 
         try {

@@ -28,7 +28,7 @@ class SpksRelationManager extends RelationManager
         return $table
             ->recordTitleAttribute('spk_number')
             ->emptyStateHeading('Belum ada SPK')
-            ->emptyStateDescription('SPK terbit otomatis dari Internal Budget setelah client approve KOL ini.')
+            ->emptyStateDescription('SPK terbit otomatis dari Media Plan External setelah client approve KOL ini.')
             ->columns([
                 TextColumn::make('spk_number')
                     ->label('Nomor SPK')

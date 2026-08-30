@@ -18,7 +18,7 @@ class MediaPlanPdfController extends Controller
         $internalBudget = $mediaPlan->internalBudget;
 
         if (!$internalBudget || $internalBudget->status !== 'approved') {
-            abort(403, 'Internal Budget harus di-approve terlebih dahulu sebelum generate PDF.');
+            abort(403, 'Media Plan External harus di-approve terlebih dahulu sebelum generate PDF.');
         }
 
         // Load relationships - selected KOLs with their DataKol relation and budget items
@@ -79,7 +79,7 @@ class MediaPlanPdfController extends Controller
         $internalBudget = $mediaPlan->internalBudget;
 
         if (!$internalBudget || $internalBudget->status !== 'approved') {
-            abort(403, 'Internal Budget harus di-approve terlebih dahulu sebelum preview PDF.');
+            abort(403, 'Media Plan External harus di-approve terlebih dahulu sebelum preview PDF.');
         }
 
         // Load relationships - selected KOLs with their DataKol relation and budget items
@@ -137,7 +137,7 @@ class MediaPlanPdfController extends Controller
         $internalBudget = $mediaPlan->internalBudget;
 
         if (!$internalBudget || $internalBudget->status !== 'approved') {
-            abort(403, 'Internal Budget harus di-approve terlebih dahulu sebelum preview.');
+            abort(403, 'Media Plan External harus di-approve terlebih dahulu sebelum preview.');
         }
 
         // Load relationships - selected KOLs with their DataKol relation and budget items

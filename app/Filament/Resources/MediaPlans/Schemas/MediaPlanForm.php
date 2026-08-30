@@ -1992,13 +1992,12 @@ class MediaPlanForm
                         ->afterStateUpdated(function (callable $get, callable $set) {
                             $kols = $get('kols') ?? [];
                             $margins = $get('kol_margins') ?? [];
-                            $useGlobal = $get('use_global_margin') ?? true;
 
                             // Always sync name, but only re-init structure if counts mismatch or forced
                             // Simple approach: Rebuild margin array preserving values for existing indices
-                
+
                             $newMargins = [];
-                            $defaultMargin = $get('margin_percent') ?? 30;
+                            $defaultMargin = $get('margin_percent') ?? \App\Models\MasterMargin::getMarginForAmount(0);
 
                             foreach ($kols as $index => $kol) {
                                 // Try to preserve existing margin for this index
@@ -2273,12 +2272,10 @@ class MediaPlanForm
 
         $muPph = $subtotal / $pphCoefficient;
 
-        // Margin: prioritaskan global margin dari MediaPlan
-        $targetMargin = 30.0;
+        // Margin: global margin custom dari MediaPlan menang, selain itu ikut Master Margin
+        $targetMargin = \App\Models\MasterMargin::getMarginForAmount($subtotal);
         if ($mediaPlanRecord && $mediaPlanRecord->use_global_margin && $mediaPlanRecord->margin_type === 'custom') {
             $targetMargin = (float) $mediaPlanRecord->margin_percent;
-        } elseif ($mediaPlanRecord) {
-            $targetMargin = \App\Models\MasterMargin::getMarginForAmount($subtotal);
         }
 
         $marginDecimal = $targetMargin / 100;
