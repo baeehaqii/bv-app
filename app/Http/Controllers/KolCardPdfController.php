@@ -27,8 +27,8 @@ class KolCardPdfController extends Controller
         $pdf->setPaper('a4', 'portrait');
         $pdf->setOptions([
             'isHtml5ParserEnabled' => true,
-            // Foto profil KOL di-host di CDN Instagram/TikTok, jadi harus boleh remote.
-            'isRemoteEnabled' => true,
+            // Semua gambar di kartu ini di-inline base64; tidak ada yang perlu diunduh.
+            'isRemoteEnabled' => false,
             'defaultFont' => 'DejaVu Sans',
             'isFontSubsettingEnabled' => true,
             'dpi' => 150,

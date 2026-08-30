@@ -96,9 +96,11 @@ return [
             'driver' => 'gemini',
             'key' => env('GEMINI_API_KEY'),
             'url' => env('GEMINI_URL', 'https://generativelanguage.googleapis.com/v1beta/'),
-            // Tanpa ini paket memakai gemini-3.5-flash.
+            // gemini-2.5-flash masih terdaftar di katalog Google tapi API menolak
+            // dipakai key baru ("no longer available to new users"), jadi dipakai
+            // 3.5-flash yang sudah diuji jalan dengan key produksi.
             'models' => [
-                'text' => ['default' => env('GEMINI_TEXT_MODEL', 'gemini-2.5-flash')],
+                'text' => ['default' => env('GEMINI_TEXT_MODEL', 'gemini-3.5-flash')],
             ],
         ],
 
