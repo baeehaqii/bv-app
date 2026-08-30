@@ -155,16 +155,25 @@ Satu baris sheet menghasilkan EMPAT hal, bukan satu:
 3. **MediaPlanKol** — barisnya di KOL List, ditautkan ke DataKol di atas.
 4. **InternalBudgetItem** — satu per SOW, lalu dihitung.
 
-Kolom **Subtotal Rate, Gross Up PPH Coefficient, Tax, MU PPh\*, MU\*\*,
-Published Rate\*\*\*, Rounded, dan Margin %** di sheet **tidak diambil
-angkanya**. Semuanya turunan yang aplikasi hitung sendiri dari rate card + tipe
-pajak lewat `MediaPlanForm::computeBudgetFigures()` — helper yang sama dipakai
-halaman Media Plan, jadi hasil migrasi dan hasil input manual tidak mungkin
-berbeda. Mengimpor angka sheet berarti menanam ulang hasil koefisien PPh lama
-yang sudah terbukti salah.
+`rate_base` diambil **langsung dari kolom Rate di sheet**, bukan lewat rate
+card: saat migrasi, KOL-nya memang belum punya rate card, dan mengambilnya lewat
+rate card yang baru saja ditulis sendiri cuma menambah satu tahap pencocokan
+nama SOW yang bisa meleset diam-diam jadi rate 0.
 
-Rate baris KOL tidak diisi tangan; `MediaPlanKol::syncRateFromBudget()` yang
-menurunkannya dari budget item. Tiap tier (Nano/Micro/Macro/Homeless Media) satu tab
+Kolom **Subtotal Rate, Gross Up PPH Coefficient, Tax, MU PPh\*, MU\*\*,
+Published Rate\*\*\*, Rounded, dan Margin %** tidak perlu diambil angkanya —
+`InternalBudgetItem::recalculate()` mengisinya sendiri lewat hook `saving`,
+digerakkan kolom **`vendor_tax_type`**. Menghitungnya di kode migrasi percuma:
+hook itu menimpanya sedetik kemudian.
+
+Yang menentukan hasilnya karena itu cuma `vendor_tax_type`, dan itu dibaca dari
+kolom Coefficient + Tax di sheet: 0,98 + 0,11 → **PT PKP**, yang rumusnya
+`(Base/0,98) + (Base × 0,11)` — **sama persis dengan kolom Z di sheet**. Jadi
+"ikuti sheet" dan "pakai perhitungan aplikasi" bukan dua hal berbeda; yang dulu
+keliru justru versi lama yang MENGALIKAN PPN.
+
+Rate baris KOL juga tidak diisi tangan; `MediaPlanKol::syncRateFromBudget()`
+yang menurunkannya dari budget item. Tiap tier (Nano/Micro/Macro/Homeless Media) satu tab
 dengan susunan kolom yang sama, jadi tab-nya dipilih manual dan dijalankan
 bergantian. Wajib memilih **deal di Sales Activity Tracker** dulu; tanpa itu tidak ada yang
 disimpan. Yang dipilih deal-nya, bukan Media Plan-nya langsung — Media Plan

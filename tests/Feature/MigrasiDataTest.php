@@ -426,17 +426,30 @@ it('memberi tahu kalau daftar spreadsheet tidak bisa diambil', function () {
  | KOL List → Media Plan Internal
  * ---------------------------------------------------------------------- */
 
+/** Master PPh seperti di produksi; sheet menulis koefisien 0,98 + tax 0,11 = PT PKP. */
+function masterPphSeperti(): void
+{
+    \App\Models\MasterPph::firstOrCreate(
+        ['name' => 'Pribadi'],
+        ['entity_type' => 'Pribadi', 'coefficient' => 0.975, 'include_ppn' => false],
+    );
+    \App\Models\MasterPph::firstOrCreate(
+        ['name' => 'PT PKP'],
+        ['entity_type' => 'PT PKP', 'coefficient' => 0.980, 'include_ppn' => true, 'ppn_percent' => 11],
+    );
+}
+
 /** Susunan sheet "[INT] ... - KOL List": judul di baris 2, satu KOL beberapa baris. */
 function kolListRows(): array
 {
     return [
         ['', '', '', '', '', '', '', '', '', 'MEDIA PLAN - Bir Kawan Senja'],
-        ['No', 'PIC', 'Status', 'Username', 'Link', 'Channel', 'Categories', 'Followers', 'Tier', 'ER %', 'Avg Views', 'Engagement', '', '', '', '', '', '', '', 'Qty', 'Item', 'Rate'],
+        ['No', 'PIC', 'Status', 'Username', 'Link', 'Channel', 'Categories', 'Followers', 'Tier', 'ER %', 'Avg Views', 'Engagement', '', '', '', '', '', '', '', 'Qty', 'Item', 'Rate', 'Subtotal Rate', 'Gross Up PPH Coefficient', 'Tax'],
         ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
-        [1, 'Sheila', 'Approaching', 'Bagus Gandhi', 'https://instagram.com/bagus', 'Instagram', 'Lifestyle', 12000, 'Nano', 4.5, 8000, 540, '', '', '', '', '', '', '', 1, 'IG Reels', 1500000],
-        ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', 1, 'IG Story with Link', 500000],
-        ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', 1, 'Visit Store', 0],
-        [2, 'Salwa', 'Approaching', 'Ivan Wahyu', 'https://instagram.com/ivan', 'Instagram', 'Food', 9000, 'Nano', 3.2, 5000, 288, '', '', '', '', '', '', '', 1, 'IG Reels', 1200000],
+        [1, 'Sheila', 'Approaching', 'Bagus Gandhi', 'https://instagram.com/bagus', 'Instagram', 'Lifestyle', 12000, 'Nano', 4.5, 8000, 540, '', '', '', '', '', '', '', 1, 'IG Reels', 1500000, 1500000, 0.98, 0.11],
+        ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', 1, 'IG Story with Link', 500000, 500000, 0.98, 0.11],
+        ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', 1, 'Visit Store', 0, 0, 0.98, 0.11],
+        [2, 'Salwa', 'Approaching', 'Ivan Wahyu', 'https://instagram.com/ivan', 'Instagram', 'Food', 9000, 'Nano', 3.2, 5000, 288, '', '', '', '', '', '', '', 1, 'IG Reels', 1200000, 1200000, 0.98, 0.11],
     ];
 }
 
@@ -460,6 +473,7 @@ it('menggabungkan baris scope of work ke KOL di atasnya', function () {
 });
 
 it('menyimpan KOL beserta total qty dan rate seluruh scope of work-nya', function () {
+    masterPphSeperti();
     $sales = \App\Models\BvSales::create(['event_name' => 'Bir Kawan Senja', 'company_name' => 'Multi Bintang']);
     $plan = \App\Models\MediaPlan::create([
         'bv_sales_id' => $sales->id,
@@ -487,6 +501,7 @@ it('menyimpan KOL beserta total qty dan rate seluruh scope of work-nya', functio
 });
 
 it('mengisi KOL Data dan rate card dari sheet, bukan cuma baris Media Plan', function () {
+    masterPphSeperti();
     $sales = \App\Models\BvSales::create(['event_name' => 'Bir Kawan Senja', 'company_name' => 'Multi Bintang']);
 
     $m = (new \App\Service\MediaPlanSheetMigration())->untukSales($sales->id);
@@ -508,6 +523,7 @@ it('mengisi KOL Data dan rate card dari sheet, bukan cuma baris Media Plan', fun
 });
 
 it('menghitung sendiri kolom subtotal sampai margin, tidak mengambil angka sheet', function () {
+    masterPphSeperti();
     $sales = \App\Models\BvSales::create(['event_name' => 'Bir Kawan Senja', 'company_name' => 'Multi Bintang']);
 
     $m = (new \App\Service\MediaPlanSheetMigration())->untukSales($sales->id);
@@ -516,12 +532,20 @@ it('menghitung sendiri kolom subtotal sampai margin, tidak mengambil angka sheet
     $kol = \App\Models\MediaPlanKol::where('name', 'Bagus Gandhi')->firstOrFail();
     $reels = $kol->internalBudgetItems()->where('scope_item', 'IG Reels')->firstOrFail();
 
-    // rate_base datang dari rate card, bukan dari kolom Rate baris Media Plan.
+    // Koefisien 0,98 + tax 0,11 di sheet = "PT PKP".
+    expect($reels->vendor_tax_type)->toBe('PT PKP')
+        ->and($reels->masterPph->name)->toBe('PT PKP');
+
+    // rate_base LANGSUNG dari kolom Rate di sheet — saat migrasi KOL-nya memang
+    // belum punya rate card, jadi tidak lewat computeRateFromSow().
     expect((float) $reels->rate_base)->toBe(1500000.0)
-        ->and((float) $reels->subtotal)->toBe(1500000.0)
-        // Kolom turunan terisi — inilah yang sebelumnya kosong.
-        ->and((float) $reels->mu_pph)->toBeGreaterThan(1500000.0)
-        ->and((float) $reels->rounded)->toBeGreaterThan((float) $reels->mu_pph)
+        ->and((float) $reels->subtotal)->toBe(1500000.0);
+
+    // Cost harus sama persis dengan rumus sheet: Z = (W/0,98) + (W x 0,11).
+    $costSheet = 1500000 / 0.98 + 1500000 * 0.11;
+    expect(round((float) $reels->mu_pph, 2))->toBe(round($costSheet, 2))
+        // AA = Z/0,5 lalu AC = ROUNDUP(AB, -5) — margin 50% dari Master Margin.
+        ->and((float) $reels->rounded)->toBe((float) (ceil(($costSheet / 0.5) / 100000) * 100000))
         ->and((float) $reels->actual_margin_percent)->toBeGreaterThan(0);
 
     // SOW tanpa rate tetap jadi budget item, nilainya nol — bukan hilang.
@@ -540,6 +564,7 @@ it('menolak migrasi KOL List sebelum deal-nya dipilih', function () {
 });
 
 it('membuatkan Media Plan bila deal-nya belum punya', function () {
+    masterPphSeperti();
     $sales = \App\Models\BvSales::create(['event_name' => 'Bir Kawan Senja', 'company_name' => 'Multi Bintang']);
 
     expect($sales->mediaPlan()->exists())->toBeFalse();

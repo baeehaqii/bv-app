@@ -2,7 +2,6 @@
 
 namespace App\Service;
 
-use App\Filament\Resources\MediaPlans\Schemas\MediaPlanForm;
 use App\Models\BvSales;
 use App\Models\DataKol;
 use App\Models\InternalBudget;
@@ -26,7 +25,9 @@ use Illuminate\Support\Facades\DB;
  *
  * Satu baris sheet menghasilkan EMPAT hal, bukan satu:
  *   1. DataKol      — username, channel, followers, link, tier, ER, avg views.
- *   2. KolRateCard  — satu per scope of work, berisi rate dari sheet.
+ *   2. KolRateCard  — satu per scope of work, berisi rate dari sheet. Bukan
+ *      dipakai migrasi ini (rate_base langsung dari sheet), tapi supaya Media
+ *      Plan BERIKUTNYA untuk KOL yang sama sudah punya rate card.
  *   3. MediaPlanKol — barisnya di KOL List, ditautkan ke DataKol di atas.
  *   4. InternalBudgetItem — satu per SOW, lalu dihitung.
  *
@@ -87,6 +88,9 @@ class MediaPlanSheetMigration extends SheetMigration
             'sow_qty' => ['qty'],
             'sow_item' => ['item'],
             'rate' => ['rate'],
+            // Dua kolom ini yang menentukan tipe pajak KOL-nya.
+            'pph_coefficient' => ['gross up pph coefficient', 'coefficient'],
+            'tax' => ['tax'],
         ];
     }
 
@@ -162,6 +166,8 @@ class MediaPlanSheetMigration extends SheetMigration
         $item['impression'] = (int) (self::toNumber($item['impression'] ?? null) ?: 0);
         $item['engagement'] = (int) (self::toNumber($item['engagement'] ?? null) ?: 0);
         $item['er_percent'] = self::toNumber($item['er_percent'] ?? null);
+        $item['pph_coefficient'] = self::toNumber($item['pph_coefficient'] ?? null);
+        $item['tax'] = self::toNumber($item['tax'] ?? null);
 
         return $item;
     }
@@ -248,8 +254,10 @@ class MediaPlanSheetMigration extends SheetMigration
             }
         }
 
+        [$vendorTaxType, $masterPphId] = $this->tipePajakUntuk($item, $hasil);
+
         $kol->data_kol_id = $dataKol->id;
-        $kol->tipe_pajak_kol ??= MasterPph::where('name', 'Pribadi')->value('id');
+        $kol->tipe_pajak_kol = $masterPphId;
 
         if (filled($item['links'] ?? null)) {
             $kol->links = [$item['links']];
@@ -265,7 +273,7 @@ class MediaPlanSheetMigration extends SheetMigration
         $kol->row_number ??= (int) ($item['_row'] ?? 0);
         $kol->save();
 
-        $this->generateBudgetItems($mediaPlan, $kol);
+        $this->generateBudgetItems($mediaPlan, $kol, $item, $vendorTaxType);
 
         // rate & CPI/CPV/CPE baris KOL diturunkan dari budget item, bukan diisi
         // tangan — method milik model itu sendiri yang menghitungnya.
@@ -339,14 +347,55 @@ class MediaPlanSheetMigration extends SheetMigration
     }
 
     /**
-     * Budget item per SOW + hitungannya.
+     * Tipe pajak dari kolom Coefficient + Tax di sheet.
      *
-     * Orkestrasinya meniru EditMediaPlan::afterSave(), tapi RUMUSNYA tidak
-     * disalin: rate diambil computeRateFromSow() dan angkanya computeBudgetFigures(),
-     * dua helper publik yang sama dipakai halaman Media Plan. Kalau rumusnya
-     * ditulis ulang di sini, dua tempat itu pasti berbeda suatu hari.
+     * Sheet menulis 0,98 dan 0,11 — itu "PT PKP", yang di
+     * InternalBudgetItem::calculateMuPph() rumusnya (Base/0,98)+(Base×0,11):
+     * sama persis dengan kolom Z di sheet. Jadi mengikuti sheet dan memakai
+     * perhitungan aplikasi bukan dua hal berbeda.
+     *
+     * @return array{0: string, 1: ?int} vendor_tax_type + master_pph_id
      */
-    private function generateBudgetItems(MediaPlan $mediaPlan, MediaPlanKol $kol): void
+    private function tipePajakUntuk(array $item, array &$hasil): array
+    {
+        $coef = (float) ($item['pph_coefficient'] ?? 0);
+        // Tax di sheet pecahan (0,11); master menyimpan persen.
+        $ppn = (float) ($item['tax'] ?? 0);
+        $ppn = $ppn > 0 && $ppn <= 1 ? $ppn * 100 : $ppn;
+
+        $jenis = match (true) {
+            $coef === 0.0 => null,
+            abs($coef - 0.98) < 0.0001 && $ppn > 0 => 'PT PKP',
+            abs($coef - 0.98) < 0.0001 => 'PT Non PKP',
+            abs($coef - 0.975) < 0.0001 => 'Pribadi',
+            abs($coef - 0.995) < 0.0001 => 'CV',
+            default => null,
+        };
+
+        if ($coef > 0 && ! $jenis) {
+            $hasil['notes'][] = "Baris {$item['_row']}: koefisien {$coef}"
+                . ($ppn ? " + PPN {$ppn}%" : '') . ' tidak dikenali, dipakai Pribadi.';
+        }
+
+        $jenis ??= 'Pribadi';
+
+        return [$jenis, MasterPph::where('name', $jenis)->value('id')];
+    }
+
+    /**
+     * Budget item per SOW. Angkanya TIDAK dihitung di sini.
+     *
+     * `rate_base` diambil LANGSUNG dari sheet: saat migrasi, KOL-nya memang
+     * belum punya rate card, dan mengambil rate lewat rate card yang baru saja
+     * kita tulis sendiri cuma menambah satu tahap pencocokan nama SOW yang bisa
+     * meleset diam-diam jadi rate 0.
+     *
+     * Subtotal, gross up coefficient, tax, MU PPh, MU target, published rate,
+     * rounded, dan margin diisi InternalBudgetItem::recalculate() lewat hook
+     * `saving` miliknya sendiri — digerakkan `vendor_tax_type`. Menghitungnya
+     * di sini percuma: hook itu menimpanya sedetik kemudian.
+     */
+    private function generateBudgetItems(MediaPlan $mediaPlan, MediaPlanKol $kol, array $item, string $vendorTaxType): void
     {
         // firstOrCreate lewat relasi, bukan $mediaPlan->internalBudget: properti
         // relasi ter-cache sejak KOL pertama, jadi KOL berikutnya masih melihat
@@ -357,43 +406,17 @@ class MediaPlanSheetMigration extends SheetMigration
         $kol->internalBudgetItems()->delete();
 
         $sortOrder = $budget->items()->max('sort_order') ?? 0;
-        $qty = max(1, (int) ($kol->qty ?: 1));
-        $pphId = $kol->tipe_pajak_kol ?? MasterPph::where('name', 'Pribadi')->value('id');
 
-        foreach ($kol->scope_items ?? [] as $scopeItem) {
+        foreach ($item['scope_items'] ?? [] as $sow) {
             $budget->items()->create([
                 'media_plan_kol_id' => $kol->id,
-                'scope_item' => $scopeItem,
-                'qty' => $qty,
-                'rate_base' => MediaPlanForm::computeRateFromSow($kol->data_kol_id, $kol->name, $kol->channel, [$scopeItem]),
-                'master_pph_id' => $pphId,
+                'scope_item' => $sow['item'],
+                'qty' => max(1, (int) $sow['qty']),
+                'rate_base' => $sow['rate'],
+                'vendor_tax_type' => $vendorTaxType,
+                'master_pph_id' => $kol->tipe_pajak_kol,
                 'sort_order' => ++$sortOrder,
             ]);
         }
-
-        foreach ($budget->items()->with(['mediaPlanKol', 'masterPph'])->where('media_plan_kol_id', $kol->id)->get() as $bi) {
-            $coeff = $bi->masterPph?->getCalculatedCoefficient() ?? 0.975;
-            $marginKol = $bi->mediaPlanKol?->margin_percent;
-
-            $figs = MediaPlanForm::computeBudgetFigures(
-                (float) $bi->rate_base * (int) ($bi->qty ?: 1),
-                $coeff,
-                $marginKol !== null ? (float) $marginKol : null,
-            );
-
-            $bi->update([
-                'subtotal' => $figs['subtotal'],
-                'mu_pph' => $figs['mu_pph'],
-                'mu_target' => $figs['mu_target'],
-                'published_rate' => $figs['mu_target'],
-                'rounded' => $figs['rounded'],
-                'actual_margin_percent' => $figs['actual_margin'],
-                'use_flexible_margin' => $marginKol !== null,
-                'margin_percent_override' => $marginKol !== null ? (float) $marginKol : null,
-            ]);
-        }
-
-        $budget->refresh();
-        $budget->recalculateTotals();
     }
 }
