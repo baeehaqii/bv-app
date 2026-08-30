@@ -105,6 +105,20 @@ class MediaPlanSheetMigration extends SheetMigration
         return 'name';
     }
 
+    public function ignoredHeaders(): array
+    {
+        return [
+            'no',
+            // Blok "Request Client" di sebelah kiri — rencana dari client, bukan
+            // rencana internal yang dipakai Media Plan.
+            'scope of work', 'qty', 'item', 'rate',
+            'top',
+            // Semuanya turunan yang InternalBudgetItem::recalculate() hitung
+            // sendiri dari rate + tipe pajak.
+            'subtotal rate', 'mu pph', 'mu', 'published rate', 'rounded', 'margin persen',
+        ];
+    }
+
     /**
      * Judul kolom sheet ini menempati DUA baris: baris utama berisi "Scope of
      * Work" dan "Rate", baris di bawahnya berisi "Qty" dan "Item" untuk tiap
@@ -199,12 +213,34 @@ class MediaPlanSheetMigration extends SheetMigration
         // Ringkasan SOW baru bisa dibuat setelah semua barisnya terkumpul.
         foreach ($items as $i => $item) {
             $items[$i]['sow_ringkas'] = collect($item['scope_items'])->pluck('item')->implode(', ');
-            $items[$i]['_note'] = $item['scope_items'] === []
-                ? 'KOL ini tidak punya scope of work.'
-                : ($item['_note'] ?? null);
+            $items[$i]['_note'] = $item['_note'] ?? $this->catatanBaris($item);
         }
 
         return $items;
+    }
+
+    /**
+     * Peringatan isi baris yang perlu dilihat manusia — ditampilkan di preview,
+     * tidak menghalangi migrasi.
+     */
+    private function catatanBaris(array $item): ?string
+    {
+        if ($item['scope_items'] === []) {
+            return 'KOL ini tidak punya scope of work.';
+        }
+
+        // Beberapa baris sheet salah kolom: followers-nya ditulis di kolom Tier.
+        // Jangan ditebak-tebak sendiri — cukup ditandai supaya dirapikan di sheet.
+        if (blank($item['followers'] ?? null) || (int) $item['followers'] === 0) {
+            if (is_numeric($item['tier'] ?? null)) {
+                return 'Followers kosong, tapi kolom Tier berisi angka (' . $item['tier']
+                    . ') — kemungkinan tertukar kolom di sheet.';
+            }
+
+            return 'Followers kosong di sheet.';
+        }
+
+        return null;
     }
 
     /** @return array{qty: int, item: string, rate: float}|null */

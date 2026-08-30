@@ -90,6 +90,19 @@ abstract class SheetMigration
     }
 
     /**
+     * Judul kolom yang memang SENGAJA tidak diambil — angka turunan yang dihitung
+     * aplikasi, kolom duplikat, atau yang tidak punya padanan. Dipisahkan dari
+     * kolom yang benar-benar tidak dikenali supaya user tidak mengira ada yang
+     * gagal terbaca padahal itu keputusan.
+     *
+     * @return array<int, string> nama sudah ternormalisasi
+     */
+    public function ignoredHeaders(): array
+    {
+        return [];
+    }
+
+    /**
      * Judul kolom yang tidak cocok alias mana pun — ditunjukkan ke user supaya
      * jelas kolom apa saja yang tidak ikut termigrasi.
      *
@@ -98,13 +111,28 @@ abstract class SheetMigration
      */
     public function unmappedHeaders(array $headerRow): array
     {
-        $terpetakan = $this->mapHeaders($headerRow);
+        return $this->pisahHeader($headerRow)['tidak_dikenali'];
+    }
 
-        return collect($headerRow)
+    /**
+     * @param  array<int, mixed>  $headerRow
+     * @return array{diabaikan: array<int, string>, tidak_dikenali: array<int, string>}
+     */
+    public function pisahHeader(array $headerRow): array
+    {
+        $terpetakan = $this->mapHeaders($headerRow);
+        $diabaikan = $this->ignoredHeaders();
+
+        $sisa = collect($headerRow)
             ->reject(fn($judul, $i) => isset($terpetakan[$i]) || self::normalize((string) $judul) === '')
             ->map(fn($judul) => (string) $judul)
-            ->values()
-            ->all();
+            ->unique()
+            ->values();
+
+        return [
+            'diabaikan' => $sisa->filter(fn($j) => in_array(self::normalize($j), $diabaikan, true))->values()->all(),
+            'tidak_dikenali' => $sisa->reject(fn($j) => in_array(self::normalize($j), $diabaikan, true))->values()->all(),
+        ];
     }
 
     /**

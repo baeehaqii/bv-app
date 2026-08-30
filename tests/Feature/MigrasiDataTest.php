@@ -690,3 +690,27 @@ it('guard rate card melewati baris migrasi tapi tetap menahan baris manual', fun
 
     expect($halaman->ditahan)->toHaveCount(1);
 });
+
+it('memisahkan kolom yang sengaja dilewati dari yang benar-benar tidak dikenali', function () {
+    $m = new \App\Service\MediaPlanSheetMigration();
+    $pisah = $m->pisahHeader($m->headerRow(kolListRows()));
+
+    // Blok Request Client + angka turunan: keputusan, bukan kegagalan baca.
+    expect($pisah['diabaikan'])->toContain('Subtotal Rate', 'Rounded', 'Margin %', 'Qty', 'Item', 'Rate', 'No', 'TOP')
+        // "Categories" belum punya padanan sungguhan, jadi memang tak dikenali.
+        ->and($pisah['tidak_dikenali'])->not->toContain('Subtotal Rate');
+});
+
+it('menandai baris yang followers-nya tertulis di kolom Tier', function () {
+    $rows = kolListRows();
+    // Tiru cacat di sheet asli: kolom Followers (7) kosong, angkanya di Tier (8).
+    $rows[3][7] = '';
+    $rows[3][8] = 4133;
+
+    $items = (new \App\Service\MediaPlanSheetMigration())->parseRows($rows);
+
+    expect($items[0]['_note'])->toContain('kemungkinan tertukar kolom')
+        // Ditandai saja, bukan ditebak lalu dipindahkan diam-diam.
+        ->and($items[0]['followers'])->toBe(0)
+        ->and($items[0]['tier'])->toBe(4133);
+});

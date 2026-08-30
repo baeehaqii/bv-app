@@ -68,6 +68,9 @@ class MigrasiData extends Page
     public array $previewRows = [];
     /** @var array<int, string> judul kolom sheet yang tidak dikenali */
     public array $unmapped = [];
+
+    /** @var array<int, string> judul kolom yang SENGAJA dilewati profil ini */
+    public array $diabaikan = [];
     public int $totalItems = 0;
     public int $warnCount = 0;
     public ?string $errorMessage = null;
@@ -258,7 +261,7 @@ class MigrasiData extends Page
 
     public function preview(): void
     {
-        $this->reset(['previewed', 'previewRows', 'unmapped', 'totalItems', 'warnCount',
+        $this->reset(['previewed', 'previewRows', 'unmapped', 'diabaikan', 'totalItems', 'warnCount',
             'errorMessage', 'finished', 'processed', 'success', 'skipped', 'failed', 'notes']);
 
         $id = GoogleSheetReader::extractId((string) ($this->data['sheetLink'] ?? ''));
@@ -299,7 +302,8 @@ class MigrasiData extends Page
         }
 
         $items = $migrasi->parseRows($rows);
-        $this->unmapped = $migrasi->unmappedHeaders($migrasi->headerRow($rows));
+        ['diabaikan' => $this->diabaikan, 'tidak_dikenali' => $this->unmapped]
+            = $migrasi->pisahHeader($migrasi->headerRow($rows));
         $this->totalItems = count($items);
         $this->warnCount = collect($items)->whereNotNull('_note')->count();
 

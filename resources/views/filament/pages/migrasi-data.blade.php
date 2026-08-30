@@ -87,9 +87,19 @@
                     <div><span class="mig-muted">Ditampilkan</span><b>{{ number_format(count($previewRows)) }}</b></div>
                 </div>
 
-                @if ($unmapped)
+                @if ($diabaikan)
                     <p class="mig-muted" style="margin-top:.75rem">
-                        Kolom sheet yang tidak dikenali dan <strong>tidak ikut dimigrasi</strong>:
+                        Kolom yang <strong>sengaja dilewati</strong> — angka turunan yang dihitung sistem,
+                        kolom duplikat, atau yang belum punya padanan:
+                        @foreach ($diabaikan as $judul)
+                            <span class="mig-chip">{{ $judul }}</span>
+                        @endforeach
+                    </p>
+                @endif
+
+                @if ($unmapped)
+                    <p class="mig-muted" style="margin-top:.5rem">
+                        Kolom yang <strong>tidak dikenali</strong> dan tidak ikut dimigrasi:
                         @foreach ($unmapped as $judul)
                             <span class="mig-chip">{{ $judul }}</span>
                         @endforeach
