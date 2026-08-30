@@ -1015,6 +1015,14 @@ class MediaPlanForm
                                 ->extraAttributes(['style' => 'border-bottom:1px solid #e5e7eb;padding-bottom:14px;margin-bottom:4px;'])
                                 ->columnSpanFull(),
 
+                            // Paginasi KOL List. Hanya di halaman Edit — halaman Create
+                            // belum punya baris tersimpan untuk dipaginasi.
+                            Placeholder::make('kol_pagination')
+                                ->hiddenLabel()
+                                ->visible(fn($livewire) => $livewire instanceof \App\Filament\Resources\MediaPlans\Pages\EditMediaPlan)
+                                ->content(fn() => view('filament.forms.components.kol-pagination'))
+                                ->columnSpanFull(),
+
                             Repeater::make('kols')
                                 ->label('KOL List')
                                 ->extraItemActions([

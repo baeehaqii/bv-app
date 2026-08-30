@@ -18,9 +18,56 @@ class EditMediaPlan extends EditRecord
     protected array $kolsData = [];
     protected array $budgetItemsData = [];
 
+    /**
+     * Paginasi KOL List.
+     *
+     * Media plan hasil migrasi bisa berisi ratusan KOL, dan Filament Repeater
+     * membangun seluruh komponen tiap baris sekaligus — 98 baris saja sudah
+     * ~570 MB. Yang dimuat ke form karena itu cuma satu halaman.
+     *
+     * Konsekuensinya afterSave() TIDAK boleh menghapus baris yang kebetulan
+     * tidak ikut dimuat; lihat $kolIdsDimuat.
+     */
+    public const KOL_PER_PAGE = [5, 10, 15];
+
+    public int $kolPage = 1;
+
+    public int $kolPerPage = 5;
+
+    /** @var array<int, int> id KOL yang benar-benar dimuat ke form halaman ini */
+    public array $kolIdsDimuat = [];
+
+    public function totalKol(): int
+    {
+        return $this->record->kols()->count();
+    }
+
+    public function totalHalamanKol(): int
+    {
+        return max(1, (int) ceil($this->totalKol() / $this->kolPerPage));
+    }
+
+    public function gantiHalamanKol(int $halaman): void
+    {
+        $this->kolPage = max(1, min($halaman, $this->totalHalamanKol()));
+        $this->fillForm();
+    }
+
+    public function aturKolPerPage(int $jumlah): void
+    {
+        $this->kolPerPage = in_array($jumlah, self::KOL_PER_PAGE, true) ? $jumlah : self::KOL_PER_PAGE[0];
+        $this->kolPage = 1;
+        $this->fillForm();
+    }
+
     protected function mutateFormDataBeforeFill(array $data): array
     {
-        $kols = $this->record->kols()->with('dataKol')->get();
+        // Satu halaman saja; sisanya tetap utuh di database.
+        $kols = $this->record->kols()->with('dataKol')
+            ->forPage($this->kolPage, $this->kolPerPage)
+            ->get();
+
+        $this->kolIdsDimuat = $kols->pluck('id')->all();
 
         // Muat sekali untuk SEMUA baris: DataKol, rate card, dan daftar channel.
         // Harus sebelum pemetaan di bawah — pemetaan itu sudah memanggil
@@ -201,8 +248,11 @@ class EditMediaPlan extends EditRecord
             ->filter()
             ->toArray();
 
-        // Delete KOLs that are not in the form anymore
+        // Hapus KOL yang dibuang user dari form — TAPI hanya di antara baris yang
+        // halaman ini muat. Tanpa batas itu, menyimpan satu halaman akan
+        // menghapus seluruh KOL di halaman lain.
         $deletedKols = $this->record->kols()
+            ->whereIn('id', $this->kolIdsDimuat)
             ->whereNotIn('id', $existingKolIds)
             ->get();
 
