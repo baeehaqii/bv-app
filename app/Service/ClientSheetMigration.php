@@ -28,7 +28,7 @@ class ClientSheetMigration
      * @var array<string, array<int, string>>
      */
     public const ALIASES = [
-        'nama_brand' => ['nama brand', 'brand', 'nama brand agency', 'client', 'nama client', 'nama'],
+        'nama_brand' => ['nama brand', 'brand', 'nama brand agency', 'client', 'nama client', 'nama', 'client brand'],
         'type' => ['tipe', 'type', 'tipe client', 'direct agency'],
         'category' => ['kategori', 'category'],
         'priority' => ['prioritas', 'priority'],
@@ -37,9 +37,11 @@ class ClientSheetMigration
         'status_client' => ['status client', 'status klien'],
         'status' => ['status campaign', 'status'],
         'pic_internal_sales' => ['pic internal', 'pic internal sales', 'sales', 'nama sales'],
-        'agency_handled_by' => ['dihandel agency', 'handled by agency', 'agency'],
+        // "Brand / Agency": isinya "Direct" atau NAMA agency yang menangani brand
+        // itu — bukan kolom tipe. Nilai "Direct" diperlakukan sebagai tanpa agency.
+        'agency_handled_by' => ['dihandel agency', 'handled by agency', 'agency', 'brand agency'],
         'agency_brands' => ['brand yang dihandel', 'agency brands', 'brand handled'],
-        'date_outreach' => ['tanggal outreach', 'date outreach', 'outreach'],
+        'date_outreach' => ['tanggal outreach', 'date outreach', 'outreach', 'months', 'month', 'bulan'],
         'date_follow_up' => ['tanggal follow up', 'date follow up', 'follow up'],
         'instagram' => ['instagram', 'ig'],
         'tiktok' => ['tiktok', 'tt'],
@@ -139,6 +141,7 @@ class ClientSheetMigration
             $item['priority'] = self::normalizePriority($item['priority'] ?? null);
             $item['status_client'] = self::normalizeStatusClient($item['status_client'] ?? null);
             $item['date_outreach'] = self::toDate($item['date_outreach'] ?? null);
+        $item['agency_handled_by'] = self::normalizeAgency($item['agency_handled_by'] ?? null);
             $item['date_follow_up'] = self::toDate($item['date_follow_up'] ?? null);
             $item['top'] = isset($item['top']) && $item['top'] !== '' ? (int) $item['top'] : null;
 
@@ -197,7 +200,7 @@ class ClientSheetMigration
 
         foreach (['category', 'priority', 'website', 'parent_brand', 'status_client', 'status',
             'instagram', 'tiktok', 'youtube', 'threads', 'account_owner', 'notes', 'alamat',
-            'date_outreach', 'date_follow_up', 'top'] as $field) {
+            'date_follow_up', 'top'] as $field) {
             // Sel kosong TIDAK menimpa data yang sudah ada — sheet sering hanya
             // mengisi sebagian kolom, dan migrasi ulang tidak boleh mengosongkan.
             if (($item[$field] ?? null) !== null && $item[$field] !== '') {
@@ -205,26 +208,37 @@ class ClientSheetMigration
             }
         }
 
-        if (filled($item['pic_internal_sales'] ?? null)) {
-            $salesId = BvSalesList::where('nama_sales', trim((string) $item['pic_internal_sales']))->value('id');
+        // Satu brand bisa muncul di banyak baris (satu per bulan/campaign). Yang
+        // disimpan bulan PALING AWAL — kapan client itu mulai digarap — bukan
+        // baris terakhir yang kebetulan diproses.
+        if (filled($item['date_outreach'] ?? null)) {
+            $client->date_outreach = min(
+                (string) $item['date_outreach'],
+                (string) ($client->date_outreach ?: $item['date_outreach']),
+            );
+        }
 
-            $salesId
-                ? $client->pic_internal_sales_id = $salesId
-                : $hasil['notes'][] = "Baris {$item['_row']}: sales \"{$item['pic_internal_sales']}\" tidak ada di master, PIC dikosongkan.";
+        if (filled($item['pic_internal_sales'] ?? null)) {
+            $nama = trim((string) $item['pic_internal_sales']);
+            $sales = BvSalesList::firstOrCreate(['nama_sales' => $nama]);
+
+            if ($sales->wasRecentlyCreated) {
+                $hasil['notes'][] = "Sales baru dibuat di master: \"{$nama}\".";
+            }
+
+            $client->pic_internal_sales_id = $sales->id;
         }
 
         if ($client->type === 'direct' && filled($item['agency_handled_by'] ?? null)) {
-            $agencyId = DataClient::where('type', 'agency')
-                ->where('nama_brand', trim((string) $item['agency_handled_by']))
-                ->value('id');
+            $nama = trim((string) $item['agency_handled_by']);
+            $agency = DataClient::firstOrCreate(['nama_brand' => $nama, 'type' => 'agency']);
 
-            if ($agencyId) {
-                $client->agency_client_id = $agencyId;
-                $client->has_agency = true;
-            } else {
-                $hasil['notes'][] = "Baris {$item['_row']}: agency \"{$item['agency_handled_by']}\" belum ada — "
-                    . 'migrasikan barisnya dulu, lalu jalankan ulang.';
+            if ($agency->wasRecentlyCreated) {
+                $hasil['notes'][] = "Agency baru dibuat: \"{$nama}\".";
             }
+
+            $client->agency_client_id = $agency->id;
+            $client->has_agency = true;
         }
 
         if ($client->type === 'agency' && filled($item['agency_brands'] ?? null)) {
@@ -294,6 +308,18 @@ class ClientSheetMigration
         }
 
         return null;
+    }
+
+    /**
+     * Kolom agency sering berisi kata "Direct" untuk menandai TANPA agency —
+     * itu bukan nama agency, jadi jangan sampai terbuat baris agency bernama
+     * "Direct".
+     */
+    private static function normalizeAgency(mixed $nilai): ?string
+    {
+        $teks = trim((string) $nilai);
+
+        return ($teks === '' || Str::lower($teks) === 'direct') ? null : $teks;
     }
 
     private static function normalizeStatusClient(mixed $nilai): ?string

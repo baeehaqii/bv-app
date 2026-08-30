@@ -118,15 +118,58 @@ it('sel kosong tidak menghapus data yang sudah ada', function () {
     expect($client->category)->toBe('FMCG')->and($client->priority)->toBe('P1');
 });
 
-it('mencatat sales yang tidak ada di master, bukan menggagalkan barisnya', function () {
+it('membuat sales yang belum ada di master lalu menautkannya', function () {
     $migrasi = new ClientSheetMigration();
     $hasil = $migrasi->persist($migrasi->parseRows(sheetRows([
-        ['Garuda Food', 'direct', '', '', '', 'Sales Hantu', '', ''],
+        ['Garuda Food', 'direct', '', '', '', 'Salwa', '', ''],
     ])));
 
+    $sales = BvSalesList::where('nama_sales', 'Salwa')->first();
+
     expect($hasil['success'])->toBe(1)
-        ->and($hasil['notes'][0])->toContain('Sales Hantu')
-        ->and(DataClient::where('nama_brand', 'Garuda Food')->value('pic_internal_sales_id'))->toBeNull();
+        ->and($sales)->not->toBeNull()
+        ->and($hasil['notes'][0])->toContain('Sales baru dibuat')
+        ->and(DataClient::where('nama_brand', 'Garuda Food')->value('pic_internal_sales_id'))->toBe($sales->id);
+});
+
+it('kolom agency berisi nama agency: barisnya dibuat lalu ditautkan, "Direct" diabaikan', function () {
+    $judul = ['Client/Brand', 'Brand / Agency', 'PIC Internal', 'Months'];
+
+    $migrasi = new ClientSheetMigration();
+    $migrasi->persist($migrasi->parseRows([
+        $judul,
+        ['Ofero', 'Direct', 'Gress', 'July 2025'],
+        ['Wardah', 'TBWA', 'Aliy', 'Aug 2025'],
+    ]));
+
+    $ofero = DataClient::where('nama_brand', 'Ofero')->firstOrFail();
+    $wardah = DataClient::where('nama_brand', 'Wardah')->firstOrFail();
+    $tbwa = DataClient::where('nama_brand', 'TBWA')->first();
+
+    expect($ofero->has_agency)->toBeFalsy()
+        // "Direct" bukan nama agency — jangan sampai terbuat baris agency bernama itu.
+        ->and(DataClient::where('nama_brand', 'Direct')->exists())->toBeFalse()
+        ->and($tbwa?->type)->toBe('agency')
+        ->and($wardah->agency_client_id)->toBe($tbwa->id)
+        ->and($wardah->has_agency)->toBeTrue()
+        // Bulan dari kolom Months jadi tanggal awal bulan itu.
+        ->and((string) $wardah->date_outreach)->toBe('2025-08-01');
+});
+
+it('satu brand di banyak bulan menyimpan bulan paling awal', function () {
+    $judul = ['Client/Brand', 'Months'];
+
+    $migrasi = new ClientSheetMigration();
+    // Urutan sengaja tidak menaik, supaya yang diuji benar-benar "paling awal".
+    $migrasi->persist($migrasi->parseRows([
+        $judul,
+        ['Ofero', 'Oct 2025'],
+        ['Ofero', 'July 2025'],
+        ['Ofero', 'Sept 2025'],
+    ]));
+
+    expect(DataClient::where('nama_brand', 'Ofero')->count())->toBe(1)
+        ->and((string) DataClient::where('nama_brand', 'Ofero')->value('date_outreach'))->toBe('2025-07-01');
 });
 
 it('preview memberi tahu saat tidak ada judul kolom yang dikenali', function () {
