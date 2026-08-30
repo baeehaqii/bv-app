@@ -23,14 +23,32 @@ class DataKol extends Model
     ];
 
     /**
-     * Tabel ini menyimpan 1 BARIS PER CHANNEL; satu KOL dikenali dari `username`.
+     * Baris baru selalu punya `kol_key`. Defaultnya = username, jadi KOL yang
+     * handle-nya sama di semua platform tetap otomatis satu grup tanpa perlu
+     * digabungkan manual.
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (self $kol) {
+            if (blank($kol->kol_key)) {
+                $kol->kol_key = $kol->username;
+            }
+        });
+    }
+
+    /**
+     * Tabel ini menyimpan 1 BARIS PER CHANNEL; satu KOL dikenali dari `kol_key`.
      * Relasi self-join ini yang menyatukan channel-channel milik KOL yang sama,
      * dan bisa di-eager-load / di-agregat (withSum, withMax) supaya daftar KOL
      * tidak N+1.
+     *
+     * DULU kuncinya `username`, jadi KOL yang handle-nya beda tiap platform
+     * (@windabasudara_ vs @winda_basudara) terbaca sebagai dua orang. Sekarang
+     * baris-baris itu bisa disatukan lewat aksi "Gabungkan" di KOL Data.
      */
     public function channels(): HasMany
     {
-        return $this->hasMany(static::class, 'username', 'username');
+        return $this->hasMany(static::class, 'kol_key', 'kol_key');
     }
 
     /**
@@ -47,9 +65,9 @@ class DataKol extends Model
             ->selectRaw('MAX(id)')
             ->whereRaw('COALESCE(followers, 0) = (
                 SELECT MAX(COALESCE(followers, 0)) FROM data_kols AS terbanyak
-                WHERE terbanyak.username = data_kols.username
+                WHERE terbanyak.kol_key = data_kols.kol_key
             )')
-            ->groupBy('username'));
+            ->groupBy('kol_key'));
     }
 
     /**

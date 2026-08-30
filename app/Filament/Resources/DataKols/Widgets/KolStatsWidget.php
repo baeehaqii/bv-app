@@ -42,14 +42,15 @@ class KolStatsWidget extends StatsOverviewWidget
 
         /*
          * 1 baris data_kols = 1 channel, jadi menghitung baris berarti menghitung
-         * channel, bukan orang. Followers dijumlahkan per username dulu — angkanya
+         * channel, bukan orang. Followers dijumlahkan per `kol_key` dulu — angkanya
          * lalu dipakai untuk jumlah KOL sekaligus sebaran tier, supaya sama persis
-         * dengan kolom Tier di tabel daftar.
+         * dengan kolom Tier di tabel daftar. Harus kol_key, bukan username: KOL yang
+         * channel-nya sudah digabungkan akan terhitung dobel kalau memakai username.
          */
         $followersPerKol = (clone $query)
-            ->selectRaw('username, SUM(followers) as total_followers')
-            ->groupBy('username')
-            ->pluck('total_followers', 'username');
+            ->selectRaw('kol_key, SUM(followers) as total_followers')
+            ->groupBy('kol_key')
+            ->pluck('total_followers', 'kol_key');
 
         $totalKol = $followersPerKol->count();
         $tierCounts = $followersPerKol->countBy(fn($f) => DataKol::tierFor((int) $f));

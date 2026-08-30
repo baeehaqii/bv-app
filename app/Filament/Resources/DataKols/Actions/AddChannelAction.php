@@ -19,8 +19,9 @@ use Illuminate\Support\HtmlString;
  * Tombol "Tambah Channel" di section Social Media Data (halaman edit KOL).
  *
  * Dua mode, karena keduanya benar-benar beda sasaran:
- *  - satu : 1 channel, username DIPAKSA sama dengan KOL yang sedang dibuka supaya
- *           barisnya mengelompok ke orang itu (grouping memakai kolom `username`).
+ *  - satu : 1 channel, digabungkan ke KOL yang sedang dibuka lewat `kol_key`.
+ *           Username asli hasil scraping TETAP disimpan apa adanya — handle boleh
+ *           beda tiap platform (@windabasudara_ vs @winda_basudara).
  *  - bulk : upload CSV (kolom A channel, kolom B link), masing-masing baris jadi
  *           KOL BARU dengan username aslinya. Tidak boleh dipaksa ke username KOL
  *           ini — beberapa akun dengan username sama pada satu channel akan saling
@@ -139,7 +140,7 @@ class AddChannelAction
 
                 $hasil = app(KolProfileImporter::class)->importMany(
                     $baris,
-                    $bulk ? null : $record->username,
+                    $bulk ? null : $record->kol_key,
                     fn(int $ke, int $total, string $channel, string $url) => $livewire->stream(
                         to: 'scrape-progress',
                         content: "⏳ Mengambil {$ke}/{$total} — {$channel}: {$url}",

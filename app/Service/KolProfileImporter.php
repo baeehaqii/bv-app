@@ -12,7 +12,7 @@ use Throwable;
 
 /**
  * Ambil profil dari service scraping lalu simpan sebagai baris DataKol
- * (ingat: 1 baris = 1 channel, KOL dikelompokkan lewat kolom `username`).
+ * (ingat: 1 baris = 1 channel, KOL dikelompokkan lewat kolom `kol_key`).
  *
  * Dipakai dua tempat — tombol "New Data KOL" di halaman daftar dan "Tambah Channel"
  * di halaman edit. Dulu logikanya digandakan di ListDataKols; sekarang satu tempat.
@@ -228,24 +228,38 @@ class KolProfileImporter
     }
 
     /**
-     * Simpan profil yang sudah di-fetch. `$username` diisi saat menambah channel ke
-     * KOL yang SEDANG DIBUKA: username hasil scraping ditimpa supaya barisnya
-     * mengelompok ke KOL itu (handle asli tetap tersimpan di `link_userprofile`).
+     * Simpan profil yang sudah di-fetch.
+     *
+     * `$kolKey` diisi saat menambah channel ke KOL yang SEDANG DIBUKA. Dulu yang
+     * ditimpa adalah username hasil scraping — handle asli hilang dari kolom
+     * `username` supaya barisnya mengelompok. Sekarang username asli DIPERTAHANKAN
+     * dan yang disamakan cuma `kol_key`, jadi @windabasudara_ di Instagram dan
+     * @winda_basudara di TikTok bisa jadi satu KOL tanpa memalsukan handle.
+     *
+     * `$target` dipakai saat me-refresh baris yang sudah ada: handle-nya mungkin
+     * sudah berganti di platform, jadi pencarian lewat username bisa meleset.
      *
      * @param  array<string, mixed>  $profile
      */
-    public function save(array $profile, string $channel, string $url, ?string $username = null): DataKol
-    {
+    public function save(
+        array $profile,
+        string $channel,
+        string $url,
+        ?string $kolKey = null,
+        ?DataKol $target = null,
+    ): DataKol {
         $data = $this->toRow($profile, $channel, $url);
 
-        if ($username !== null) {
-            $data['username'] = $username;
+        if ($kolKey !== null) {
+            $data['kol_key'] = $kolKey;
         }
 
-        // 1 username pada channel yang sama hanya boleh 1 baris.
+        // 1 username pada channel yang sama hanya boleh 1 baris. Baris yang cocok
+        // menang atas $target: kalau handle-nya sudah dipakai baris lain, yang itulah
+        // yang diperbarui — bukan menabrak unique index.
         $existing = DataKol::where('username', $data['username'])
             ->where('channel', $channel)
-            ->first();
+            ->first() ?? $target;
 
         if ($existing) {
             $existing->update($data);
@@ -256,9 +270,9 @@ class KolProfileImporter
         return tap(DataKol::create($data))->recordSnapshot();
     }
 
-    public function import(string $channel, string $url, ?string $username = null): DataKol
+    public function import(string $channel, string $url, ?string $kolKey = null): DataKol
     {
-        return $this->save($this->fetchProfile($channel, $url), $channel, $url, $username);
+        return $this->save($this->fetchProfile($channel, $url), $channel, $url, $kolKey);
     }
 
     /**
@@ -267,7 +281,7 @@ class KolProfileImporter
      *         Dipanggil SEBELUM tiap baris di-fetch, untuk streaming progres ke UI.
      * @return array{created: int, updated: int, failed: list<string>, mismatched: list<string>, first: ?DataKol, rows: list<array{channel: string, url: string, ok: bool, username: ?string, followers: ?int, message: ?string}>}
      */
-    public function importMany(array $rows, ?string $username = null, ?callable $onProgress = null): array
+    public function importMany(array $rows, ?string $kolKey = null, ?callable $onProgress = null): array
     {
         $hasil = ['created' => 0, 'updated' => 0, 'failed' => [], 'mismatched' => [], 'first' => null, 'rows' => []];
 
@@ -296,7 +310,7 @@ class KolProfileImporter
 
             try {
                 $profile = $this->fetchProfile($channel, $url);
-                $record = $this->save($profile, $channel, $url, $username);
+                $record = $this->save($profile, $channel, $url, $kolKey);
             } catch (Throwable $e) {
                 $hasil['failed'][] = "{$channel} {$url}: {$e->getMessage()}";
                 $hasil['rows'][] = [
@@ -310,8 +324,9 @@ class KolProfileImporter
             $record->wasRecentlyCreated ? $hasil['created']++ : $hasil['updated']++;
             $hasil['first'] ??= $record;
 
-            // Handle di platform beda dengan username KOL — bukan error, tapi jangan diam-diam.
-            $beda = $username !== null && $profile['username'] !== $username;
+            // Handle di platform ini beda dengan kunci KOL-nya — bukan error dan tidak
+            // lagi ditimpa, tapi tetap dilaporkan supaya user sadar apa yang digabung.
+            $beda = $kolKey !== null && $profile['username'] !== $kolKey;
             if ($beda) {
                 $hasil['mismatched'][] = "{$channel}: @{$profile['username']}";
             }
@@ -322,7 +337,7 @@ class KolProfileImporter
                 'ok' => true,
                 'username' => $profile['username'],
                 'followers' => (int) $profile['followers_count'],
-                'message' => $beda ? "Handle asli @{$profile['username']} digabung ke @{$username}" : null,
+                'message' => $beda ? "Handle @{$profile['username']} digabung ke KOL @{$kolKey}" : null,
             ];
         }
 

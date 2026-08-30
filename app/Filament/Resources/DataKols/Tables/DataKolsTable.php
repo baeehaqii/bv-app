@@ -4,13 +4,17 @@ namespace App\Filament\Resources\DataKols\Tables;
 
 use App\Models\DataKol;
 use Filament\Actions\Action;
+use Filament\Actions\BulkAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
+use Filament\Forms\Components\Select;
+use Filament\Notifications\Notification;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
 
 /**
  * Daftar KOL — SATU BARIS PER KOL, bukan per channel.
@@ -177,12 +181,12 @@ class DataKolsTable
                             })
                             ->implode(' OR ');
 
-                        // Sengaja subquery username, bukan having() pada alias
+                        // Sengaja subquery kol_key, bukan having() pada alias
                         // channels_sum_followers: alias itu hilang saat Filament
                         // menghitung total baris (count() membuang daftar select).
-                        return $query->whereIn('username', DataKol::query()
-                            ->select('username')
-                            ->groupBy('username')
+                        return $query->whereIn('kol_key', DataKol::query()
+                            ->select('kol_key')
+                            ->groupBy('kol_key')
                             ->havingRaw("({$kondisi})"));
                     }),
 
@@ -197,6 +201,37 @@ class DataKolsTable
                         : $query),
             ])
             ->recordActions([
+                // Pembatal aksi "Gabungkan". Channel yang dilepas kembali berdiri
+                // sendiri dengan kunci = username-nya.
+                Action::make('pisahkan')
+                    ->label('Pisahkan')
+                    ->icon('heroicon-o-scissors')
+                    ->color('gray')
+                    ->visible(fn(DataKol $record) => $record->channels->count() > 1)
+                    ->modalHeading(fn(DataKol $record) => "Pisahkan Channel — @{$record->username}")
+                    ->modalSubmitActionLabel('Pisahkan')
+                    ->schema(fn(DataKol $record) => [
+                        Select::make('ids')
+                            ->label('Channel yang dilepas dari KOL ini')
+                            ->options($record->channels
+                                ->mapWithKeys(fn(DataKol $c) => [$c->id => $c->channel . ' — @' . $c->username])
+                                ->all())
+                            ->multiple()
+                            ->required()
+                            ->native(false),
+                    ])
+                    ->action(function (array $data) {
+                        $baris = DataKol::whereIn('id', $data['ids'] ?? [])->get();
+
+                        foreach ($baris as $channel) {
+                            $channel->update(['kol_key' => $channel->username]);
+                        }
+
+                        Notification::make()->success()
+                            ->title($baris->count() . ' channel dipisahkan')
+                            ->send();
+                    }),
+
                 Action::make('spk')
                     ->label('SPK')
                     ->icon('heroicon-o-document-check')
@@ -227,6 +262,42 @@ class DataKolsTable
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
+                    // Menyatukan orang yang sama tapi handle-nya beda tiap platform.
+                    // Yang diubah cuma `kol_key`; username tiap baris tetap apa adanya.
+                    BulkAction::make('gabungkan')
+                        ->label('Gabungkan jadi 1 KOL')
+                        ->icon('heroicon-o-link')
+                        ->color('warning')
+                        ->requiresConfirmation()
+                        ->modalHeading('Gabungkan KOL')
+                        ->modalDescription('Baris terpilih dianggap orang yang sama, jadi angkanya '
+                            . 'dijumlahkan bersama di KOL Data dan KOL Analyzer. Username tiap channel '
+                            . 'tidak diubah. Bisa dibatalkan lewat aksi "Pisahkan Channel".')
+                        ->modalSubmitActionLabel('Ya, gabungkan')
+                        ->deselectRecordsAfterCompletion()
+                        ->action(function (Collection $records) {
+                            $kunci = $records->pluck('kol_key')->filter()->unique();
+
+                            if ($kunci->count() < 2) {
+                                Notification::make()->warning()
+                                    ->title('Tidak ada yang perlu digabung')
+                                    ->body('Baris yang dipilih sudah satu KOL.')
+                                    ->send();
+
+                                return;
+                            }
+
+                            // Wakilnya = KOL dengan followers terbanyak, sama dengan
+                            // aturan baris wakil di scopeOneRowPerKol().
+                            $utama = $records->sortByDesc('followers')->first()->kol_key;
+                            $jumlah = DataKol::whereIn('kol_key', $kunci)->update(['kol_key' => $utama]);
+
+                            Notification::make()->success()
+                                ->title($kunci->count() . ' KOL digabung jadi satu')
+                                ->body($jumlah . ' baris channel sekarang bernaung di @' . $utama . '.')
+                                ->send();
+                        }),
+
                     DeleteBulkAction::make(),
                 ]),
             ])

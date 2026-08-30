@@ -43,7 +43,7 @@ class EditDataKol extends EditRecord
     {
         // Hanya channel milik KOL yang sedang dibuka — id dari klien tidak dipercaya.
         $row = DataKol::query()
-            ->where('username', $this->getRecord()->username)
+            ->where('kol_key', $this->getRecord()->kol_key)
             ->findOrFail($id);
 
         $sebelum = (int) $row->followers;
@@ -61,7 +61,7 @@ class EditDataKol extends EditRecord
             // fetch & save dipisah supaya media_count bisa dibaca — itu yang
             // membedakan "akun tidak punya postingan" dari "API tidak memberi data".
             $profil = $importer->fetchProfile($row->channel, (string) $row->link_userprofile);
-            $baru = $importer->save($profil, $row->channel, (string) $row->link_userprofile, $row->username);
+            $baru = $importer->save($profil, $row->channel, (string) $row->link_userprofile, $row->kol_key, $row);
         } catch (Throwable $e) {
             Notification::make()
                 ->title("Gagal memperbarui {$row->channel}")

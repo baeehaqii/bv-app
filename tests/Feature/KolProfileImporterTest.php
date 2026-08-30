@@ -106,17 +106,18 @@ it('memperbarui baris yang ada, bukan menggandakan, untuk username+channel yang 
         ->and((int) $kedua->followers)->toBe(5_100_000);
 });
 
-it('memaksa username agar channel baru mengelompok ke KOL yang sedang dibuka', function () {
+it('menggabungkan channel baru lewat kol_key tanpa menimpa username aslinya', function () {
     // Handle TikTok beda dengan handle IG, tapi orangnya sama.
     $kol = (new KolProfileImporter())->save(
         fakeProfile('windah_tiktok_official'),
         'Tiktok',
         'https://tiktok.com/@windah_tiktok_official',
-        username: 'windahbasudara',
+        kolKey: 'windahbasudara',
     );
 
-    expect($kol->username)->toBe('windahbasudara')
-        // Handle asli tidak hilang — tersimpan di link profil (bentuk kanonik).
+    // Yang disamakan cuma kunci grupnya; handle asli tetap utuh di kolom username.
+    expect($kol->kol_key)->toBe('windahbasudara')
+        ->and($kol->username)->toBe('windah_tiktok_official')
         ->and($kol->link_userprofile)->toBe('https://www.tiktok.com/@windah_tiktok_official');
 });
 
@@ -131,14 +132,15 @@ it('meringkas hasil impor massal: berhasil, gagal, dan handle yang berbeda', fun
         ['channel' => 'Tiktok', 'link_userprofile' => 'tt-beda'],
         ['channel' => 'Instagram', 'link_userprofile' => 'tidak-ada'],
         ['channel' => 'Instagram', 'link_userprofile' => '   '],   // baris kosong dilewati
-    ], username: 'windahbasudara');
+    ], kolKey: 'windahbasudara');
 
     expect($hasil['created'])->toBe(2)
         ->and($hasil['updated'])->toBe(0)
         ->and($hasil['failed'])->toHaveCount(1)
         ->and($hasil['first']->username)->toBe('windahbasudara')
-        // Handle TikTok beda → dilaporkan, bukan didiamkan.
-        ->and($hasil['mismatched'])->toBe(['Tiktok: @windah_tiktok']);
+        // Handle TikTok beda → tetap disimpan apa adanya, tapi dilaporkan.
+        ->and($hasil['mismatched'])->toBe(['Tiktok: @windah_tiktok'])
+        ->and(DataKol::where('channel', 'Tiktok')->first()->username)->toBe('windah_tiktok');
 
     // Keduanya mengelompok jadi 1 KOL dengan 2 channel.
     expect(DataKol::oneRowPerKol()->count())->toBe(1)
@@ -207,10 +209,11 @@ it('mode satu channel menggabungkan channel baru ke KOL yang sedang dibuka', fun
             'link_userprofile' => 'https://instagram.com/windah_ig',
         ]);
 
-    // Handle IG-nya beda, tapi dipaksa ke username KOL ini supaya mengelompok.
+    // Handle IG-nya beda dan TETAP disimpan apa adanya; yang menyatukan kol_key.
     expect(DataKol::count())->toBe(2)
         ->and(DataKol::oneRowPerKol()->count())->toBe(1)
-        ->and(DataKol::where('channel', 'Instagram')->first()->username)->toBe('windahbasudara');
+        ->and(DataKol::where('channel', 'Instagram')->first()->username)->toBe('windah_ig')
+        ->and(DataKol::where('channel', 'Instagram')->first()->kol_key)->toBe('windahbasudara');
 });
 
 /** Upload CSV palsu; Livewire butuh Http\Testing\File (punya properti ->name). */
