@@ -6,6 +6,7 @@ use App\Models\BvSPK;
 use App\Models\DataKol;
 use App\Models\FormBrief;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Repeater;
@@ -83,6 +84,16 @@ class SpkForm
                     ->default('draft')
                     ->required()
                     ->native(false),
+
+                FileUpload::make('materai_path')
+                    ->label('e-Meterai')
+                    ->image()
+                    ->disk('public')
+                    ->directory('spk-materai')
+                    ->imagePreviewHeight('80')
+                    ->helperText('Unggah gambar e-meterai yang sudah dibubuhkan. Belum terhubung ke Peruri — '
+                        . 'pembelian dan pembubuhannya masih manual. Kosongkan bila SPK belum bermeterai; '
+                        . 'PDF akan mencetak kotak kosong di sisi Pihak Pertama.'),
             ]);
     }
 

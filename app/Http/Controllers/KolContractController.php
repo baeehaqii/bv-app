@@ -30,21 +30,22 @@ class KolContractController extends Controller
             'client'     => $spk->client,
             'tanggalId'  => $tanggal->day . ' ' . BvSPK::MONTHS_ID[$tanggal->month] . ' ' . $tanggal->year,
             'logoBase64' => self::getLogoBase64(),
-            // dompdf tidak bisa memuat URL storage; gambar TTD harus di-inline base64.
-            'signatureBase64' => self::getSignatureBase64($spk),
+            // dompdf tidak bisa memuat URL storage; gambar TTD & materai harus di-inline base64.
+            'signatureBase64' => self::inlineImage($spk->signature_path),
+            'materaiBase64' => self::inlineImage($spk->materai_path),
         ];
     }
 
-    private static function getSignatureBase64(BvSPK $spk): ?string
+    private static function inlineImage(?string $path): ?string
     {
-        if (blank($spk->signature_path)) {
+        if (blank($path)) {
             return null;
         }
 
         $disk = \Illuminate\Support\Facades\Storage::disk('public');
 
-        return $disk->exists($spk->signature_path)
-            ? 'data:image/png;base64,' . base64_encode($disk->get($spk->signature_path))
+        return $disk->exists($path)
+            ? 'data:image/png;base64,' . base64_encode($disk->get($path))
             : null;
     }
 

@@ -334,3 +334,25 @@ it('tidak menyisakan CSS brand yang tak dipakai di markup', function () {
             ->toBe(1, "Kelas .{$class} didefinisikan tapi tidak dipakai di markup mana pun");
     }
 });
+
+it('mencetak kotak e-meterai kosong bila SPK belum bermeterai', function () {
+    $spk = spkSiapTandaTangan();
+
+    $html = view('pdf.kol-contract', \App\Http\Controllers\KolContractController::prepareData($spk))->render();
+
+    // Nama kelasnya juga muncul di blok <style>, jadi yang dicek span-nya.
+    expect($html)->toContain('class="materai materai-kosong"');
+});
+
+it('menempelkan gambar e-meterai yang sudah diunggah ke dokumen SPK', function () {
+    Storage::fake('public');
+    Storage::disk('public')->put('spk-materai/m.png', base64_decode(explode(',', dummySignature())[1]));
+
+    $spk = spkSiapTandaTangan();
+    $spk->update(['materai_path' => 'spk-materai/m.png']);
+
+    $html = view('pdf.kol-contract', \App\Http\Controllers\KolContractController::prepareData($spk))->render();
+
+    expect($html)->toContain('alt="e-Meterai"')
+        ->and($html)->not->toContain('class="materai materai-kosong"');
+});

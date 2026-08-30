@@ -121,6 +121,14 @@
            supaya versi kosong dan versi bertanda tangan tata letaknya sama. */
         .ttd .ttd-area { height: 20mm; }
         .ttd .ttd-area img { height: 18mm; }
+        /* Wadah e-meterai: gambarnya ditempel manual lewat form SPK. Kotak putus-putus
+           tetap tercetak saat kosong supaya ada tempat menempelkan meterai fisik. */
+        .ttd .materai { display: inline-block; width: 24mm; height: 18mm; }
+        /* dompdf tidak menengahkan teks lewat line-height pada inline-block,
+           jadi tinggi + padding-top yang dipakai. */
+        .ttd .materai-kosong { border: 1px dashed #999; color: #999; font-size: 7pt;
+                               text-align: center; height: 11mm; padding-top: 7mm; }
+        .ttd .materai img { width: 24mm; height: 18mm; }
         .ttd .nama { font-weight: bold; }
         .esign-note {
             margin-top: 5mm;
@@ -566,7 +574,15 @@
             <td class="peran">Pihak Kedua</td>
         </tr>
         <tr>
-            <td class="ttd-area">&nbsp;</td>
+            <td class="ttd-area">
+                <span class="materai{{ empty($materaiBase64 ?? null) ? ' materai-kosong' : '' }}">
+                    @if(!empty($materaiBase64 ?? null))
+                        <img src="{{ $materaiBase64 }}" alt="e-Meterai">
+                    @else
+                        e-Meterai
+                    @endif
+                </span>
+            </td>
             <td class="ttd-area">
                 @if(!empty($signatureBase64))
                     <img src="{{ $signatureBase64 }}" alt="Tanda tangan {{ $spk->pihak_kedua_nama_lengkap }}">

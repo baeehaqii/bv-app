@@ -116,6 +116,7 @@ class BvSPK extends Model
         'addons',
         'public_token',
         'signature_path',
+        'materai_path',
         'signed_at',
         'signed_ip',
     ];
