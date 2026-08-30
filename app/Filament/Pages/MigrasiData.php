@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use App\Service\BriefSheetMigration;
 use App\Service\CampaignSheetMigration;
 use App\Service\ClientSheetMigration;
 use App\Service\GoogleSheetReader;
@@ -51,7 +52,11 @@ class MigrasiData extends Page
         'pipeline' => PipelineSheetMigration::class,
         'campaign' => CampaignSheetMigration::class,
         'mediaplan' => MediaPlanSheetMigration::class,
+        'brief' => BriefSheetMigration::class,
     ];
+
+    /** Jenis yang harus menempel ke satu deal di Sales Activity Tracker. */
+    private const BUTUH_DEAL = ['mediaplan', 'brief'];
 
     /** @var array<string, mixed> state form: jenis, sheetLink, sheetName */
     public ?array $data = [];
@@ -218,8 +223,8 @@ class MigrasiData extends Page
                         ->all())
                     ->searchable()
                     ->native(false)
-                    ->required(fn(callable $get) => $get('jenis') === 'mediaplan')
-                    ->visible(fn(callable $get) => $get('jenis') === 'mediaplan'),
+                    ->required(fn(callable $get) => in_array($get('jenis'), self::BUTUH_DEAL, true))
+                    ->visible(fn(callable $get) => in_array($get('jenis'), self::BUTUH_DEAL, true)),
 
                 Select::make('sheetName')
                     ->label('Tab')
@@ -236,7 +241,7 @@ class MigrasiData extends Page
         $profil = app(self::PROFIL[$this->data['jenis'] ?? 'client'] ?? ClientSheetMigration::class);
 
         // Profil KOL List perlu tahu Media Plan tujuannya; profil lain tidak.
-        return $profil instanceof MediaPlanSheetMigration
+        return ($profil instanceof MediaPlanSheetMigration || $profil instanceof BriefSheetMigration)
             ? $profil->untukSales($this->data['bvSalesId'] ?? null)
             : $profil;
     }
@@ -272,7 +277,7 @@ class MigrasiData extends Page
             return;
         }
 
-        if (($this->data['jenis'] ?? null) === 'mediaplan' && blank($this->data['bvSalesId'] ?? null)) {
+        if (in_array($this->data['jenis'] ?? null, self::BUTUH_DEAL, true) && blank($this->data['bvSalesId'] ?? null)) {
             $this->errorMessage = 'Pilih dulu deal di Sales Activity Tracker.';
 
             return;

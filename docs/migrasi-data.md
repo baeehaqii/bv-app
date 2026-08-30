@@ -9,6 +9,7 @@ didukung, dipilih lewat dropdown **Jenis data** di halaman migrasi:
 | Sales Activity Tracker | Pipeline | `bv_sales` |
 | Campaign | Campaigns | `bv_campaigns` (Campaign Ongoing Internal) |
 | KOL List | (pilih tab tier) | `media_plan_kols` (Media Plan Internal) |
+| Brief | Brief | `form_briefs` (tab Brief di Media Plan Internal) |
 
 Profil Sales Activity Tracker dan Campaign masing-masing melayani DUA bentuk
 sheet: sheet Pipeline/Campaigns yang lama, dan sheet `(KOL) Project - Planning`
@@ -210,6 +211,21 @@ channel.
 
 Tombol pintasnya ada di header tabel **Media Plan Internal** ("Migrasi KOL dari
 Spreadsheet") — membuka halaman ini dengan jenisnya sudah terpilih.
+
+**Brief** — bentuk sheet-nya **vertikal**: label di kolom A, isinya di kolom B,
+bukan tabel dengan baris judul. Karena itu `headerRow()` profil ini
+mengembalikan KOLOM A, sehingga indeks pemetaannya menunjuk nomor baris; sisa
+mesinnya (alias, preview, kolom tak dikenali) tetap terpakai apa adanya. Satu
+tab = satu brief.
+
+Brief menempel ke deal, bukan ke Media Plan — sama seperti profil KOL List —
+dan dibuat lewat `BvSales::ensureFormBriefExists()` supaya judul, brand, dan
+nama campaign-nya sama dengan brief yang lahir dari alur normal. Itulah yang
+dibaca tab Brief di Media Plan Internal.
+
+Satu jebakan: `form_briefs.budget` kolom **angka**, sementara sheet sering
+menulis "Open" atau "TBD". Teks seperti itu dilaporkan di log dan dilewati —
+kalau dipaksa masuk, tersimpannya 0 dan terbaca seolah budget-nya nol.
 
 **Campaign** — kunci baris nama campaign + client. Client yang belum ada dibuat,
 tapi nama yang cuma beda tipis dari client yang sudah ada (mis. "ITDC - Injouney"

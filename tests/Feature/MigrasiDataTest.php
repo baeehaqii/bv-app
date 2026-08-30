@@ -710,3 +710,97 @@ it('menandai baris yang followers-nya tertulis di kolom Tier', function () {
         ->and($items[0]['followers'])->toBe(0)
         ->and($items[0]['tier'])->toBe(4133);
 });
+
+/* -------------------------------------------------------------------------
+ | Tab Brief → FormBrief (tab Brief di Media Plan Internal)
+ * ---------------------------------------------------------------------- */
+
+/** Tab "Brief" bentuknya vertikal: label di kolom A, isinya di kolom B. */
+function briefRows(): array
+{
+    return [
+        ['Campaign Objective / Brief', "Bir Kawan Senja produk baru Multi Bintang.\n\nFokus Bali, awareness, softsell."],
+        ['Creiteria of KOL', "Micro - Macro\n\npreferably male, TA beer drinker"],
+        ['SOW', "- IG Reels\n- IG Story\n- Visit"],
+        ['Budget', 'Open'],
+        ['Deadline', 'Kamis in paralel'],
+    ];
+}
+
+it('membaca tab Brief yang berbentuk vertikal, bukan tabel', function () {
+    $m = new \App\Service\BriefSheetMigration();
+
+    // Label ada di kolom A tiap baris, jadi indeks pemetaannya nomor BARIS.
+    expect($m->mapHeaders($m->headerRow(briefRows())))
+        ->toBe([0 => 'campaign_objective', 1 => 'criteria_of_kol', 2 => 'sow', 3 => 'budget', 4 => 'deadline']);
+
+    $items = $m->parseRows(briefRows());
+
+    // Satu sheet = satu brief, bukan lima baris.
+    expect($items)->toHaveCount(1)
+        ->and($items[0]['campaign_objective'])->toContain('Multi Bintang')
+        ->and($items[0]['sow'])->toContain('IG Reels')
+        ->and($items[0]['budget'])->toBe('Open')
+        ->and($items[0]['deadline'])->toBe('Kamis in paralel');
+});
+
+it('menyimpan brief ke deal, dan tidak menggandakan saat diulang', function () {
+    $sales = \App\Models\BvSales::create(['event_name' => 'Bir Kawan Senja', 'company_name' => 'Multi Bintang']);
+
+    $m = (new \App\Service\BriefSheetMigration())->untukSales($sales->id);
+    $hasil = $m->persist($m->parseRows(briefRows()));
+
+    $brief = $sales->fresh()->formBrief;
+
+    expect($hasil['success'])->toBe(1)
+        ->and($brief)->not->toBeNull()
+        // Dibuat lewat ensureFormBriefExists(), jadi judul & brand-nya terisi
+        // sama seperti brief yang lahir dari alur normal.
+        ->and($brief->campaign_name)->toBe('Bir Kawan Senja')
+        ->and($brief->brand)->toBe('Multi Bintang')
+        ->and($brief->criteria_of_kol)->toContain('beer drinker')
+        ->and($brief->deadline)->toBe('Kamis in paralel');
+
+    $m->persist($m->parseRows(briefRows()));
+    expect(\App\Models\FormBrief::where('bv_sales_id', $sales->id)->count())->toBe(1);
+});
+
+it('sel kosong di tab Brief tidak menghapus isi yang sudah ada', function () {
+    $sales = \App\Models\BvSales::create(['event_name' => 'Bir Kawan Senja', 'company_name' => 'Multi Bintang']);
+    $sales->ensureFormBriefExists()->update(['budget' => 50000000, 'deadline' => 'Senin']);
+
+    $rows = briefRows();
+    $rows[4][1] = '';   // Deadline dikosongkan di sheet
+
+    $m = (new \App\Service\BriefSheetMigration())->untukSales($sales->id);
+    $m->persist($m->parseRows($rows));
+
+    expect($sales->fresh()->formBrief->deadline)->toBe('Senin');
+});
+
+it('budget berupa teks dilaporkan, bukan dipaksa jadi nol', function () {
+    $sales = \App\Models\BvSales::create(['event_name' => 'Bir Kawan Senja', 'company_name' => 'Multi Bintang']);
+
+    $m = (new \App\Service\BriefSheetMigration())->untukSales($sales->id);
+    // Sheet menulis "Open"; kolom form_briefs.budget bertipe angka.
+    $hasil = $m->persist($m->parseRows(briefRows()));
+
+    expect(collect($hasil['notes'])->contains(fn($n) => str_contains($n, 'berisi teks "Open"')))->toBeTrue()
+        ->and($sales->fresh()->formBrief->budget)->toBeNull();
+
+    // Angka yang benar-benar angka tetap masuk.
+    $rows = briefRows();
+    $rows[3][1] = 'Rp50.000.000';
+    $m->persist($m->parseRows($rows));
+
+    expect((int) $sales->fresh()->formBrief->budget)->toBe(50000000);
+});
+
+it('menolak menyimpan brief sebelum deal-nya dipilih', function () {
+    $m = new \App\Service\BriefSheetMigration();
+    $hasil = $m->persist($m->parseRows(briefRows()));
+
+    expect($hasil['success'])->toBe(0)
+        ->and($hasil['notes'][0])->toContain('belum dipilih')
+        ->and(\App\Models\FormBrief::count())->toBe(0);
+});
