@@ -146,6 +146,15 @@ yang mengubah status bisa memicunya.
 beberapa baris**. Baris pertama berisi identitas KOL plus scope of work
 pertamanya; baris di bawahnya hanya SOW tambahan dengan kolom identitas kosong.
 Jadi baris tanpa username bukan baris kosong — ia digabung ke KOL di atasnya.
+Judul kolomnya menempati **dua baris**: label utama di satu baris, sub-label
+Qty/Item di baris bawahnya — keduanya digabung sebelum dipetakan.
+
+Sheet juga punya **dua blok scope of work berdampingan** dengan judul kolom yang
+sama persis: "Request Client" dan rencana internal. Yang dipakai blok internal,
+dikenali dari POSISI — tiga kolom tepat sebelum "Subtotal Rate". Kalau
+dicocokkan lewat nama, blok client yang menang karena lebih kiri, dan rate yang
+terbaca jadi harga ke client, bukan cost KOL.
+
 Satu baris sheet menghasilkan EMPAT hal, bukan satu:
 
 1. **DataKol** — username, channel, followers, link, tier, ER, avg views. Nama

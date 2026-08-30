@@ -85,9 +85,10 @@ class MediaPlanSheetMigration extends SheetMigration
             'domisili' => ['dom', 'domisili'],
             'notes' => ['notes', 'catatan'],
             // Blok Scope of Work sebelah kanan: qty + item + rate per baris.
-            'sow_qty' => ['qty'],
-            'sow_item' => ['item'],
-            'rate' => ['rate'],
+            // Qty/Item/Rate SENGAJA tidak pakai alias: sheet punya DUA blok scope
+            // of work berdampingan ("Request Client" dan rencana internal) dengan
+            // judul yang sama persis. Yang benar ditentukan posisinya di
+            // mapHeaders(), bukan namanya.
             // Dua kolom ini yang menentukan tipe pajak KOL-nya.
             'pph_coefficient' => ['gross up pph coefficient', 'coefficient'],
             'tax' => ['tax'],
@@ -102,6 +103,68 @@ class MediaPlanSheetMigration extends SheetMigration
     protected function requiredField(): string
     {
         return 'name';
+    }
+
+    /**
+     * Judul kolom sheet ini menempati DUA baris: baris utama berisi "Scope of
+     * Work" dan "Rate", baris di bawahnya berisi "Qty" dan "Item" untuk tiap
+     * blok. Keduanya digabung supaya kolom Qty/Item ikut terbaca.
+     *
+     * @param  array<int, array<int, mixed>>  $rows
+     */
+    public function headerRow(array $rows): array
+    {
+        $i = $this->headerRowIndex($rows);
+        $utama = $rows[$i] ?? [];
+        $bawah = $rows[$i + 1] ?? [];
+
+        foreach ($bawah as $kolom => $judul) {
+            if (blank($utama[$kolom] ?? null)) {
+                $utama[$kolom] = $judul;
+            }
+        }
+
+        return $utama;
+    }
+
+    /** Judulnya dua baris: label utama + sub-label Qty/Item. */
+    public function headerRowSpan(): int
+    {
+        return 2;
+    }
+
+    /**
+     * Sheet punya DUA blok scope of work berdampingan dengan judul kolom yang
+     * sama persis: "Request Client" (rencana dari client) dan rencana internal.
+     * Yang dipakai Media Plan adalah blok internal — dikenali dari posisinya,
+     * yaitu tiga kolom tepat SEBELUM "Subtotal Rate". Kalau dicocokkan lewat
+     * nama, blok client yang menang karena letaknya lebih kiri, dan rate yang
+     * terbaca jadi harga ke client, bukan cost KOL.
+     *
+     * @param  array<int, mixed>  $headerRow
+     * @return array<int, string>
+     */
+    public function mapHeaders(array $headerRow): array
+    {
+        $peta = parent::mapHeaders($headerRow);
+
+        $subtotal = collect($headerRow)
+            ->search(fn($judul) => self::normalize((string) $judul) === 'subtotal rate');
+
+        if ($subtotal === false) {
+            return $peta;
+        }
+
+        // Buang sisa pemetaan ke tiga field ini, lalu pasang yang benar.
+        $peta = array_filter($peta, fn(string $f) => ! in_array($f, ['sow_qty', 'sow_item', 'rate'], true));
+
+        $peta[$subtotal - 3] = 'sow_qty';
+        $peta[$subtotal - 2] = 'sow_item';
+        $peta[$subtotal - 1] = 'rate';
+
+        ksort($peta);
+
+        return $peta;
     }
 
     /**

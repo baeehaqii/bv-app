@@ -439,19 +439,77 @@ function masterPphSeperti(): void
     );
 }
 
-/** Susunan sheet "[INT] ... - KOL List": judul di baris 2, satu KOL beberapa baris. */
+/**
+ * Susunan sheet "[INT] ... - KOL List" seperti aslinya:
+ * judul kolom di baris 2, sub-judul Qty/Item di baris 3, dan DUA blok scope of
+ * work berdampingan — "Request Client" (N/O/P) dan rencana internal (T/U/V).
+ * Kolom P berisi harga ke client, V berisi cost KOL; keduanya berjudul "Rate".
+ */
 function kolListRows(): array
 {
+    $kosong = array_fill(0, 30, '');
+
+    $judul = $kosong;
+    foreach ([0 => 'No', 1 => 'PIC', 2 => 'Status', 3 => 'Username', 4 => 'Link', 5 => 'Channel',
+        6 => 'Categories', 7 => 'Followers', 8 => 'Tier', 9 => 'ER %', 10 => 'Avg Views', 11 => 'Engagement',
+        12 => 'Scope of Work', 15 => 'Rate', 16 => 'TOP', 17 => 'DOM', 18 => 'Notes',
+        19 => 'Scope of Work', 21 => 'Rate', 22 => 'Subtotal Rate', 23 => 'Gross Up PPH Coefficient',
+        24 => 'Tax', 25 => 'MU PPh*', 26 => 'MU**', 27 => 'Published Rate***', 28 => 'Rounded',
+        29 => 'Margin %'] as $k => $v) {
+        $judul[$k] = $v;
+    }
+
+    $subJudul = $kosong;
+    $subJudul[12] = 'Request Client';
+    $subJudul[13] = 'Qty';
+    $subJudul[14] = 'Item';
+    $subJudul[19] = 'Qty';
+    $subJudul[20] = 'Item';
+
+    $baris = function (array $isi) use ($kosong) {
+        $row = $kosong;
+        foreach ($isi as $k => $v) {
+            $row[$k] = $v;
+        }
+
+        return $row;
+    };
+
     return [
-        ['', '', '', '', '', '', '', '', '', 'MEDIA PLAN - Bir Kawan Senja'],
-        ['No', 'PIC', 'Status', 'Username', 'Link', 'Channel', 'Categories', 'Followers', 'Tier', 'ER %', 'Avg Views', 'Engagement', '', '', '', '', '', '', '', 'Qty', 'Item', 'Rate', 'Subtotal Rate', 'Gross Up PPH Coefficient', 'Tax'],
-        ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
-        [1, 'Sheila', 'Approaching', 'Bagus Gandhi', 'https://instagram.com/bagus', 'Instagram', 'Lifestyle', 12000, 'Nano', 4.5, 8000, 540, '', '', '', '', '', '', '', 1, 'IG Reels', 1500000, 1500000, 0.98, 0.11],
-        ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', 1, 'IG Story with Link', 500000, 500000, 0.98, 0.11],
-        ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', 1, 'Visit Store', 0, 0, 0.98, 0.11],
-        [2, 'Salwa', 'Approaching', 'Ivan Wahyu', 'https://instagram.com/ivan', 'Instagram', 'Food', 9000, 'Nano', 3.2, 5000, 288, '', '', '', '', '', '', '', 1, 'IG Reels', 1200000, 1200000, 0.98, 0.11],
+        $baris([9 => 'MEDIA PLAN - Bir Kawan Senja']),
+        $judul,
+        $subJudul,
+        // KOL pertama + SOW pertamanya. Kolom P (15) sengaja diisi angka lain:
+        // itu harga ke client, dan TIDAK boleh terbaca sebagai rate KOL.
+        $baris([0 => 1, 1 => 'Sheila', 2 => 'Approaching', 3 => 'Bagus Gandhi',
+            4 => 'https://instagram.com/bagus', 5 => 'Instagram', 6 => 'Lifestyle', 7 => 12000,
+            8 => 'Nano', 9 => 4.5, 10 => 8000, 11 => 540,
+            13 => 1, 14 => 'IG Reels', 15 => 3400000,
+            19 => 1, 20 => 'IG Reels', 21 => 1500000, 22 => 1500000, 23 => 0.98, 24 => 0.11]),
+        $baris([13 => 1, 14 => 'IG Story with Link', 15 => 1200000,
+            19 => 1, 20 => 'IG Story with Link', 21 => 500000, 22 => 500000, 23 => 0.98, 24 => 0.11]),
+        $baris([19 => 1, 20 => 'Visit Store', 21 => 0, 22 => 0, 23 => 0.98, 24 => 0.11]),
+        $baris([0 => 2, 1 => 'Salwa', 2 => 'Approaching', 3 => 'Ivan Wahyu',
+            4 => 'https://instagram.com/ivan', 5 => 'Instagram', 6 => 'Food', 7 => 9000,
+            8 => 'Nano', 9 => 3.2, 10 => 5000, 11 => 288,
+            19 => 1, 20 => 'IG Reels', 21 => 1200000, 22 => 1200000, 23 => 0.98, 24 => 0.11]),
     ];
 }
+
+it('mengambil blok scope of work internal, bukan blok Request Client', function () {
+    $m = new \App\Service\MediaPlanSheetMigration();
+    $peta = $m->mapHeaders($m->headerRow(kolListRows()));
+
+    // Tiga kolom tepat sebelum "Subtotal Rate" (indeks 22), bukan blok kiri.
+    expect($peta[19])->toBe('sow_qty')
+        ->and($peta[20])->toBe('sow_item')
+        ->and($peta[21])->toBe('rate')
+        ->and($peta)->not->toHaveKey(15);
+
+    $items = $m->parseRows(kolListRows());
+    // 1.500.000 = kolom V (cost KOL), bukan 3.400.000 dari kolom P (harga client).
+    expect($items[0]['scope_items'][0]['rate'])->toBe(1500000.0);
+});
 
 it('menggabungkan baris scope of work ke KOL di atasnya', function () {
     $m = new \App\Service\MediaPlanSheetMigration();

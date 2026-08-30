@@ -140,6 +140,15 @@ abstract class SheetMigration
     }
 
     /**
+     * Berapa baris yang ditempati judul kolom. Lebih dari satu bila sheet punya
+     * sub-judul (mis. "Qty"/"Item" di baris bawah "Scope of Work").
+     */
+    public function headerRowSpan(): int
+    {
+        return 1;
+    }
+
+    /**
      * Baris mentah → item siap simpan. Baris judul dicari sendiri, baris di
      * atasnya diabaikan.
      *
@@ -153,10 +162,11 @@ abstract class SheetMigration
         }
 
         $barisJudul = $this->headerRowIndex($rows);
-        $peta = $this->mapHeaders($rows[$barisJudul]);
+        $peta = $this->mapHeaders($this->headerRow($rows));
+        $mulai = $barisJudul + $this->headerRowSpan();
         $items = [];
 
-        foreach (array_slice($rows, $barisJudul + 1) as $n => $row) {
+        foreach (array_slice($rows, $mulai) as $n => $row) {
             $item = [];
 
             foreach ($peta as $i => $field) {
@@ -171,7 +181,7 @@ abstract class SheetMigration
             $item = $this->refine($item);
 
             // Nomor baris seperti yang terlihat di Google Sheets (mulai dari 1).
-            $item['_row'] = $barisJudul + $n + 2;
+            $item['_row'] = $mulai + $n + 1;
             $item['_note'] ??= blank($item[$this->requiredField()] ?? null)
                 ? 'Kolom wajib kosong — baris dilewati.'
                 : null;
