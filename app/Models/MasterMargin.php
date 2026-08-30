@@ -25,16 +25,29 @@ class MasterMargin extends Model
     /**
      * Get margin percentage for a given subtotal amount
      */
+    /**
+     * Baris aktif di-cache per request: fungsi ini dipanggil sekali per baris
+     * budget saat KOL List dirender — pada media plan besar itu ribuan query ke
+     * tabel yang isinya cuma beberapa baris dan tidak berubah selama request.
+     *
+     * @var \Illuminate\Support\Collection<int, self>|null
+     */
+    private static ?\Illuminate\Support\Collection $aktif = null;
+
+    protected static function booted(): void
+    {
+        // Tabelnya diedit lewat panel admin, dan test mengisinya di tengah jalan.
+        // Tanpa ini cache-nya basi dan margin lama masih dipakai.
+        static::saved(fn() => self::$aktif = null);
+        static::deleted(fn() => self::$aktif = null);
+    }
+
     public static function getMarginForAmount(float $subtotal): float
     {
-        $margin = self::where('is_active', true)
-            ->where('min_amount', '<=', $subtotal)
-            ->where(function ($query) use ($subtotal) {
-                $query->whereNull('max_amount')
-                    ->orWhere('max_amount', '>=', $subtotal);
-            })
-            ->orderBy('order')
-            ->first();
+        self::$aktif ??= self::query()->active()->ordered()->get();
+
+        $margin = self::$aktif->first(fn(self $m) => (float) $m->min_amount <= $subtotal
+            && ($m->max_amount === null || (float) $m->max_amount >= $subtotal));
 
         // ponytail: default sheet KOL List = flat 50%; tabel bertingkat
         // tinggal ditambah lewat panel admin Master Margin

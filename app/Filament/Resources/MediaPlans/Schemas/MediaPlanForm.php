@@ -193,19 +193,69 @@ class MediaPlanForm
      *
      * @return array<int, string>
      */
+    /**
+     * Cache per-request untuk lookup yang dipanggil BERKALI-KALI per render.
+     *
+     * KOL List bisa berisi ratusan baris dan tiap baris memanggil ulang DataKol,
+     * rate card, MasterPph, serta daftar channel-nya. Pada media plan 98 KOL itu
+     * jadi ~7.900 query dan 700 MB — halamannya mati kena memory limit. Isinya
+     * data master yang tidak berubah selama satu request, jadi cukup diambil
+     * sekali.
+     *
+     * @var array<string, mixed>
+     */
+    private static array $cache = [];
+
+    /** @param  \Closure(): mixed  $ambil */
+    private static function sekali(string $kunci, \Closure $ambil): mixed
+    {
+        return self::$cache[$kunci] ??= $ambil();
+    }
+
+    /**
+     * Buang cache. WAJIB dipanggil setelah rate card atau baris DataKol berubah
+     * di tengah request — mis. aksi "Tambah KOL Multi-Channel" yang membuat rate
+     * card baru — dan di setUp test supaya satu test tidak mewarisi cache test
+     * sebelumnya.
+     */
+    public static function lupakanCache(): void
+    {
+        self::$cache = [];
+    }
+
+    /** Rate card satu KOL, lengkap dengan master SOW-nya. */
+    private static function rateCardsFor(?int $dataKolId): \Illuminate\Support\Collection
+    {
+        if (! $dataKolId) {
+            return collect();
+        }
+
+        return self::sekali("ratecards:{$dataKolId}", fn() => self::dataKol($dataKolId)
+            ?->rateCards()->with('masterSow')->get() ?? collect());
+    }
+
+    private static function dataKol(?int $id): ?DataKol
+    {
+        return $id ? self::sekali("kol:{$id}", fn() => DataKol::find($id)) : null;
+    }
+
+    private static function masterPph(?int $id): ?\App\Models\MasterPph
+    {
+        return $id ? self::sekali("pph:{$id}", fn() => \App\Models\MasterPph::find($id)) : null;
+    }
+
     private static function kolSowLabels(?int $dataKolId): array
     {
         if (! $dataKolId) {
             return [];
         }
 
-        return DataKol::find($dataKolId)
-            ?->rateCards()->with('masterSow')->get()
+        return self::rateCardsFor($dataKolId)
             ->pluck('sow_label')
             ->filter()
             ->unique()
             ->values()
-            ->all() ?? [];
+            ->all();
     }
 
     /**
@@ -323,10 +373,10 @@ class MediaPlanForm
             return [];
         }
 
-        return DataKol::where('username', $username)
+        return self::sekali("channels:{$username}", fn() => DataKol::where('username', $username)
             ->pluck('channel', 'channel')
             ->filter()
-            ->toArray();
+            ->toArray());
     }
 
     /**
@@ -378,11 +428,11 @@ class MediaPlanForm
     private static function resolveKolRateCards($dataKolId, ?string $name, ?string $channel): \Illuminate\Support\Collection
     {
         $dataKol = $dataKolId
-            ? DataKol::find($dataKolId)
+            ? self::dataKol($dataKolId)
             : self::resolveKol($name, $channel);
 
         return $dataKol
-            ? $dataKol->rateCards()->with('masterSow')->get()
+            ? self::rateCardsFor($dataKol->id)
             : collect();
     }
 
@@ -429,14 +479,14 @@ class MediaPlanForm
         }
 
         $dataKol = $dataKolId
-            ? DataKol::find($dataKolId)
+            ? self::dataKol($dataKolId)
             : self::resolveKol($name, $channel);
 
         if (!$dataKol) {
             return 0;
         }
 
-        $rateCards = $dataKol->rateCards()->with('masterSow')->get();
+        $rateCards = self::rateCardsFor($dataKol->id);
 
         return collect($scopeItems)->sum(
             fn($scope) => (float) (self::matchSowCard($rateCards, (string) $scope)?->rate ?? 0)
@@ -490,7 +540,7 @@ class MediaPlanForm
         }
 
         $rateCards = self::resolveKolRateCards($get('data_kol_id'), $get('name'), $get('channel'));
-        $pph = filled($get('tipe_pajak_kol')) ? \App\Models\MasterPph::find($get('tipe_pajak_kol')) : null;
+        $pph = self::masterPph(filled($get('tipe_pajak_kol')) ? (int) $get('tipe_pajak_kol') : null);
         $coeff = $pph?->getCalculatedCoefficient() ?? 0.975;
         $margin = filled($get('margin_percent')) ? (float) $get('margin_percent') : null;
         $qty = max(1, (int) ($get('qty') ?: 1));
@@ -1548,6 +1598,9 @@ class MediaPlanForm
 
                                                         if ($rateCards) {
                                                             $kol->rateCards()->createMany($rateCards);
+                                                            // Rate card berubah di tengah request; cache harus dibuang
+                                                            // supaya baris ini memakai rate yang baru dibuat.
+                                                            self::lupakanCache();
                                                         }
 
                                                         // Isi baris ini dengan data KOL yang baru dibuat
@@ -2825,6 +2878,8 @@ class MediaPlanForm
             if ($cards) {
                 $kol->rateCards()->delete();
                 $kol->rateCards()->createMany($cards);
+                // Rate card baru ditulis; cache lama tidak boleh dipakai lagi.
+                self::lupakanCache();
             }
 
             $sowLabels = self::kolSowLabels($kol->id);

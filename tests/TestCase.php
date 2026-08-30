@@ -24,5 +24,9 @@ abstract class TestCase extends BaseTestCase
          * (setiap panggilan memakan kredit berbayar).
          */
         config(['services.scrapecreators.api_key' => 'test-key-tidak-dipakai']);
+
+        // Cache statis MediaPlanForm hidup selama proses PHP, jadi tanpa ini satu
+        // test bisa membaca rate card milik test sebelumnya.
+        \App\Filament\Resources\MediaPlans\Schemas\MediaPlanForm::lupakanCache();
     }
 }
