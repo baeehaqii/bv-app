@@ -155,6 +155,10 @@ dikenali dari POSISI — tiga kolom tepat sebelum "Subtotal Rate". Kalau
 dicocokkan lewat nama, blok client yang menang karena lebih kiri, dan rate yang
 terbaca jadi harga ke client, bukan cost KOL.
 
+Blok "Request Client" itu satu-satunya yang sengaja dilewati: isinya daftar
+scope of work versi client — daftar yang BERBEDA dari rencana internal, bukan
+duplikatnya — dan belum ada kolom penampungnya di `media_plan_kols`.
+
 Satu baris sheet menghasilkan EMPAT hal, bukan satu:
 
 1. **DataKol** — username, channel, followers, link, tier, ER, avg views. Nama
@@ -169,17 +173,24 @@ card: saat migrasi, KOL-nya memang belum punya rate card, dan mengambilnya lewat
 rate card yang baru saja ditulis sendiri cuma menambah satu tahap pencocokan
 nama SOW yang bisa meleset diam-diam jadi rate 0.
 
-Kolom **Subtotal Rate, Gross Up PPH Coefficient, Tax, MU PPh\*, MU\*\*,
-Published Rate\*\*\*, Rounded, dan Margin %** tidak perlu diambil angkanya —
-`InternalBudgetItem::recalculate()` mengisinya sendiri lewat hook `saving`,
-digerakkan kolom **`vendor_tax_type`**. Menghitungnya di kode migrasi percuma:
-hook itu menimpanya sedetik kemudian.
+Kolom **Subtotal Rate, MU PPh\*, MU\*\*, Published Rate\*\*\*, Rounded, dan
+Margin %** diambil **apa adanya dari sheet**. Migrasi memindahkan catatan
+sejarah, jadi angkanya harus sama dengan yang selama ini dibaca tim — termasuk
+bila di sheet ada angka yang di-override manual.
 
-Yang menentukan hasilnya karena itu cuma `vendor_tax_type`, dan itu dibaca dari
-kolom Coefficient + Tax di sheet: 0,98 + 0,11 → **PT PKP**, yang rumusnya
-`(Base/0,98) + (Base × 0,11)` — **sama persis dengan kolom Z di sheet**. Jadi
-"ikuti sheet" dan "pakai perhitungan aplikasi" bukan dua hal berbeda; yang dulu
-keliru justru versi lama yang MENGALIKAN PPN.
+Supaya tidak ditimpa, tiap budget item hasil migrasi ditandai `imported_at`, dan
+`InternalBudgetItem::recalculate()` melewati baris bertanda itu.
+
+**Begitu baris itu disunting lewat sistem** — rate, qty, atau tipe pajaknya
+berubah — penandanya dilepas dan baris itu kembali ikut hitungan sistem,
+termasuk koefisien PPh yang sudah diperbaiki. Kalau tidak begitu, angkanya
+membeku sementara inputnya sudah lain, dan itu lebih membingungkan daripada
+dihitung ulang.
+
+Kolom **Gross Up PPH Coefficient + Tax** menentukan `vendor_tax_type`: 0,98 +
+0,11 → **PT PKP**. Kebetulan yang menenangkan: rumus PT PKP di aplikasi adalah
+`(Base/0,98) + (Base × 0,11)` — sama persis dengan kolom Z di sheet. Jadi untuk
+data baru pun angkanya tidak akan meloncat dari kebiasaan tim.
 
 Rate baris KOL juga tidak diisi tangan; `MediaPlanKol::syncRateFromBudget()`
 yang menurunkannya dari budget item.

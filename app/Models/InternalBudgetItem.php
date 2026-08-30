@@ -10,6 +10,7 @@ class InternalBudgetItem extends Model
     protected $guarded = [];
 
     protected $casts = [
+        'imported_at' => 'datetime',
         'qty' => 'integer',
         'sort_order' => 'integer',
         'use_flexible_margin' => 'boolean',
@@ -373,9 +374,22 @@ class InternalBudgetItem extends Model
     {
         parent::boot();
 
-        // Auto-calculate before saving
         static::saving(function ($item) {
-            $item->recalculate();
+            // Baris hasil migrasi spreadsheet dibiarkan apa adanya: angkanya
+            // catatan sejarah, bukan sesuatu yang perlu dihitung ulang.
+            //
+            // Kecuali begitu disunting lewat sistem — rate, qty, atau tipe
+            // pajaknya berubah — penandanya dilepas dan baris ini kembali ikut
+            // hitungan sistem. Kalau tidak, angkanya membeku sementara inputnya
+            // sudah lain, dan itu jauh lebih membingungkan daripada dihitung ulang.
+            if ($item->imported_at && $item->exists
+                && $item->isDirty(['rate_base', 'qty', 'vendor_tax_type', 'master_pph_id'])) {
+                $item->imported_at = null;
+            }
+
+            if (! $item->imported_at) {
+                $item->recalculate();
+            }
         });
 
         // Recalculate parent budget totals and sync rate to KOL after save/delete

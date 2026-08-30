@@ -89,9 +89,19 @@ class MediaPlanSheetMigration extends SheetMigration
             // of work berdampingan ("Request Client" dan rencana internal) dengan
             // judul yang sama persis. Yang benar ditentukan posisinya di
             // mapHeaders(), bukan namanya.
+            'row_number' => ['no'],
+            'top' => ['top'],
             // Dua kolom ini yang menentukan tipe pajak KOL-nya.
             'pph_coefficient' => ['gross up pph coefficient', 'coefficient'],
             'tax' => ['tax'],
+            // Angka hasil hitungan di sheet. Diambil apa adanya untuk baris
+            // migrasi — lihat catatan di generateBudgetItems().
+            'sow_subtotal' => ['subtotal rate'],
+            'sow_mu_pph' => ['mu pph'],
+            'sow_mu_target' => ['mu'],
+            'sow_published_rate' => ['published rate'],
+            'sow_rounded' => ['rounded'],
+            'sow_margin' => ['margin persen'],
         ];
     }
 
@@ -107,16 +117,11 @@ class MediaPlanSheetMigration extends SheetMigration
 
     public function ignoredHeaders(): array
     {
-        return [
-            'no',
-            // Blok "Request Client" di sebelah kiri — rencana dari client, bukan
-            // rencana internal yang dipakai Media Plan.
-            'scope of work', 'qty', 'item', 'rate',
-            'top',
-            // Semuanya turunan yang InternalBudgetItem::recalculate() hitung
-            // sendiri dari rate + tipe pajak.
-            'subtotal rate', 'mu pph', 'mu', 'published rate', 'rounded', 'margin persen',
-        ];
+        // Blok "Request Client" di sebelah kiri: itu scope of work versi CLIENT,
+        // daftar yang berbeda dari rencana internal — bukan duplikat. Tidak ada
+        // kolom penampungnya di media_plan_kols, dan menaruhnya di kolom yang
+        // sama akan menimpa rencana internal.
+        return ['scope of work', 'qty', 'item', 'rate'];
     }
 
     /**
@@ -256,7 +261,21 @@ class MediaPlanSheetMigration extends SheetMigration
             'qty' => (int) (self::toNumber($b['sow_qty'] ?? null) ?: 1),
             'item' => $item,
             'rate' => (float) (self::toNumber($b['rate'] ?? null) ?: 0),
+            // Angka hasil hitungan sheet, dibawa apa adanya.
+            'subtotal' => self::toNumber($b['sow_subtotal'] ?? null),
+            'mu_pph' => self::toNumber($b['sow_mu_pph'] ?? null),
+            'mu_target' => self::toNumber($b['sow_mu_target'] ?? null),
+            'published_rate' => self::toNumber($b['sow_published_rate'] ?? null),
+            'rounded' => self::toNumber($b['sow_rounded'] ?? null),
+            // Margin di sheet pecahan (0,65); kolomnya menyimpan persen.
+            'margin' => self::persen(self::toNumber($b['sow_margin'] ?? null)),
         ];
+    }
+
+    /** Pecahan 0,65 dari sheet → 65 persen; angka >1 dianggap sudah persen. */
+    private static function persen(?float $n): ?float
+    {
+        return ($n !== null && $n > 0 && $n <= 1) ? round($n * 100, 2) : $n;
     }
 
     protected function refine(array $item): array
@@ -267,6 +286,8 @@ class MediaPlanSheetMigration extends SheetMigration
         $item['er_percent'] = self::toNumber($item['er_percent'] ?? null);
         $item['pph_coefficient'] = self::toNumber($item['pph_coefficient'] ?? null);
         $item['tax'] = self::toNumber($item['tax'] ?? null);
+        $item['top'] = self::toNumber($item['top'] ?? null);
+        $item['row_number'] = (int) (self::toNumber($item['row_number'] ?? null) ?: 0);
 
         return $item;
     }
@@ -369,7 +390,7 @@ class MediaPlanSheetMigration extends SheetMigration
             $kol->qty = max(1, (int) collect($item['scope_items'])->max('qty'));
         }
 
-        $kol->row_number ??= (int) ($item['_row'] ?? 0);
+        $kol->row_number = $item['row_number'] ?: ($kol->row_number ?: (int) ($item['_row'] ?? 0));
         // Penanda asal-usul: baris hasil migrasi boleh ber-rate 0 dan dilengkapi
         // manual belakangan, sedangkan baris yang diinput lewat form tetap wajib
         // punya rate card.
@@ -404,6 +425,11 @@ class MediaPlanSheetMigration extends SheetMigration
         $kol->link_userprofile = $item['links']
             ?: ($kol->link_userprofile
                 ?: (\App\Service\KolProfileImporter::canonicalUrl((string) $item['channel'], (string) $item['name']) ?? '-'));
+
+        if (filled($item['top'] ?? null)) {
+            // TOP itu sifat KOL-nya (term of payment), bukan sifat satu media plan.
+            $kol->top = (int) $item['top'];
+        }
 
         foreach ([
             'followers' => 'followers',
@@ -493,10 +519,13 @@ class MediaPlanSheetMigration extends SheetMigration
      * kita tulis sendiri cuma menambah satu tahap pencocokan nama SOW yang bisa
      * meleset diam-diam jadi rate 0.
      *
-     * Subtotal, gross up coefficient, tax, MU PPh, MU target, published rate,
-     * rounded, dan margin diisi InternalBudgetItem::recalculate() lewat hook
-     * `saving` miliknya sendiri — digerakkan `vendor_tax_type`. Menghitungnya
-     * di sini percuma: hook itu menimpanya sedetik kemudian.
+     * Subtotal, MU PPh, MU target, published rate, rounded, dan margin diambil
+     * APA ADANYA dari sheet — migrasi itu memindahkan catatan sejarah, jadi
+     * angkanya harus sama dengan yang selama ini dibaca tim. Penanda
+     * `imported_at` membuat InternalBudgetItem::recalculate() tidak menimpanya.
+     *
+     * Baris yang kemudian disunting lewat sistem melepas penanda itu dan kembali
+     * ikut hitungan sistem — termasuk koefisien PPh yang sudah diperbaiki.
      */
     private function generateBudgetItems(MediaPlan $mediaPlan, MediaPlanKol $kol, array $item, string $vendorTaxType): void
     {
@@ -519,6 +548,19 @@ class MediaPlanSheetMigration extends SheetMigration
                 'vendor_tax_type' => $vendorTaxType,
                 'master_pph_id' => $kol->tipe_pajak_kol,
                 'sort_order' => ++$sortOrder,
+
+                // Angka hasil hitungan sheet dipakai apa adanya. Penanda
+                // imported_at membuat InternalBudgetItem::recalculate() tidak
+                // menimpanya; begitu barisnya disunting lewat sistem, penandanya
+                // lepas dan hitungan sistem yang berlaku lagi.
+                'imported_at' => now(),
+                'subtotal' => $sow['subtotal'] ?? ($sow['rate'] * max(1, (int) $sow['qty'])),
+                'gross_up_coeff' => $item['pph_coefficient'] ?? null,
+                'mu_pph' => $sow['mu_pph'] ?? null,
+                'mu_target' => $sow['mu_target'] ?? null,
+                'published_rate' => $sow['published_rate'] ?? $sow['mu_target'] ?? null,
+                'rounded' => $sow['rounded'] ?? null,
+                'actual_margin_percent' => $sow['margin'] ?? null,
             ]);
         }
     }

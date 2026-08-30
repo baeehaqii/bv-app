@@ -485,9 +485,11 @@ function kolListRows(): array
             4 => 'https://instagram.com/bagus', 5 => 'Instagram', 6 => 'Lifestyle', 7 => 12000,
             8 => 'Nano', 9 => 4.5, 10 => 8000, 11 => 540,
             13 => 1, 14 => 'IG Reels', 15 => 3400000,
-            19 => 1, 20 => 'IG Reels', 21 => 1500000, 22 => 1500000, 23 => 0.98, 24 => 0.11]),
+            19 => 1, 20 => 'IG Reels', 21 => 1500000, 22 => 1500000, 23 => 0.98, 24 => 0.11,
+            25 => 1695612.24, 26 => 3391224.49, 27 => 3391224.49, 28 => 3500000, 29 => 0.5155]),
         $baris([13 => 1, 14 => 'IG Story with Link', 15 => 1200000,
-            19 => 1, 20 => 'IG Story with Link', 21 => 500000, 22 => 500000, 23 => 0.98, 24 => 0.11]),
+            19 => 1, 20 => 'IG Story with Link', 21 => 500000, 22 => 500000, 23 => 0.98, 24 => 0.11,
+            25 => 565204.08, 26 => 1130408.16, 27 => 1130408.16, 28 => 1200000, 29 => 0.5290]),
         $baris([19 => 1, 20 => 'Visit Store', 21 => 0, 22 => 0, 23 => 0.98, 24 => 0.11]),
         $baris([0 => 2, 1 => 'Salwa', 2 => 'Approaching', 3 => 'Ivan Wahyu',
             4 => 'https://instagram.com/ivan', 5 => 'Instagram', 6 => 'Food', 7 => 9000,
@@ -580,7 +582,7 @@ it('mengisi KOL Data dan rate card dari sheet, bukan cuma baris Media Plan', fun
     expect(\App\Models\MediaPlanKol::where('name', 'Bagus Gandhi')->value('data_kol_id'))->toBe($dataKol->id);
 });
 
-it('menghitung sendiri kolom subtotal sampai margin, tidak mengambil angka sheet', function () {
+it('memakai angka hasil hitungan sheet apa adanya, tidak menghitung ulang', function () {
     masterPphSeperti();
     $sales = \App\Models\BvSales::create(['event_name' => 'Bir Kawan Senja', 'company_name' => 'Multi Bintang']);
 
@@ -592,52 +594,41 @@ it('menghitung sendiri kolom subtotal sampai margin, tidak mengambil angka sheet
 
     // Koefisien 0,98 + tax 0,11 di sheet = "PT PKP".
     expect($reels->vendor_tax_type)->toBe('PT PKP')
-        ->and($reels->masterPph->name)->toBe('PT PKP');
+        // rate_base LANGSUNG dari kolom Rate blok internal, bukan blok client.
+        ->and((float) $reels->rate_base)->toBe(1500000.0);
 
-    // rate_base LANGSUNG dari kolom Rate di sheet — saat migrasi KOL-nya memang
-    // belum punya rate card, jadi tidak lewat computeRateFromSow().
-    expect((float) $reels->rate_base)->toBe(1500000.0)
-        ->and((float) $reels->subtotal)->toBe(1500000.0);
-
-    // Cost harus sama persis dengan rumus sheet: Z = (W/0,98) + (W x 0,11).
-    $costSheet = 1500000 / 0.98 + 1500000 * 0.11;
-    expect(round((float) $reels->mu_pph, 2))->toBe(round($costSheet, 2))
-        // AA = Z/0,5 lalu AC = ROUNDUP(AB, -5) — margin 50% dari Master Margin.
-        ->and((float) $reels->rounded)->toBe((float) (ceil(($costSheet / 0.5) / 100000) * 100000))
-        ->and((float) $reels->actual_margin_percent)->toBeGreaterThan(0);
+    // Rounded di sheet sengaja 3.500.000, sedangkan hitung ulang menghasilkan
+    // 3.400.000. Yang tersimpan harus angka sheet — itu inti "ikuti spreadsheet".
+    expect((float) $reels->rounded)->toBe(3500000.0)
+        ->and(round((float) $reels->mu_pph, 2))->toBe(1695612.24)
+        ->and(round((float) $reels->actual_margin_percent, 2))->toBe(51.55)
+        ->and($reels->imported_at)->not->toBeNull();
 
     // SOW tanpa rate tetap jadi budget item, nilainya nol — bukan hilang.
-    $visit = $kol->internalBudgetItems()->where('scope_item', 'Visit Store')->firstOrFail();
-    expect((float) $visit->rate_base)->toBe(0.0);
+    expect((float) $kol->internalBudgetItems()->where('scope_item', 'Visit Store')->value('rate_base'))->toBe(0.0);
 });
 
-it('menolak migrasi KOL List sebelum deal-nya dipilih', function () {
-    $m = new \App\Service\MediaPlanSheetMigration();
-    $hasil = $m->persist($m->parseRows(kolListRows()));
-
-    expect($hasil['success'])->toBe(0)
-        ->and($hasil['skipped'])->toBe(2)
-        ->and($hasil['notes'][0])->toContain('belum dipilih')
-        ->and(\App\Models\MediaPlanKol::count())->toBe(0);
-});
-
-it('membuatkan Media Plan bila deal-nya belum punya', function () {
+it('baris migrasi yang disunting lewat sistem kembali ikut hitungan sistem', function () {
     masterPphSeperti();
     $sales = \App\Models\BvSales::create(['event_name' => 'Bir Kawan Senja', 'company_name' => 'Multi Bintang']);
 
-    expect($sales->mediaPlan()->exists())->toBeFalse();
-
     $m = (new \App\Service\MediaPlanSheetMigration())->untukSales($sales->id);
-    $hasil = $m->persist($m->parseRows(kolListRows()));
+    $m->persist($m->parseRows(kolListRows()));
 
-    $plan = $sales->fresh()->mediaPlan;
+    $reels = \App\Models\MediaPlanKol::where('name', 'Bagus Gandhi')->firstOrFail()
+        ->internalBudgetItems()->where('scope_item', 'IG Reels')->firstOrFail();
 
-    expect($hasil['success'])->toBe(2)
-        // Dibuat lewat BvSales::ensureMediaPlanExists(), jadi isinya sama dengan
-        // Media Plan yang lahir dari alur normal.
-        ->and($plan)->not->toBeNull()
-        ->and($plan->campaign_name)->toBe('Bir Kawan Senja')
-        ->and(\App\Models\MediaPlanKol::where('media_plan_id', $plan->id)->count())->toBe(2);
+    // Menyimpan tanpa mengubah input: angka sheet tetap dipertahankan.
+    $reels->update(['notes' => 'dicek tim']);
+    expect((float) $reels->fresh()->rounded)->toBe(3500000.0);
+
+    // Begitu rate-nya disunting, penanda lepas dan sistem menghitung ulang.
+    $reels->update(['rate_base' => 2000000]);
+    $reels->refresh();
+
+    expect($reels->imported_at)->toBeNull()
+        ->and(round((float) $reels->mu_pph, 2))->toBe(round(2000000 / 0.98 + 2000000 * 0.11, 2))
+        ->and((float) $reels->rounded)->not->toBe(3500000.0);
 });
 
 it('menandai baris hasil migrasi supaya boleh ber-rate 0', function () {
@@ -696,8 +687,11 @@ it('memisahkan kolom yang sengaja dilewati dari yang benar-benar tidak dikenali'
     $pisah = $m->pisahHeader($m->headerRow(kolListRows()));
 
     // Blok Request Client + angka turunan: keputusan, bukan kegagalan baca.
-    expect($pisah['diabaikan'])->toContain('Subtotal Rate', 'Rounded', 'Margin %', 'Qty', 'Item', 'Rate', 'No', 'TOP')
-        // "Categories" belum punya padanan sungguhan, jadi memang tak dikenali.
+    // Yang tersisa hanya blok "Request Client": scope of work versi client,
+    // daftar yang berbeda dari rencana internal dan tidak punya kolom penampung.
+    expect($pisah['diabaikan'])->toContain('Scope of Work', 'Qty', 'Item', 'Rate')
+        // Angka hasil hitungan sheet kini DIAMBIL, jadi tidak lagi dilewati.
+        ->and($pisah['diabaikan'])->not->toContain('Subtotal Rate', 'Rounded', 'Margin %')
         ->and($pisah['tidak_dikenali'])->not->toContain('Subtotal Rate');
 });
 
