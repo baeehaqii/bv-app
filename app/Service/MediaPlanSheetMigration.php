@@ -416,9 +416,7 @@ class MediaPlanSheetMigration extends SheetMigration
             'channel' => $item['channel'] ?: '-',
         ]);
 
-        if (! $kol->exists) {
-            $hasil['notes'][] = "KOL baru masuk KOL Data: \"{$item['name']}\" ({$item['channel']}).";
-        }
+        $baru = ! $kol->exists;
 
         // link_userprofile NOT NULL; kalau sheet tidak mengisinya, bentuk kanonik
         // dari username dipakai supaya barisnya tetap bisa dibuka & di-scrape.
@@ -444,6 +442,12 @@ class MediaPlanSheetMigration extends SheetMigration
         }
 
         $kol->save();
+
+        // Dicatat SETELAH tersimpan, bukan sebelum: kalau save-nya gagal, log
+        // yang bilang "KOL baru masuk" itu bohong.
+        if ($baru) {
+            $hasil['notes'][] = "KOL baru masuk KOL Data: \"{$item['name']}\" ({$item['channel']}).";
+        }
 
         return $kol;
     }

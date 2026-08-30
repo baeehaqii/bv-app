@@ -484,7 +484,7 @@ function kolListRows(): array
         $baris([0 => 1, 1 => 'Sheila', 2 => 'Approaching', 3 => 'Bagus Gandhi',
             4 => 'https://instagram.com/bagus', 5 => 'Instagram', 6 => 'Lifestyle', 7 => 12000,
             8 => 'Nano', 9 => 4.5, 10 => 8000, 11 => 540,
-            13 => 1, 14 => 'IG Reels', 15 => 3400000,
+            13 => 1, 14 => 'IG Reels', 15 => 3400000, 16 => 20,
             19 => 1, 20 => 'IG Reels', 21 => 1500000, 22 => 1500000, 23 => 0.98, 24 => 0.11,
             25 => 1695612.24, 26 => 3391224.49, 27 => 3391224.49, 28 => 3500000, 29 => 0.5155]),
         $baris([13 => 1, 14 => 'IG Story with Link', 15 => 1200000,
@@ -571,6 +571,8 @@ it('mengisi KOL Data dan rate card dari sheet, bukan cuma baris Media Plan', fun
 
     expect($dataKol->channel)->toBe('Instagram')
         ->and((int) $dataKol->followers)->toBe(12000)
+        // TOP dari kolom Q sheet — term of payment KOL, dalam hari.
+        ->and((int) $dataKol->top)->toBe(20)
         ->and($dataKol->link_userprofile)->toBe('https://instagram.com/bagus')
         ->and((int) $dataKol->average_views)->toBe(8000);
 
