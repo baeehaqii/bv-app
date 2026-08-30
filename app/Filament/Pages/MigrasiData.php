@@ -2,8 +2,11 @@
 
 namespace App\Filament\Pages;
 
+use App\Service\CampaignSheetMigration;
 use App\Service\ClientSheetMigration;
 use App\Service\GoogleSheetReader;
+use App\Service\PipelineSheetMigration;
+use App\Service\SheetMigration;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
@@ -12,7 +15,7 @@ use Filament\Schemas\Schema;
 use Illuminate\Support\Facades\Cache;
 
 /**
- * Migrasi Data Client dari Google Spreadsheet — pull, bukan push.
+ * Migrasi data dari Google Spreadsheet — pull, bukan push.
  *
  * Laravel membaca sheet-nya sendiri lewat service account, jadi tidak perlu
  * Apps Script yang ditempel di tiap file. Alurnya: tempel link → Preview →
@@ -25,17 +28,29 @@ use Illuminate\Support\Facades\Cache;
  *
  * Diporting dari service migrasi SOP Siproper.
  */
-class MigrasiDataClient extends Page
+class MigrasiData extends Page
 {
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-arrow-down-on-square-stack';
     protected static string|\UnitEnum|null $navigationGroup = 'Sales';
-    protected static ?string $navigationLabel = 'Migrasi Data Client';
-    protected static ?string $title = 'Migrasi Data Client (Spreadsheet → BV App)';
-    protected static ?string $slug = 'migrasi-data-client';
+    protected static ?string $navigationLabel = 'Migrasi Data';
+    protected static ?string $title = 'Migrasi Data (Spreadsheet → BV App)';
+    protected static ?string $slug = 'migrasi-data';
     protected static ?int $navigationSort = 90;
-    protected string $view = 'filament.pages.migrasi-data-client';
+    protected string $view = 'filament.pages.migrasi-data';
 
-    /** @var array<string, mixed> state form: sheetLink, sheetName */
+    /**
+     * Profil yang tersedia. Ditaruh di sini, bukan kelas registry tersendiri:
+     * satu-satunya yang perlu tahu daftarnya memang halaman ini.
+     *
+     * @var array<string, class-string<SheetMigration>>
+     */
+    public const PROFIL = [
+        'client' => ClientSheetMigration::class,
+        'pipeline' => PipelineSheetMigration::class,
+        'campaign' => CampaignSheetMigration::class,
+    ];
+
+    /** @var array<string, mixed> state form: jenis, sheetLink, sheetName */
     public ?array $data = [];
 
     /** @var array<int, string> nama tab yang ada di spreadsheet itu */
@@ -78,11 +93,30 @@ class MigrasiDataClient extends Page
         return GoogleSheetReader::configured();
     }
 
+    public function mount(): void
+    {
+        $this->form->fill(['jenis' => 'client', 'sheetName' => app(ClientSheetMigration::class)->defaultSheetName()]);
+    }
+
     public function form(Schema $schema): Schema
     {
         return $schema
             ->statePath('data')
             ->components([
+                Select::make('jenis')
+                    ->label('Jenis data')
+                    ->options(collect(self::PROFIL)->map(fn(string $kelas) => app($kelas)->label())->all())
+                    ->default('client')
+                    ->required()
+                    ->live()
+                    ->native(false)
+                    // Tab bawaan tiap profil berbeda, dan preview lama tidak lagi
+                    // berlaku begitu jenisnya diganti.
+                    ->afterStateUpdated(function (callable $set) {
+                        $set('sheetName', $this->profil()->defaultSheetName());
+                        $this->previewed = false;
+                    }),
+
                 TextInput::make('sheetLink')
                     ->label('Link Google Sheets')
                     ->placeholder('https://docs.google.com/spreadsheets/d/.../edit')
@@ -94,10 +128,16 @@ class MigrasiDataClient extends Page
                 Select::make('sheetName')
                     ->label('Tab')
                     ->options(fn() => array_combine($this->sheetNames, $this->sheetNames))
-                    ->helperText('Kosong = tab pertama.')
+                    ->helperText(fn() => 'Kosong = tab pertama. Bawaan untuk jenis ini: '
+                        . ($this->profil()->defaultSheetName() ?? 'tab pertama') . '.')
                     ->native(false)
                     ->visible(fn() => $this->sheetNames !== []),
             ]);
+    }
+
+    public function profil(): SheetMigration
+    {
+        return app(self::PROFIL[$this->data['jenis'] ?? 'client'] ?? ClientSheetMigration::class);
     }
 
     /** Isi dropdown tab begitu link ditempel, sekalian uji akses lebih awal. */
@@ -139,7 +179,7 @@ class MigrasiDataClient extends Page
             return;
         }
 
-        $migrasi = app(ClientSheetMigration::class);
+        $migrasi = $this->profil();
 
         if ($rows === []) {
             $this->errorMessage = 'Tab-nya kosong.';
@@ -148,8 +188,8 @@ class MigrasiDataClient extends Page
         }
 
         if ($migrasi->mapHeaders($rows[0]) === []) {
-            $this->errorMessage = 'Tidak ada judul kolom yang dikenali di baris pertama. '
-                . 'Minimal harus ada kolom "Nama Brand".';
+            $this->errorMessage = 'Tidak ada judul kolom yang dikenali di baris pertama untuk jenis "'
+                . $migrasi->label() . '". Pastikan tab dan jenis datanya cocok.';
 
             return;
         }
@@ -161,7 +201,7 @@ class MigrasiDataClient extends Page
 
         $this->previewRows = collect($items)->take(self::PREVIEW_LIMIT)->values()->all();
 
-        $this->cacheKey = 'migrasi-client:' . auth()->id() . ':' . md5($id . ($this->data['sheetName'] ?? ''));
+        $this->cacheKey = 'migrasi:' . ($this->data['jenis'] ?? 'client') . ':' . auth()->id() . ':' . md5($id . ($this->data['sheetName'] ?? ''));
         Cache::put($this->cacheKey, $items, self::CACHE_TTL);
 
         $this->previewed = true;
@@ -206,7 +246,7 @@ class MigrasiDataClient extends Page
         }
 
         try {
-            $hasil = app(ClientSheetMigration::class)->persist($potongan);
+            $hasil = $this->profil()->persist($potongan);
         } catch (\Throwable $e) {
             $this->errorMessage = 'Chunk gagal: ' . $e->getMessage();
             $this->migrating = false;

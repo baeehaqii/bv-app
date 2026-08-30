@@ -1,6 +1,6 @@
 <?php
 
-use App\Filament\Pages\MigrasiDataClient;
+use App\Filament\Pages\MigrasiData;
 use App\Models\BvSalesList;
 use App\Models\DataClient;
 use App\Models\User;
@@ -66,7 +66,7 @@ it('melewati baris kosong dan menandai baris tanpa nama brand', function () {
     expect($items)->toHaveCount(2)
         ->and($items[0]['nama_brand'])->toBe('Garuda Food')
         ->and($items[0]['_row'])->toBe(2)
-        ->and($items[1]['_note'])->toContain('Nama brand kosong');
+        ->and($items[1]['_note'])->toContain('Kolom wajib kosong');
 });
 
 it('menormalkan tipe, prioritas, dan status client', function () {
@@ -202,11 +202,11 @@ it('preview memberi tahu saat tidak ada judul kolom yang dikenali', function () 
         ->shouldReceive('readRows')->andReturn([['Kolom A', 'Kolom B'], ['x', 'y']]));
 
     Livewire::actingAs(migrasiUser())
-        ->test(MigrasiDataClient::class)
+        ->test(MigrasiData::class)
         ->set('data.sheetLink', 'https://docs.google.com/spreadsheets/d/1AbCdEfGhIjKlMnOpQrStUvWxYz012345/edit')
         ->call('preview')
         ->assertSet('previewed', false)
-        ->assertSet('errorMessage', fn($v) => str_contains((string) $v, 'Nama Brand'));
+        ->assertSet('errorMessage', fn($v) => str_contains((string) $v, 'Tidak ada judul kolom yang dikenali'));
 });
 
 it('preview lalu migrasi per-chunk sampai habis', function () {
@@ -222,7 +222,7 @@ it('preview lalu migrasi per-chunk sampai habis', function () {
         ->shouldReceive('readRows')->andReturn(sheetRows($baris)));
 
     $halaman = Livewire::actingAs(migrasiUser())
-        ->test(MigrasiDataClient::class)
+        ->test(MigrasiData::class)
         ->set('data.sheetLink', 'https://docs.google.com/spreadsheets/d/1AbCdEfGhIjKlMnOpQrStUvWxYz012345/edit')
         ->call('preview')
         ->assertSet('previewed', true)
@@ -237,4 +237,83 @@ it('preview lalu migrasi per-chunk sampai habis', function () {
         ->assertSet('success', 30);
 
     expect(DataClient::count())->toBe(30);
+});
+
+/* -------------------------------------------------------------------------
+ | Pipeline → BvSales (Sales Activity Tracker)
+ * ---------------------------------------------------------------------- */
+
+it('memigrasikan Pipeline jadi baris Sales Activity Tracker', function () {
+    $judul = ['Months', 'Client/Brand', 'Brand / Agency', 'Campagin Name', 'PIC', 'Stage/Status', 'Amount_IDR', 'Deadline Date', 'Amount_Deals'];
+
+    $m = new \App\Service\PipelineSheetMigration();
+    $hasil = $m->persist($m->parseRows([
+        $judul,
+        ['July 2025', 'Ofero', 'Direct', 'Ofero x PRJ 2025', 'Gerry', 'Finish / Paid', 500000000, 45839, 508000000],
+        ['Sept 2025', 'Mobil1', 'TBWA', 'Mobil1 Visit Care Car', 'Wina', 'Lost', 6000000, '', ''],
+    ]));
+
+    expect($hasil['success'])->toBe(2)->and($hasil['failed'])->toBe(0);
+
+    $ofero = \App\Models\BvSales::where('event_name', 'Ofero x PRJ 2025')->firstOrFail();
+
+    expect($ofero->company_name)->toBe('Ofero')
+        // "Direct" bukan nama agency.
+        ->and($ofero->related_client_name)->toBeNull()
+        ->and($ofero->status)->toBe(\App\Enums\SalesStatus::PAID)
+        ->and((float) $ofero->deal_value)->toBe(508000000.0)
+        ->and($ofero->campaign_month)->toBe(7)
+        ->and($ofero->campaign_year)->toBe(2025)
+        ->and($ofero->salesList->nama_sales)->toBe('Gerry');
+
+    $mobil = \App\Models\BvSales::where('event_name', 'Mobil1 Visit Care Car')->firstOrFail();
+    expect($mobil->related_client_name)->toBe('TBWA')
+        ->and($mobil->status)->toBe(\App\Enums\SalesStatus::CLOSE_LOSE);
+
+    // Idempoten: dijalankan ulang tidak menggandakan.
+    $m->persist($m->parseRows([$judul, ['July 2025', 'Ofero', 'Direct', 'Ofero x PRJ 2025', 'Gerry', 'Finish / Paid', 500000000, 45839, 508000000]]));
+    expect(\App\Models\BvSales::where('event_name', 'Ofero x PRJ 2025')->count())->toBe(1);
+});
+
+/* -------------------------------------------------------------------------
+ | Campaigns → BvCampign
+ * ---------------------------------------------------------------------- */
+
+it('menautkan campaign ke DataClient yang sudah ada', function () {
+    $client = DataClient::create(['nama_brand' => 'Ofero', 'type' => 'direct']);
+
+    $judul = ['Campaign_Name', 'Client', 'Brand/Agency', 'PIC', 'Start_Date', 'End_Date', 'Budget Deals_IDR', 'Real Cost_IDR', 'Status Campaign'];
+
+    $m = new \App\Service\CampaignSheetMigration();
+    $m->persist($m->parseRows([
+        $judul,
+        ['Ofero PRJ x Ride & Fest', 'Ofero', 'Direct', 'Gerry', 45829, 45935, 508000000, 242075374, 'Finish/Paid'],
+    ]));
+
+    $campaign = \App\Models\BvCampign::where('campaign_name', 'Ofero PRJ x Ride & Fest')->firstOrFail();
+
+    expect($campaign->client_id)->toBe($client->id)
+        // Relasi dua arah: client ini punya campaign tersebut.
+        ->and($client->fresh()->campaigns()->pluck('campaign_name')->all())->toBe(['Ofero PRJ x Ride & Fest'])
+        ->and($campaign->campaign_type)->toBe(\App\Models\BvCampign::TYPE_INTERNAL)
+        ->and($campaign->status)->toBe('completed')
+        ->and((float) $campaign->deal_value)->toBe(508000000.0)
+        ->and((float) $campaign->total_cost)->toBe(242075374.0)
+        ->and((string) $campaign->start_date)->toContain('2025-06-21');
+});
+
+it('memperingatkan nama client yang cuma beda tipis, tanpa menggabung diam-diam', function () {
+    DataClient::create(['nama_brand' => 'ITDC - Injourney', 'type' => 'agency']);
+
+    $judul = ['Campaign_Name', 'Client'];
+
+    $m = new \App\Service\CampaignSheetMigration();
+    $hasil = $m->persist($m->parseRows([
+        $judul,
+        ['MotoGP 2025', 'ITDC - Injouney'],   // kurang huruf 'r'
+    ]));
+
+    expect(collect($hasil['notes'])->contains(fn($n) => str_contains($n, 'mirip sekali')))->toBeTrue()
+        // Tetap dibuat, bukan ditebak-tebak — user yang memutuskan digabung atau tidak.
+        ->and(DataClient::where('nama_brand', 'ITDC - Injouney')->exists())->toBeTrue();
 });

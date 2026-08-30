@@ -11,15 +11,13 @@ use Illuminate\Support\Str;
 /**
  * Migrasi Data Client dari Google Spreadsheet.
  *
- * Pemetaan kolomnya lewat JUDUL di baris pertama, bukan huruf kolom tetap:
- * tiap orang menyusun sheet-nya sendiri, dan urutan kolom paling sering berubah.
- * Selama judulnya termasuk salah satu alias di bawah, sheet-nya kebaca.
+ * Pemetaan judul kolom, parsing, dan pembersih nilai ada di SheetMigration.
  *
  * Kolom yang butuh perlakuan khusus (sales, agency, tanggal) mengikuti aturan
  * yang sama persis dengan import CSV di App\Filament\Imports\DataClientImporter,
  * supaya dua jalur impor tidak menghasilkan baris yang beda.
  */
-class ClientSheetMigration
+class ClientSheetMigration extends SheetMigration
 {
     /**
      * field DataClient => judul kolom yang diterima (huruf besar-kecil & tanda
@@ -27,6 +25,26 @@ class ClientSheetMigration
      *
      * @var array<string, array<int, string>>
      */
+    public function label(): string
+    {
+        return 'Data Client';
+    }
+
+    public function defaultSheetName(): ?string
+    {
+        return 'Pipeline';
+    }
+
+    public function aliases(): array
+    {
+        return self::ALIASES;
+    }
+
+    public function previewColumns(): array
+    {
+        return self::PREVIEW_COLUMNS;
+    }
+
     public const ALIASES = [
         'nama_brand' => ['nama brand', 'brand', 'nama brand agency', 'client', 'nama client', 'nama', 'client brand'],
         'type' => ['tipe', 'type', 'tipe client', 'direct agency'],
@@ -59,102 +77,18 @@ class ClientSheetMigration
         'pic_internal_sales', 'date_outreach', 'website',
     ];
 
-    /**
-     * Judul kolom → nama field. Judul yang tidak dikenali diabaikan (dilaporkan
-     * lewat unmappedHeaders()).
-     *
-     * @param  array<int, mixed>  $headerRow
-     * @return array<int, string> index kolom => field
-     */
-    public function mapHeaders(array $headerRow): array
+    /** Normalisasi khas Data Client. */
+    protected function refine(array $item): array
     {
-        $peta = [];
-
-        foreach ($headerRow as $i => $judul) {
-            $normal = self::normalize((string) $judul);
-
-            if ($normal === '') {
-                continue;
-            }
-
-            foreach (self::ALIASES as $field => $alias) {
-                if (in_array($normal, $alias, true)) {
-                    // Judul kembar: yang pertama menang, sisanya diabaikan.
-                    $peta[$i] ??= $field;
-
-                    if (($peta[$i] ?? null) === $field) {
-                        break;
-                    }
-                }
-            }
-        }
-
-        return $peta;
-    }
-
-    /**
-     * Judul kolom di sheet yang tidak cocok alias mana pun — ditunjukkan ke user
-     * supaya jelas kolom apa saja yang tidak ikut termigrasi.
-     *
-     * @param  array<int, mixed>  $headerRow
-     * @return array<int, string>
-     */
-    public function unmappedHeaders(array $headerRow): array
-    {
-        $terpetakan = $this->mapHeaders($headerRow);
-
-        return collect($headerRow)
-            ->reject(fn($judul, $i) => isset($terpetakan[$i]) || self::normalize((string) $judul) === '')
-            ->map(fn($judul) => (string) $judul)
-            ->values()
-            ->all();
-    }
-
-    /**
-     * Baris mentah (baris 0 = judul) → item siap simpan.
-     *
-     * @param  array<int, array<int, mixed>>  $rows
-     * @return array<int, array<string, mixed>>
-     */
-    public function parseRows(array $rows): array
-    {
-        if (count($rows) < 2) {
-            return [];
-        }
-
-        $peta = $this->mapHeaders($rows[0]);
-        $items = [];
-
-        foreach (array_slice($rows, 1) as $n => $row) {
-            $item = [];
-
-            foreach ($peta as $i => $field) {
-                $item[$field] = self::bersihkan($row[$i] ?? null);
-            }
-
-            // Baris kosong (pemisah antar blok di sheet) dilewati diam-diam.
-            if (collect($item)->filter(fn($v) => $v !== null && $v !== '')->isEmpty()) {
-                continue;
-            }
-
-            $item['type'] = self::normalizeType($item['type'] ?? null);
-            $item['priority'] = self::normalizePriority($item['priority'] ?? null);
-            $item['status_client'] = self::normalizeStatusClient($item['status_client'] ?? null);
-            $item['date_outreach'] = self::toDate($item['date_outreach'] ?? null);
+        $item['type'] = self::normalizeType($item['type'] ?? null);
+        $item['priority'] = self::normalizePriority($item['priority'] ?? null);
+        $item['status_client'] = self::normalizeStatusClient($item['status_client'] ?? null);
+        $item['date_outreach'] = self::toDate($item['date_outreach'] ?? null);
+        $item['date_follow_up'] = self::toDate($item['date_follow_up'] ?? null);
         $item['agency_handled_by'] = self::normalizeAgency($item['agency_handled_by'] ?? null);
-            $item['date_follow_up'] = self::toDate($item['date_follow_up'] ?? null);
-            $item['top'] = isset($item['top']) && $item['top'] !== '' ? (int) $item['top'] : null;
+        $item['top'] = isset($item['top']) && $item['top'] !== '' ? (int) $item['top'] : null;
 
-            // +2: baris 1 adalah judul, dan nomor baris di Sheets mulai dari 1.
-            $item['_row'] = $n + 2;
-            $item['_note'] = blank($item['nama_brand'] ?? null)
-                ? 'Nama brand kosong — baris dilewati.'
-                : null;
-
-            $items[] = $item;
-        }
-
-        return $items;
+        return $item;
     }
 
     /**
@@ -317,16 +251,6 @@ class ClientSheetMigration
      | Pembersih nilai sel
      * ------------------------------------------------------------------- */
 
-    private static function normalize(string $teks): string
-    {
-        return trim(preg_replace('/\s+/', ' ', Str::lower(preg_replace('/[^\p{L}\p{N}\s]+/u', ' ', $teks))) ?? '');
-    }
-
-    private static function bersihkan(mixed $nilai): mixed
-    {
-        return is_string($nilai) ? trim($nilai) : $nilai;
-    }
-
     /** Apa pun yang mirip "agency" jadi agency; selain itu direct (default sistem). */
     private static function normalizeType(mixed $nilai): string
     {
@@ -366,34 +290,4 @@ class ClientSheetMigration
             : null;
     }
 
-    /**
-     * Serial Google (hari 0 = 1899-12-30) atau teks tanggal → Y-m-d.
-     *
-     * Sel rusak ditolak jadi null, bukan dipaksa: angka telanjang seperti "10"
-     * itu sisa kolom lain, dan tahun di luar 2000–2100 pasti salah baca.
-     */
-    public static function toDate(mixed $nilai): ?string
-    {
-        if ($nilai === null || $nilai === '') {
-            return null;
-        }
-
-        if (is_numeric($nilai)) {
-            $serial = (float) $nilai;
-
-            if ($serial < 25000 || $serial > 80000) {
-                return null;
-            }
-
-            return CarbonImmutable::create(1899, 12, 30)->addDays((int) $serial)->toDateString();
-        }
-
-        try {
-            $tanggal = CarbonImmutable::parse((string) $nilai);
-        } catch (\Throwable) {
-            return null;
-        }
-
-        return ($tanggal->year >= 2000 && $tanggal->year <= 2100) ? $tanggal->toDateString() : null;
-    }
 }

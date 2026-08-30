@@ -1,6 +1,14 @@
-# Migrasi Data Client (Spreadsheet → BV App)
+# Migrasi Data (Spreadsheet → BV App)
 
-Menarik data client dari Google Spreadsheet privat ke tabel `data_clients`.
+Menarik data dari Google Spreadsheet privat ke BV App. Tiga jenis data yang
+didukung, dipilih lewat dropdown **Jenis data** di halaman migrasi:
+
+| Jenis | Tab bawaan | Masuk ke |
+|---|---|---|
+| Data Client | Pipeline | `data_clients` (Database Client) |
+| Pipeline | Pipeline | `bv_sales` (Sales Activity Tracker) |
+| Campaign | Campaigns | `bv_campaigns` (Campaign Ongoing Internal) |
+
 **Pull, bukan push**: Laravel yang membaca sheet-nya sendiri lewat service
 account, jadi tidak perlu Apps Script yang ditempel di tiap file.
 
@@ -12,8 +20,11 @@ Diporting dari service migrasi SOP Siproper
 | Berkas | Peran |
 |---|---|
 | `app/Service/GoogleSheetReader.php` | Baca sheet privat via service account |
-| `app/Service/ClientSheetMigration.php` | Peta judul kolom → field, parse, upsert |
-| `app/Filament/Pages/MigrasiDataClient.php` + view | UI: preview & migrasi per-chunk |
+| `app/Service/SheetMigration.php` | Dasar bersama: peta judul kolom, parse, pembersih nilai |
+| `app/Service/ClientSheetMigration.php` | Profil Data Client |
+| `app/Service/PipelineSheetMigration.php` | Profil Pipeline → BvSales |
+| `app/Service/CampaignSheetMigration.php` | Profil Campaign → BvCampign |
+| `app/Filament/Pages/MigrasiData.php` + view | UI: preview & migrasi per-chunk |
 
 Alur: **Sheet → GoogleSheetReader (baris 0-based) → parseRows (item) → persist (upsert)**.
 
@@ -39,13 +50,13 @@ menyamar jadi user Workspace → baca semua file miliknya tanpa share apa pun).
 Perlu di-authorize dulu di Admin Console → Security → API Controls →
 Domain-wide Delegation, dengan scope `.../auth/spreadsheets.readonly`.
 
-> Selama kredensialnya belum ada, menu **Migrasi Data Client** tidak muncul di
+> Selama kredensialnya belum ada, menu **Migrasi Data** tidak muncul di
 > sidebar — halamannya cuma bisa menampilkan error, jadi tidak ada gunanya.
 
 ## Cara pakai
 
-1. Panel → **Sales → Migrasi Data Client**.
-2. Tempel link Google Sheets. Daftar tab terisi otomatis (sekalian menguji akses).
+1. Panel → **Sales → Migrasi Data**.
+2. Pilih **Jenis data**, lalu tempel link Google Sheets. Daftar tab terisi otomatis (sekalian menguji akses).
 3. **Preview Data** → tabel baris, jumlah baris terbaca, dan daftar kolom sheet
    yang tidak dikenali (kolom itu tidak ikut dimigrasi).
 4. **Migrasi Sekarang** → progress bar jalan per chunk (25 baris/request).
@@ -84,9 +95,29 @@ Item hasil parse disimpan di **cache** (TTL 30 menit), lalu Alpine memanggil
 produksi tidak menjalankan worker, dan satu request panjang untuk ratusan baris
 pasti kena timeout.
 
-## Menambah entitas lain (KOL, Sales, dst)
+## Aturan khas tiap profil
 
-Saat ini baru Data Client. Untuk entitas kedua, tiru `ClientSheetMigration`
-(punya `ALIASES`, `parseRows()`, `persist()`) dan halaman Filament-nya —
-`GoogleSheetReader` bisa dipakai apa adanya. Ekstrak interface bersama **setelah**
-profil kedua ada, bukan sebelumnya, supaya bentuknya ditentukan kebutuhan nyata.
+**Data Client** — kunci baris `nama_brand` + `type`. Kolom "Brand / Agency" berisi
+"Direct" atau nama agency yang menangani brand itu; agency-nya dibuat lalu brand
+didaftarkan ke `agency_brands` milik agency (itu sumber relasinya di app ini,
+lihat `DataClient::syncAgencyBrands()`). Satu brand yang muncul di banyak bulan
+menyimpan bulan **paling awal**.
+
+**Pipeline** — kunci baris nama campaign + client. Kolom Stage/Status dipetakan ke
+`SalesStatus`; nilai yang tidak dikenali dibiarkan null supaya tidak mendarat di
+kolom kanban yang salah. Perlu diingat `BvSales` punya boot hook: perubahan status
+ke Briefing/Campaign Live memicu pembuatan FormBrief, Media Plan, atau Campaign.
+Hook itu hanya berjalan saat UPDATE, jadi migrasi pertama aman — tapi migrasi ulang
+yang mengubah status bisa memicunya.
+
+**Campaign** — kunci baris nama campaign + client. Client yang belum ada dibuat,
+tapi nama yang cuma beda tipis dari client yang sudah ada (mis. "ITDC - Injouney"
+vs "ITDC - Injourney") DILAPORKAN sebagai kemungkinan salah ketik, tidak digabung
+diam-diam. Ambang kemiripannya sengaja mengabaikan nama pendek.
+
+## Menambah jenis data baru
+
+Buat kelas `extends SheetMigration` — isi `label()`, `defaultSheetName()`,
+`aliases()`, `previewColumns()`, `persist()`, dan `refine()` bila perlu
+normalisasi khusus. Daftarkan di konstanta `MigrasiData::PROFIL`. Halaman dan
+pembaca sheet tidak perlu diubah.

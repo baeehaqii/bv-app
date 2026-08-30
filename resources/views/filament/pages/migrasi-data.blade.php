@@ -6,7 +6,7 @@
     halamannya akan tampil tanpa gaya. Lihat memori project_filament_theme_build_gotcha.
 --}}
 @php
-    $kolom = \App\Service\ClientSheetMigration::PREVIEW_COLUMNS;
+    $kolom = $this->profil()->previewColumns();
     $persen = $totalItems > 0 ? (int) round($processed / $totalItems * 100) : 0;
 @endphp
 
@@ -55,7 +55,7 @@
             <h3 style="font-weight:600;margin-bottom:.25rem">1. Sumber Spreadsheet</h3>
             <p class="mig-muted" style="margin-bottom:.75rem">
                 Sheet privat dibaca lewat service account — tidak perlu Apps Script di file-nya.
-                Baris pertama harus berisi judul kolom (minimal <strong>Nama Brand</strong>).
+                Baris pertama harus berisi judul kolom.
             </p>
 
             {{ $this->form }}
@@ -124,8 +124,8 @@
             <div class="mig-card">
                 <h3 style="font-weight:600">3. Migrasi</h3>
                 <p class="mig-muted" style="margin-bottom:.75rem">
-                    Baris dikenali dari <strong>nama brand + tipe</strong>, jadi menjalankan ulang memperbarui
-                    baris yang sama — bukan menggandakan. Sel kosong di sheet tidak menimpa data yang sudah ada.
+                    Menjalankan ulang memperbarui baris yang sama — bukan menggandakan. Sel kosong
+                    di sheet tidak menimpa data yang sudah ada.
                     <strong>Jangan tutup tab</strong> selama migrasi berjalan.
                 </p>
 
