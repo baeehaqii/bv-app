@@ -29,5 +29,10 @@ return [
     'signer' => [
         'nama' => 'Gerry Hutomo',
         'jabatan' => 'Head of Operation',
+        // Relatif terhadap public/. Ganti berkasnya bila penandatangan berganti.
+        // Sudah dipangkas margin putihnya — berkas mentah dari user masih ada
+        // sebagai TTD_Mas_Gerry_New-preview.png (potret, banyak ruang kosong,
+        // jadi tercetak kekecilan kalau dipakai langsung).
+        'signature' => 'images/ttd-gerry.png',
     ],
 ];

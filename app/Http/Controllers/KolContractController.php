@@ -9,13 +9,18 @@ use Illuminate\Http\Request;
 
 class KolContractController extends Controller
 {
-    private static function getLogoBase64(): ?string
+    /** Gambar dari public/ — dompdf tidak bisa memuat URL, jadi harus di-inline base64. */
+    private static function inlinePublicImage(?string $relative): ?string
     {
-        $logoPath = public_path('images/logo_bv.png');
-        if (file_exists($logoPath)) {
-            return 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath));
+        if (blank($relative)) {
+            return null;
         }
-        return null;
+
+        $path = public_path($relative);
+
+        return file_exists($path)
+            ? 'data:image/png;base64,' . base64_encode(file_get_contents($path))
+            : null;
     }
 
     /** Public & static supaya SpkPublicController (halaman e-sign) memakai data yang sama. */
@@ -29,7 +34,9 @@ class KolContractController extends Controller
             'spk'        => $spk,
             'client'     => $spk->client,
             'tanggalId'  => $tanggal->day . ' ' . BvSPK::MONTHS_ID[$tanggal->month] . ' ' . $tanggal->year,
-            'logoBase64' => self::getLogoBase64(),
+            'logoBase64' => self::inlinePublicImage('images/logo_bv.png'),
+            // TTD Pihak Pertama selalu penandatangan yang sama, jadi berkasnya dari config.
+            'pertamaSignatureBase64' => self::inlinePublicImage(config('company.signer.signature')),
             // dompdf tidak bisa memuat URL storage; gambar TTD & materai harus di-inline base64.
             'signatureBase64' => self::inlineImage($spk->signature_path),
             'materaiBase64' => self::inlineImage($spk->materai_path),

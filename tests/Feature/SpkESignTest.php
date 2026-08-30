@@ -356,3 +356,12 @@ it('menempelkan gambar e-meterai yang sudah diunggah ke dokumen SPK', function (
     expect($html)->toContain('alt="e-Meterai"')
         ->and($html)->not->toContain('class="materai materai-kosong"');
 });
+
+it('membubuhkan tanda tangan Pihak Pertama dari config ke dokumen SPK', function () {
+    $spk = spkSiapTandaTangan();
+
+    $html = view('pdf.kol-contract', \App\Http\Controllers\KolContractController::prepareData($spk))->render();
+
+    expect($html)->toContain('alt="Tanda tangan ' . config('company.signer.nama') . '"')
+        ->and(public_path(config('company.signer.signature')))->toBeFile();
+});

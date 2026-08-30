@@ -123,12 +123,15 @@
         .ttd .ttd-area img { height: 18mm; }
         /* Wadah e-meterai: gambarnya ditempel manual lewat form SPK. Kotak putus-putus
            tetap tercetak saat kosong supaya ada tempat menempelkan meterai fisik. */
-        .ttd .materai { display: inline-block; width: 24mm; height: 18mm; }
+        .ttd .materai { display: inline-block; width: 24mm; height: 18mm; vertical-align: middle; }
         /* dompdf tidak menengahkan teks lewat line-height pada inline-block,
            jadi tinggi + padding-top yang dipakai. */
         .ttd .materai-kosong { border: 1px dashed #999; color: #999; font-size: 7pt;
                                text-align: center; height: 11mm; padding-top: 7mm; }
         .ttd .materai img { width: 24mm; height: 18mm; }
+        /* TTD Pihak Pertama berdampingan dengan meterai, bukan menimpanya:
+           dompdf tidak bisa diandalkan untuk posisi absolut yang saling tumpuk. */
+        .ttd .ttd-pertama { height: 16mm; margin-left: 3mm; vertical-align: middle; }
         .ttd .nama { font-weight: bold; }
         .esign-note {
             margin-top: 5mm;
@@ -582,6 +585,10 @@
                         e-Meterai
                     @endif
                 </span>
+                @if(!empty($pertamaSignatureBase64 ?? null))
+                    <img class="ttd-pertama" src="{{ $pertamaSignatureBase64 }}"
+                         alt="Tanda tangan {{ $pertama['nama'] }}">
+                @endif
             </td>
             <td class="ttd-area">
                 @if(!empty($signatureBase64))
