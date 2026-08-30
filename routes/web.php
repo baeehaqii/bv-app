@@ -9,6 +9,7 @@ use App\Http\Controllers\SpkPublicController;
 use App\Http\Controllers\KolImportTemplateController;
 use App\Http\Controllers\MediaPlanPdfController;
 use App\Http\Controllers\MediaPlanExcelController;
+use App\Http\Controllers\CampaignSummaryPdfController;
 use App\Http\Controllers\InternalBudgetPdfController;
 use App\Http\Controllers\InternalBudgetReviewController;
 use App\Http\Controllers\QuotationController;
@@ -91,6 +92,10 @@ Route::middleware(['auth'])->group(function () {
         ->name('media-plan.google-sheets');
     Route::get('/google/callback', [MediaPlanExcelController::class, 'handleGoogleCallback'])
         ->name('google.callback');
+
+    // Campaign Summary PDF
+    Route::get('/campaign/{bvCampign}/summary/pdf', [CampaignSummaryPdfController::class, 'generate'])
+        ->name('campaign-summary.pdf');
 
     // Internal Budget PDF Routes
     Route::get('/internal-budget/{internalBudget}/pdf', [InternalBudgetPdfController::class, 'generate'])

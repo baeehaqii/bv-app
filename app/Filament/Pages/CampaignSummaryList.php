@@ -241,6 +241,14 @@ class CampaignSummaryList extends Page implements HasTable
                 ->visible($detail)
                 ->url(static::getUrl()),
 
+            Action::make('export_pdf')
+                ->label('Export PDF')
+                ->icon('heroicon-o-arrow-down-tray')
+                ->color('gray')
+                ->visible($detail)
+                ->url(fn() => route('campaign-summary.pdf', ['bvCampign' => $this->campaignId]))
+                ->openUrlInNewTab(),
+
             Action::make('fetch_all')
                 ->label('Fetch All Performance')
                 ->icon('heroicon-o-arrow-path')

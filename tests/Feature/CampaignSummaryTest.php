@@ -287,3 +287,19 @@ it('rute lama kol-performance dialihkan ke menu Campaign Summary', function () {
         ->get(KolPerformance::getUrl(['record' => $campaign]))
         ->assertRedirect(CampaignSummaryList::getUrl(['campaign' => $campaign->id]));
 });
+
+it('mengekspor Campaign Summary jadi PDF', function () {
+    Gate::before(fn() => true);
+
+    $campaign = summaryCampaign([
+        ['creator_name' => 'Windah', 'username' => 'windah', 'views' => 100_000, 'likes' => 5_000,
+         'comments' => 100, 'shares' => 50, 'saves' => 20, 'price' => 5_000_000, 'followers_count' => 200_000],
+    ]);
+
+    $response = $this->actingAs(summaryUser())
+        ->get(route('campaign-summary.pdf', ['bvCampign' => $campaign->id]));
+
+    $response->assertOk()->assertHeader('content-type', 'application/pdf');
+
+    expect($response->getContent())->toStartWith('%PDF');
+});
