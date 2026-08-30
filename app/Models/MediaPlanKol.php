@@ -28,6 +28,8 @@ class MediaPlanKol extends Model
         'rate' => 'float',
         'after_nego' => 'float',
         'payment_date' => 'date',
+        // Terisi berarti baris ini datang dari migrasi spreadsheet, bukan form.
+        'imported_at' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];

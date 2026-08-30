@@ -639,3 +639,54 @@ it('membuatkan Media Plan bila deal-nya belum punya', function () {
         ->and($plan->campaign_name)->toBe('Bir Kawan Senja')
         ->and(\App\Models\MediaPlanKol::where('media_plan_id', $plan->id)->count())->toBe(2);
 });
+
+it('menandai baris hasil migrasi supaya boleh ber-rate 0', function () {
+    masterPphSeperti();
+    $sales = \App\Models\BvSales::create(['event_name' => 'Bir Kawan Senja', 'company_name' => 'Multi Bintang']);
+
+    $m = (new \App\Service\MediaPlanSheetMigration())->untukSales($sales->id);
+    $m->persist($m->parseRows(kolListRows()));
+
+    expect(\App\Models\MediaPlanKol::whereNull('imported_at')->count())->toBe(0)
+        ->and(\App\Models\MediaPlanKol::where('name', 'Bagus Gandhi')->value('imported_at'))->not->toBeNull();
+});
+
+it('guard rate card melewati baris migrasi tapi tetap menahan baris manual', function () {
+    // guardKolRateCards() protected; dibuka lewat subclass anonim seadanya.
+    $halaman = new class extends \App\Filament\Resources\MediaPlans\Pages\EditMediaPlan
+    {
+        public array $ditahan = [];
+
+        public function __construct() {}
+
+        public function cek(array $kols): void
+        {
+            $this->guardKolRateCards($kols);
+        }
+
+        public function halt(bool $shouldRollbackDatabaseTransaction = false): void
+        {
+            $this->ditahan[] = true;
+        }
+    };
+
+    // Baris dari spreadsheet: rate card belum ada, tapi tidak boleh menahan simpan.
+    $halaman->cek([[
+        'name' => 'Bagus Gandhi',
+        'channel' => 'Instagram',
+        'scope_items' => ['IG Reels'],
+        'imported_at' => now(),
+    ]]);
+
+    expect($halaman->ditahan)->toBeEmpty();
+
+    // Baris yang diinput manual dengan SOW tapi tanpa rate card: tetap ditahan.
+    $halaman->cek([[
+        'name' => 'Ivan Wahyu',
+        'channel' => 'Instagram',
+        'scope_items' => ['IG Reels'],
+        'imported_at' => null,
+    ]]);
+
+    expect($halaman->ditahan)->toHaveCount(1);
+});

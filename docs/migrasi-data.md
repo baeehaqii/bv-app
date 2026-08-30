@@ -182,7 +182,13 @@ kolom Coefficient + Tax di sheet: 0,98 + 0,11 → **PT PKP**, yang rumusnya
 keliru justru versi lama yang MENGALIKAN PPN.
 
 Rate baris KOL juga tidak diisi tangan; `MediaPlanKol::syncRateFromBudget()`
-yang menurunkannya dari budget item. Tiap tier (Nano/Micro/Macro/Homeless Media) satu tab
+yang menurunkannya dari budget item.
+
+**Rate kosong diperbolehkan untuk baris hasil migrasi.** Sheet lama sering belum
+mengisi kolom Rate, jadi tiap baris migrasi ditandai `imported_at` dan
+`EditMediaPlan::guardKolRateCards()` melewatinya. Baris yang diinput lewat form
+tetap dijaga seperti biasa — tanpa rate card, budget yang tergenerate diam-diam
+salah. Rate baris migrasi dilengkapi manual belakangan. Tiap tier (Nano/Micro/Macro/Homeless Media) satu tab
 dengan susunan kolom yang sama, jadi tab-nya dipilih manual dan dijalankan
 bergantian. Wajib memilih **deal di Sales Activity Tracker** dulu; tanpa itu tidak ada yang
 disimpan. Yang dipilih deal-nya, bukan Media Plan-nya langsung — Media Plan

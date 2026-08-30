@@ -63,6 +63,9 @@ class EditMediaPlan extends EditRecord
                 'cpi_cpv' => $kol->cpi_cpv,
                 'cpe' => $kol->cpe,
                 'notes' => $kol->notes,
+                // Ikut dibawa ke state form supaya guardKolRateCards() tahu baris
+                // ini datang dari migrasi spreadsheet, bukan diinput manual.
+                'imported_at' => $kol->imported_at,
             ];
         })->toArray();
 
@@ -127,6 +130,11 @@ class EditMediaPlan extends EditRecord
      *
      * Baris yang belum punya SOW dibiarkan lewat: itu masih draft, belum dihitung.
      *
+     * Baris hasil migrasi spreadsheet (`imported_at` terisi) juga dilewat: sheet
+     * lama sering belum mengisi kolom Rate, dan menahan seluruh Media Plan gara-gara
+     * itu membuat data hasil migrasi tidak bisa disunting sama sekali. Rate-nya
+     * dilengkapi manual belakangan.
+     *
      * @param  array<int, array<string, mixed>>  $kols
      */
     protected function guardKolRateCards(array $kols): void
@@ -137,7 +145,7 @@ class EditMediaPlan extends EditRecord
             $nama = trim((string) ($kol['name'] ?? ''));
             $scopes = array_filter((array) ($kol['scope_items'] ?? []), fn($s) => filled($s));
 
-            if ($nama === '' || empty($scopes)) {
+            if ($nama === '' || empty($scopes) || filled($kol['imported_at'] ?? null)) {
                 continue;
             }
 

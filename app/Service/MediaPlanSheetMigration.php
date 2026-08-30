@@ -334,6 +334,10 @@ class MediaPlanSheetMigration extends SheetMigration
         }
 
         $kol->row_number ??= (int) ($item['_row'] ?? 0);
+        // Penanda asal-usul: baris hasil migrasi boleh ber-rate 0 dan dilengkapi
+        // manual belakangan, sedangkan baris yang diinput lewat form tetap wajib
+        // punya rate card.
+        $kol->imported_at = now();
         $kol->save();
 
         $this->generateBudgetItems($mediaPlan, $kol, $item, $vendorTaxType);
