@@ -7,6 +7,7 @@ use App\Service\ClientSheetMigration;
 use App\Service\GoogleSheetReader;
 use App\Service\PipelineSheetMigration;
 use App\Service\SheetMigration;
+use Filament\Forms\Components\Radio;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
@@ -56,6 +57,9 @@ class MigrasiData extends Page
     /** @var array<int, string> nama tab yang ada di spreadsheet itu */
     public array $sheetNames = [];
 
+    /** @var array<string, string> [id => judul] spreadsheet yang bisa diakses service account */
+    public array $daftarSpreadsheet = [];
+
     // ---- Preview ----
     public bool $previewed = false;
     /** @var array<int, array<string, mixed>> */
@@ -81,6 +85,12 @@ class MigrasiData extends Page
     private const PREVIEW_LIMIT = 200;
     private const CACHE_TTL = 1800;
 
+    /**
+     * Daftar spreadsheet dari Drive di-cache: isinya jarang berubah, dan tiap
+     * render form tidak boleh memanggil API.
+     */
+    private const CACHE_DAFTAR = 600;
+
     public static function canAccess(): bool
     {
         return auth()->check();
@@ -95,7 +105,35 @@ class MigrasiData extends Page
 
     public function mount(): void
     {
-        $this->form->fill(['jenis' => 'client', 'sheetName' => app(ClientSheetMigration::class)->defaultSheetName()]);
+        $this->form->fill([
+            'jenis' => 'client',
+            'sumber' => 'paste',
+            'sheetName' => app(ClientSheetMigration::class)->defaultSheetName(),
+        ]);
+    }
+
+    /**
+     * Semua spreadsheet yang di-share ke service account. Dipanggil hanya saat
+     * user memilih mode "daftar" atau menekan Muat Ulang — bukan tiap render.
+     */
+    public function muatDaftarSpreadsheet(bool $paksa = false): void
+    {
+        $this->errorMessage = null;
+
+        if ($paksa) {
+            Cache::forget('migrasi:daftar-spreadsheet');
+        }
+
+        try {
+            $this->daftarSpreadsheet = Cache::remember(
+                'migrasi:daftar-spreadsheet',
+                self::CACHE_DAFTAR,
+                fn() => app(GoogleSheetReader::class)->listSpreadsheets(),
+            );
+        } catch (\Throwable $e) {
+            $this->daftarSpreadsheet = [];
+            $this->errorMessage = 'Daftar spreadsheet tidak bisa diambil: ' . $e->getMessage();
+        }
     }
 
     public function form(Schema $schema): Schema
@@ -103,6 +141,40 @@ class MigrasiData extends Page
         return $schema
             ->statePath('data')
             ->components([
+                Radio::make('sumber')
+                    ->label('Sumber spreadsheet')
+                    ->options([
+                        'paste' => 'Tempel link',
+                        'daftar' => 'Pilih dari yang di-share ke service account',
+                    ])
+                    ->default('paste')
+                    ->inline()
+                    ->inlineLabel(false)
+                    ->live()
+                    ->afterStateUpdated(function (?string $state) {
+                        $this->previewed = false;
+
+                        if ($state === 'daftar' && $this->daftarSpreadsheet === []) {
+                            $this->muatDaftarSpreadsheet();
+                        }
+                    }),
+
+                Select::make('spreadsheetId')
+                    ->label('Spreadsheet')
+                    ->options(fn() => $this->daftarSpreadsheet)
+                    ->searchable()
+                    ->native(false)
+                    ->visible(fn(callable $get) => $get('sumber') === 'daftar')
+                    ->helperText(fn() => count($this->daftarSpreadsheet) . ' spreadsheet terbaca. '
+                        . 'Yang muncul di sini hanya yang di-share ke email service account.')
+                    ->live()
+                    // Link dan daftar memakai jalur yang sama: id yang dipilih
+                    // ditulis ke sheetLink, karena extractId() menerima id mentah.
+                    ->afterStateUpdated(function (?string $state, callable $set) {
+                        $set('sheetLink', $state);
+                        $this->muatNamaTab();
+                    }),
+
                 Select::make('jenis')
                     ->label('Jenis data')
                     ->options(collect(self::PROFIL)->map(fn(string $kelas) => app($kelas)->label())->all())
@@ -119,9 +191,10 @@ class MigrasiData extends Page
 
                 TextInput::make('sheetLink')
                     ->label('Link Google Sheets')
+                    ->visible(fn(callable $get) => $get('sumber') !== 'daftar')
                     ->placeholder('https://docs.google.com/spreadsheets/d/.../edit')
                     ->helperText('Sheet-nya harus di-share ke email service account (minimal Viewer).')
-                    ->required()
+                    ->required(fn(callable $get) => $get('sumber') !== 'daftar')
                     ->live(onBlur: true)
                     ->afterStateUpdated(fn() => $this->muatNamaTab()),
 

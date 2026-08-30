@@ -3,6 +3,7 @@
 namespace App\Service;
 
 use Google\Client as GoogleClient;
+use Google\Service\Drive as GoogleDrive;
 use Google\Service\Sheets as GoogleSheets;
 use RuntimeException;
 
@@ -65,13 +66,60 @@ class GoogleSheetReader
 
         $client = new GoogleClient();
         $client->setAuthConfig($credentials);
-        $client->setScopes([GoogleSheets::SPREADSHEETS_READONLY]);
+        // Drive read-only cuma dipakai untuk MENDAFTAR spreadsheet yang di-share
+        // ke service account; isi sel tetap dibaca lewat Sheets API.
+        $client->setScopes([
+            GoogleSheets::SPREADSHEETS_READONLY,
+            GoogleDrive::DRIVE_READONLY,
+        ]);
 
         if ($impersonate = config('services.google.impersonate')) {
             $client->setSubject($impersonate);
         }
 
         return $this->client = $client;
+    }
+
+    /**
+     * Semua spreadsheet yang bisa diakses service account ini — hasil share
+     * per-file, share folder, atau keanggotaan Shared Drive.
+     *
+     * @param  string|null  $judulMengandung  saring judul; kosong = semuanya
+     * @return array<string, string> [id => judul]
+     */
+    public function listSpreadsheets(?string $judulMengandung = null): array
+    {
+        $drive = new GoogleDrive($this->client());
+
+        $q = "mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false";
+
+        if (filled($judulMengandung)) {
+            $q .= " and name contains '" . str_replace("'", "\\'", $judulMengandung) . "'";
+        }
+
+        $hasil = [];
+        $pageToken = null;
+
+        do {
+            $resp = $drive->files->listFiles([
+                'q' => $q,
+                'fields' => 'nextPageToken, files(id, name)',
+                'pageSize' => 100,
+                'orderBy' => 'name',
+                // Tanpa dua ini, file di Shared Drive tidak ikut terdaftar.
+                'includeItemsFromAllDrives' => true,
+                'supportsAllDrives' => true,
+                'pageToken' => $pageToken,
+            ]);
+
+            foreach ($resp->getFiles() as $file) {
+                $hasil[$file->getId()] = $file->getName();
+            }
+
+            $pageToken = $resp->getNextPageToken();
+        } while ($pageToken);
+
+        return $hasil;
     }
 
     /**

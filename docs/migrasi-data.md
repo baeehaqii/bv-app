@@ -36,11 +36,19 @@ Alur: **Sheet → GoogleSheetReader (baris 0-based) → parseRows (item) → per
 ## Setup service account (sekali saja)
 
 1. Google Cloud Console → buat **Service Account** → buat **JSON key**.
-2. Aktifkan **Google Sheets API** pada project tersebut.
+2. Aktifkan **Google Sheets API** pada project tersebut. Aktifkan juga **Google
+   Drive API** bila ingin memakai mode "pilih dari daftar" — Sheets API saja
+   cukup untuk mode tempel link.
 3. Simpan JSON ke `storage/app/google/service-account.json`.
    Foldernya sudah masuk `.gitignore` — **jangan** di-commit.
 4. Share spreadsheet-nya ke `client_email` yang ada di dalam JSON, minimal
-   **Viewer**. Untuk banyak sheet, share satu folder induk saja.
+   **Viewer**. Untuk banyak sheet pilih salah satu cara sekali-jalan:
+   share **satu folder induk** (semua isinya ikut terbaca), pindahkan ke
+   **Shared Drive** lalu tambahkan `client_email` sebagai member, atau pakai
+   **Domain-Wide Delegation** lewat `GOOGLE_IMPERSONATE_EMAIL`.
+
+   Daftar spreadsheet di-cache 10 menit; tombol **Muat Ulang Daftar** memaksa
+   ambil ulang setelah ada file baru di-share.
 
 Override path hanya bila perlu, pakai path absolut. Biarkan tetap dikomentari
 untuk memakai default — kalau diisi kosong, nilai kosongnya yang menang:
@@ -61,7 +69,12 @@ Domain-wide Delegation, dengan scope `.../auth/spreadsheets.readonly`.
 ## Cara pakai
 
 1. Panel → **Sales → Migrasi Data**.
-2. Pilih **Jenis data**, lalu tempel link Google Sheets. Daftar tab terisi otomatis (sekalian menguji akses).
+2. Pilih **Sumber spreadsheet**:
+   - **Pilih dari yang di-share** — dropdown berisi semua spreadsheet yang bisa
+     dibaca service account (hasil share per-file, share folder, atau Shared
+     Drive). Butuh **Google Drive API** aktif, bukan cuma Sheets API.
+   - **Tempel link** — tempel URL Google Sheets-nya langsung. Tidak butuh Drive API.
+3. Pilih **Jenis data**. Daftar tab terisi otomatis (sekalian menguji akses).
 3. **Preview Data** → tabel baris, jumlah baris terbaca, dan daftar kolom sheet
    yang tidak dikenali (kolom itu tidak ikut dimigrasi).
 4. **Migrasi Sekarang** → progress bar jalan per chunk (25 baris/request).

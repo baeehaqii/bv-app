@@ -55,16 +55,24 @@
             <h3 style="font-weight:600;margin-bottom:.25rem">1. Sumber Spreadsheet</h3>
             <p class="mig-muted" style="margin-bottom:.75rem">
                 Sheet privat dibaca lewat service account — tidak perlu Apps Script di file-nya.
-                Baris pertama harus berisi judul kolom.
+                Pilih dari daftar spreadsheet yang sudah di-share ke service account, atau tempel
+                link-nya langsung.
             </p>
 
             {{ $this->form }}
 
-            <div style="margin-top:1rem">
+            <div style="margin-top:1rem;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
                 <x-filament::button wire:click="preview" wire:loading.attr="disabled">
                     Preview Data
                 </x-filament::button>
-                <span wire:loading wire:target="preview" class="mig-muted" style="margin-left:.5rem">Membaca sheet…</span>
+
+                @if (($this->data['sumber'] ?? 'paste') === 'daftar')
+                    <x-filament::button color="gray" wire:click="muatDaftarSpreadsheet(true)" wire:loading.attr="disabled">
+                        Muat Ulang Daftar
+                    </x-filament::button>
+                @endif
+
+                <span wire:loading wire:target="preview,muatDaftarSpreadsheet" class="mig-muted">Menghubungi Google…</span>
             </div>
         </div>
 

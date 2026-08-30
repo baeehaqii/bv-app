@@ -384,3 +384,40 @@ it('satu field tetap hanya boleh diisi satu kolom', function () {
     expect($m->mapHeaders($judul))->toBe([0 => 'event_name', 1 => 'status'])
         ->and($m->unmappedHeaders($judul))->toBe(['Status KOL Teams']);
 });
+
+it('menawarkan spreadsheet yang di-share ke service account, bukan cuma tempel link', function () {
+    Gate::before(fn() => true);
+    \Illuminate\Support\Facades\Cache::forget('migrasi:daftar-spreadsheet');
+
+    $this->mock(GoogleSheetReader::class, fn($mock) => $mock
+        ->shouldReceive('listSpreadsheets')->once()->andReturn([
+            '1AbCdEfGhIjKlMnOpQrStUvWxYz012345' => 'Sales Pipeline 2026',
+            '1ZyXwVuTsRqPoNmLkJiHgFeDcBa543210' => 'KOL Planning',
+        ])
+        ->shouldReceive('sheetNames')->andReturn(['Pipeline']));
+
+    $halaman = Livewire::actingAs(migrasiUser())
+        ->test(MigrasiData::class)
+        ->set('data.sumber', 'daftar');
+
+    expect($halaman->get('daftarSpreadsheet'))->toHaveCount(2);
+
+    // Memilih dari daftar mengisi sheetLink, jadi jalur selanjutnya sama persis
+    // dengan mode tempel link.
+    $halaman->set('data.spreadsheetId', '1AbCdEfGhIjKlMnOpQrStUvWxYz012345')
+        ->assertSet('data.sheetLink', '1AbCdEfGhIjKlMnOpQrStUvWxYz012345');
+});
+
+it('memberi tahu kalau daftar spreadsheet tidak bisa diambil', function () {
+    Gate::before(fn() => true);
+    \Illuminate\Support\Facades\Cache::forget('migrasi:daftar-spreadsheet');
+
+    $this->mock(GoogleSheetReader::class, fn($mock) => $mock
+        ->shouldReceive('listSpreadsheets')->andThrow(new RuntimeException('Google Drive API has not been used')));
+
+    Livewire::actingAs(migrasiUser())
+        ->test(MigrasiData::class)
+        ->set('data.sumber', 'daftar')
+        ->assertSet('daftarSpreadsheet', [])
+        ->assertSet('errorMessage', fn($v) => str_contains((string) $v, 'Drive API'));
+});
