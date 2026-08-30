@@ -43,6 +43,18 @@ class AppServiceProvider extends ServiceProvider
         Http::globalOptions([
             'timeout' => 25,
             'connect_timeout' => 5,
+
+            /*
+             * Paksa IPv4.
+             *
+             * api.scrapecreators.com mengumumkan AAAA (IPv6) lewat AWS API Gateway.
+             * Di jaringan yang IPv6-nya tidak benar-benar jalan, curl memilih IPv6
+             * lebih dulu, koneksinya masuk lubang hitam, dan gagal dengan
+             * "Connection timed out after 5002 ms" — terlihat seperti API-nya
+             * lambat padahal jalur IPv4-nya menjawab dalam 0,2 detik. Memperbesar
+             * connect_timeout tidak menolong: koneksinya tidak pernah terbentuk.
+             */
+            'curl' => [CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4],
         ]);
     }
 }
