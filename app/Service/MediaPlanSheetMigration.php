@@ -2,7 +2,12 @@
 
 namespace App\Service;
 
+use App\Filament\Resources\MediaPlans\Schemas\MediaPlanForm;
 use App\Models\BvSales;
+use App\Models\DataKol;
+use App\Models\InternalBudget;
+use App\Models\KolRateCard;
+use App\Models\MasterPph;
 use App\Models\MediaPlan;
 use App\Models\MediaPlanKol;
 use Illuminate\Support\Facades\DB;
@@ -18,6 +23,19 @@ use Illuminate\Support\Facades\DB;
  *
  * Acuan kolomnya berkas `[INT] Bir Kawan Senja - KOL List.xlsx`; tiap tier
  * (Nano/Micro/Macro/Homeless Media) satu tab dengan susunan kolom yang sama.
+ *
+ * Satu baris sheet menghasilkan EMPAT hal, bukan satu:
+ *   1. DataKol      — username, channel, followers, link, tier, ER, avg views.
+ *   2. KolRateCard  — satu per scope of work, berisi rate dari sheet.
+ *   3. MediaPlanKol — barisnya di KOL List, ditautkan ke DataKol di atas.
+ *   4. InternalBudgetItem — satu per SOW, lalu dihitung.
+ *
+ * Kolom Subtotal Rate, Gross Up PPH Coefficient, Tax, MU PPh*, MU**, Published
+ * Rate***, Rounded, dan Margin % di sheet TIDAK diambil angkanya. Semua itu
+ * turunan yang aplikasi hitung sendiri dari rate card + tipe pajak lewat
+ * MediaPlanForm::computeBudgetFigures() — rumus yang sama dipakai halaman Media
+ * Plan. Mengimpor angka sheet berarti menanam ulang hasil koefisien PPh lama
+ * yang sudah terbukti salah.
  */
 class MediaPlanSheetMigration extends SheetMigration
 {
@@ -213,11 +231,14 @@ class MediaPlanSheetMigration extends SheetMigration
 
     private function simpanSatu(array $item, MediaPlan $mediaPlan, array &$hasil): void
     {
+        $dataKol = $this->dataKolUntuk($item, $hasil);
+        $this->simpanRateCards($dataKol, $item);
+
         // Satu KOL bisa punya beberapa channel, jadi kuncinya nama + channel.
         $kol = MediaPlanKol::firstOrNew([
             'media_plan_id' => $mediaPlan->id,
             'name' => $item['name'],
-            'channel' => $item['channel'] ?: null,
+            'channel' => $item['channel'] ?: '',
         ]);
 
         foreach (['pic', 'status', 'categories', 'followers', 'tier', 'er_percent',
@@ -227,18 +248,152 @@ class MediaPlanSheetMigration extends SheetMigration
             }
         }
 
+        $kol->data_kol_id = $dataKol->id;
+        $kol->tipe_pajak_kol ??= MasterPph::where('name', 'Pribadi')->value('id');
+
         if (filled($item['links'] ?? null)) {
             $kol->links = [$item['links']];
         }
 
         if ($item['scope_items'] ?? []) {
             $kol->scope_items = collect($item['scope_items'])->pluck('item')->all();
-            $kol->qty = collect($item['scope_items'])->sum('qty');
-            // Rate KOL = jumlah rate seluruh SOW-nya; sheet menaruh angkanya per baris SOW.
-            $kol->rate = collect($item['scope_items'])->sum('rate');
+            // Satu qty berlaku untuk semua budget item KOL ini — begitu cara
+            // EditMediaPlan menyimpannya, jadi diikuti supaya tidak beda sendiri.
+            $kol->qty = max(1, (int) collect($item['scope_items'])->max('qty'));
         }
 
         $kol->row_number ??= (int) ($item['_row'] ?? 0);
         $kol->save();
+
+        $this->generateBudgetItems($mediaPlan, $kol);
+
+        // rate & CPI/CPV/CPE baris KOL diturunkan dari budget item, bukan diisi
+        // tangan — method milik model itu sendiri yang menghitungnya.
+        $kol->syncRateFromBudget();
+    }
+
+    /**
+     * Baris KOL Data untuk KOL ini. Nama, channel, followers, dan link dari sheet
+     * memang seharusnya mendarat di KOL Data juga — dari situlah rate card,
+     * analyzer, dan SPK mengambil datanya.
+     */
+    private function dataKolUntuk(array $item, array &$hasil): DataKol
+    {
+        $kol = DataKol::firstOrNew([
+            'username' => $item['name'],
+            'channel' => $item['channel'] ?: '-',
+        ]);
+
+        if (! $kol->exists) {
+            $hasil['notes'][] = "KOL baru masuk KOL Data: \"{$item['name']}\" ({$item['channel']}).";
+        }
+
+        // link_userprofile NOT NULL; kalau sheet tidak mengisinya, bentuk kanonik
+        // dari username dipakai supaya barisnya tetap bisa dibuka & di-scrape.
+        $kol->link_userprofile = $item['links']
+            ?: ($kol->link_userprofile
+                ?: (\App\Service\KolProfileImporter::canonicalUrl((string) $item['channel'], (string) $item['name']) ?? '-'));
+
+        foreach ([
+            'followers' => 'followers',
+            'tier' => 'tier',
+            'er_percent' => 'engagement_rate',
+            'impression' => 'average_views',
+            'engagement' => 'engagements',
+        ] as $dari => $ke) {
+            if (filled($item[$dari] ?? null)) {
+                $kol->{$ke} = $item[$dari];
+            }
+        }
+
+        $kol->save();
+
+        return $kol;
+    }
+
+    /**
+     * Rate tiap SOW dari sheet disimpan sebagai rate card KOL — bukan ditulis
+     * langsung ke baris Media Plan. Di app ini rate card yang jadi sumber:
+     * MediaPlanForm::computeRateFromSow() membaca dari sana saat budget item
+     * dibuat, dan halaman Media Plan menolak menyimpan KOL yang rate card-nya 0.
+     */
+    private function simpanRateCards(DataKol $dataKol, array $item): void
+    {
+        foreach ($item['scope_items'] ?? [] as $sow) {
+            if ($sow['rate'] <= 0) {
+                continue;
+            }
+
+            KolRateCard::updateOrCreate(
+                [
+                    'data_kol_id' => $dataKol->id,
+                    'channel' => $dataKol->channel,
+                    'sow' => $sow['item'],
+                ],
+                [
+                    'rate' => $sow['rate'],
+                    'valid_from' => now()->toDateString(),
+                ],
+            );
+        }
+    }
+
+    /**
+     * Budget item per SOW + hitungannya.
+     *
+     * Orkestrasinya meniru EditMediaPlan::afterSave(), tapi RUMUSNYA tidak
+     * disalin: rate diambil computeRateFromSow() dan angkanya computeBudgetFigures(),
+     * dua helper publik yang sama dipakai halaman Media Plan. Kalau rumusnya
+     * ditulis ulang di sini, dua tempat itu pasti berbeda suatu hari.
+     */
+    private function generateBudgetItems(MediaPlan $mediaPlan, MediaPlanKol $kol): void
+    {
+        // firstOrCreate lewat relasi, bukan $mediaPlan->internalBudget: properti
+        // relasi ter-cache sejak KOL pertama, jadi KOL berikutnya masih melihat
+        // null dan mencoba membuat budget kedua — yang ditolak unique index.
+        $budget = $mediaPlan->internalBudget()->firstOrCreate([], ['status' => 'draft']);
+
+        // Dibuat ulang, bukan ditambah: migrasi ulang tidak boleh menggandakan item.
+        $kol->internalBudgetItems()->delete();
+
+        $sortOrder = $budget->items()->max('sort_order') ?? 0;
+        $qty = max(1, (int) ($kol->qty ?: 1));
+        $pphId = $kol->tipe_pajak_kol ?? MasterPph::where('name', 'Pribadi')->value('id');
+
+        foreach ($kol->scope_items ?? [] as $scopeItem) {
+            $budget->items()->create([
+                'media_plan_kol_id' => $kol->id,
+                'scope_item' => $scopeItem,
+                'qty' => $qty,
+                'rate_base' => MediaPlanForm::computeRateFromSow($kol->data_kol_id, $kol->name, $kol->channel, [$scopeItem]),
+                'master_pph_id' => $pphId,
+                'sort_order' => ++$sortOrder,
+            ]);
+        }
+
+        foreach ($budget->items()->with(['mediaPlanKol', 'masterPph'])->where('media_plan_kol_id', $kol->id)->get() as $bi) {
+            $coeff = $bi->masterPph?->getCalculatedCoefficient() ?? 0.975;
+            $marginKol = $bi->mediaPlanKol?->margin_percent;
+
+            $figs = MediaPlanForm::computeBudgetFigures(
+                (float) $bi->rate_base * (int) ($bi->qty ?: 1),
+                $coeff,
+                $marginKol !== null ? (float) $marginKol : null,
+            );
+
+            $bi->update([
+                'subtotal' => $figs['subtotal'],
+                'mu_pph' => $figs['mu_pph'],
+                'mu_target' => $figs['mu_target'],
+                'published_rate' => $figs['mu_target'],
+                'rounded' => $figs['rounded'],
+                'actual_margin_percent' => $figs['actual_margin'],
+                'use_flexible_margin' => $marginKol !== null,
+                'margin_percent_override' => $marginKol !== null ? (float) $marginKol : null,
+            ]);
+        }
+
+        $budget->refresh();
+        $budget->recalculateTotals();
     }
 }

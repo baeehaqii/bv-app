@@ -146,8 +146,25 @@ yang mengubah status bisa memicunya.
 beberapa baris**. Baris pertama berisi identitas KOL plus scope of work
 pertamanya; baris di bawahnya hanya SOW tambahan dengan kolom identitas kosong.
 Jadi baris tanpa username bukan baris kosong — ia digabung ke KOL di atasnya.
-`qty` dan `rate` KOL adalah JUMLAH seluruh SOW-nya, karena sheet menaruh
-angkanya per baris SOW. Tiap tier (Nano/Micro/Macro/Homeless Media) satu tab
+Satu baris sheet menghasilkan EMPAT hal, bukan satu:
+
+1. **DataKol** — username, channel, followers, link, tier, ER, avg views. Nama
+   dan channel dari sheet memang seharusnya mendarat di KOL Data juga; dari situ
+   rate card, analyzer, dan SPK mengambil datanya.
+2. **KolRateCard** — satu per scope of work, berisi rate dari sheet.
+3. **MediaPlanKol** — barisnya di KOL List, ditautkan ke DataKol di atas.
+4. **InternalBudgetItem** — satu per SOW, lalu dihitung.
+
+Kolom **Subtotal Rate, Gross Up PPH Coefficient, Tax, MU PPh\*, MU\*\*,
+Published Rate\*\*\*, Rounded, dan Margin %** di sheet **tidak diambil
+angkanya**. Semuanya turunan yang aplikasi hitung sendiri dari rate card + tipe
+pajak lewat `MediaPlanForm::computeBudgetFigures()` — helper yang sama dipakai
+halaman Media Plan, jadi hasil migrasi dan hasil input manual tidak mungkin
+berbeda. Mengimpor angka sheet berarti menanam ulang hasil koefisien PPh lama
+yang sudah terbukti salah.
+
+Rate baris KOL tidak diisi tangan; `MediaPlanKol::syncRateFromBudget()` yang
+menurunkannya dari budget item. Tiap tier (Nano/Micro/Macro/Homeless Media) satu tab
 dengan susunan kolom yang sama, jadi tab-nya dipilih manual dan dijalankan
 bergantian. Wajib memilih **deal di Sales Activity Tracker** dulu; tanpa itu tidak ada yang
 disimpan. Yang dipilih deal-nya, bukan Media Plan-nya langsung — Media Plan

@@ -477,14 +477,56 @@ it('menyimpan KOL beserta total qty dan rate seluruh scope of work-nya', functio
 
     expect($kol->media_plan_id)->toBe($plan->id)
         ->and($kol->pic)->toBe('Sheila')
-        ->and($kol->scope_items)->toBe(['IG Reels', 'IG Story with Link', 'Visit Store'])
-        ->and((int) $kol->qty)->toBe(3)
-        // Rate KOL = jumlah rate tiap SOW, karena sheet menaruhnya per baris.
-        ->and((float) $kol->rate)->toBe(2000000.0);
+        ->and($kol->scope_items)->toBe(['IG Reels', 'IG Story with Link', 'Visit Store']);
 
-    // Idempoten: kunci nama + channel, jadi jalan ulang tidak menggandakan.
+    // Idempoten: kunci nama + channel, jadi jalan ulang tidak menggandakan —
+    // baik baris KOL-nya maupun budget item-nya.
     $m->persist($m->parseRows(kolListRows()));
-    expect(\App\Models\MediaPlanKol::where('media_plan_id', $plan->id)->count())->toBe(2);
+    expect(\App\Models\MediaPlanKol::where('media_plan_id', $plan->id)->count())->toBe(2)
+        ->and($kol->fresh()->internalBudgetItems()->count())->toBe(3);
+});
+
+it('mengisi KOL Data dan rate card dari sheet, bukan cuma baris Media Plan', function () {
+    $sales = \App\Models\BvSales::create(['event_name' => 'Bir Kawan Senja', 'company_name' => 'Multi Bintang']);
+
+    $m = (new \App\Service\MediaPlanSheetMigration())->untukSales($sales->id);
+    $m->persist($m->parseRows(kolListRows()));
+
+    $dataKol = \App\Models\DataKol::where('username', 'Bagus Gandhi')->firstOrFail();
+
+    expect($dataKol->channel)->toBe('Instagram')
+        ->and((int) $dataKol->followers)->toBe(12000)
+        ->and($dataKol->link_userprofile)->toBe('https://instagram.com/bagus')
+        ->and((int) $dataKol->average_views)->toBe(8000);
+
+    // Rate tiap SOW jadi rate card — dari sanalah budget item mengambil rate-nya.
+    expect($dataKol->rateCards()->pluck('rate', 'sow')->map(fn($r) => (float) $r)->all())
+        ->toBe(['IG Reels' => 1500000.0, 'IG Story with Link' => 500000.0]);
+
+    // Baris Media Plan menunjuk ke baris KOL Data itu, bukan berdiri sendiri.
+    expect(\App\Models\MediaPlanKol::where('name', 'Bagus Gandhi')->value('data_kol_id'))->toBe($dataKol->id);
+});
+
+it('menghitung sendiri kolom subtotal sampai margin, tidak mengambil angka sheet', function () {
+    $sales = \App\Models\BvSales::create(['event_name' => 'Bir Kawan Senja', 'company_name' => 'Multi Bintang']);
+
+    $m = (new \App\Service\MediaPlanSheetMigration())->untukSales($sales->id);
+    $m->persist($m->parseRows(kolListRows()));
+
+    $kol = \App\Models\MediaPlanKol::where('name', 'Bagus Gandhi')->firstOrFail();
+    $reels = $kol->internalBudgetItems()->where('scope_item', 'IG Reels')->firstOrFail();
+
+    // rate_base datang dari rate card, bukan dari kolom Rate baris Media Plan.
+    expect((float) $reels->rate_base)->toBe(1500000.0)
+        ->and((float) $reels->subtotal)->toBe(1500000.0)
+        // Kolom turunan terisi — inilah yang sebelumnya kosong.
+        ->and((float) $reels->mu_pph)->toBeGreaterThan(1500000.0)
+        ->and((float) $reels->rounded)->toBeGreaterThan((float) $reels->mu_pph)
+        ->and((float) $reels->actual_margin_percent)->toBeGreaterThan(0);
+
+    // SOW tanpa rate tetap jadi budget item, nilainya nol — bukan hilang.
+    $visit = $kol->internalBudgetItems()->where('scope_item', 'Visit Store')->firstOrFail();
+    expect((float) $visit->rate_base)->toBe(0.0);
 });
 
 it('menolak migrasi KOL List sebelum deal-nya dipilih', function () {
