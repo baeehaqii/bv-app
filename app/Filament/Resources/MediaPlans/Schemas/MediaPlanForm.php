@@ -194,54 +194,110 @@ class MediaPlanForm
      * @return array<int, string>
      */
     /**
-     * Cache per-request untuk lookup yang dipanggil BERKALI-KALI per render.
+     * Data yang dibutuhkan SELURUH baris KOL, dimuat sekali di depan.
      *
-     * KOL List bisa berisi ratusan baris dan tiap baris memanggil ulang DataKol,
-     * rate card, MasterPph, serta daftar channel-nya. Pada media plan 98 KOL itu
-     * jadi ~7.900 query dan 700 MB — halamannya mati kena memory limit. Isinya
-     * data master yang tidak berubah selama satu request, jadi cukup diambil
-     * sekali.
+     * KOL List bisa berisi ratusan baris, dan tiap baris perlu DataKol-nya,
+     * rate card-nya, daftar channel milik username itu, serta master PPh. Kalau
+     * diambil per baris, media plan 98 KOL menembakkan ribuan query dan
+     * halamannya mati kena memory limit.
      *
-     * @var array<string, mixed>
+     * Bukan sekadar menghindari pengulangan: muatUntuk() mengambil semuanya
+     * dalam BEBERAPA query untuk semua baris sekaligus. Sisa satu-satu hanya
+     * terjadi untuk baris yang ditambahkan setelah form dimuat.
+     *
+     * @var array<int, DataKol>            $kolById
+     * @var array<string, array<string, string>> $channelByUsername
      */
-    private static array $cache = [];
+    private static array $kolById = [];
+    private static array $channelByUsername = [];
+    private static ?\Illuminate\Support\Collection $pphAll = null;
+    private static ?array $kolSpecialists = null;
 
-    /** @param  \Closure(): mixed  $ambil */
-    private static function sekali(string $kunci, \Closure $ambil): mixed
+    /**
+     * Muat sekali untuk seluruh baris. Dipanggil dari halaman Media Plan sebelum
+     * form dirender; aman dipanggil berkali-kali.
+     *
+     * @param  iterable<int, array<string, mixed>>  $kols  baris KOL List
+     */
+    public static function muatUntuk(iterable $kols): void
     {
-        return self::$cache[$kunci] ??= $ambil();
+        $rows = collect($kols);
+        $ids = $rows->pluck('data_kol_id')->filter()->unique()->diff(array_keys(self::$kolById));
+        $usernames = $rows->pluck('name')->filter()->unique()
+            ->diff(array_keys(self::$channelByUsername));
+
+        if ($ids->isEmpty() && $usernames->isEmpty()) {
+            return;
+        }
+
+        // Satu query untuk dua kebutuhan: baris KOL yang dipakai (by id) dan
+        // seluruh channel milik username-username itu (untuk dropdown Channel).
+        $kols = DataKol::with('rateCards.masterSow')
+            ->whereIn('id', $ids->all())
+            ->orWhereIn('username', $usernames->all())
+            ->get();
+
+        foreach ($kols as $kol) {
+            self::$kolById[$kol->id] = $kol;
+        }
+
+        foreach ($usernames as $username) {
+            self::$channelByUsername[$username] = $kols
+                ->where('username', $username)
+                ->pluck('channel', 'channel')
+                ->filter()
+                ->all();
+        }
     }
 
     /**
-     * Buang cache. WAJIB dipanggil setelah rate card atau baris DataKol berubah
-     * di tengah request — mis. aksi "Tambah KOL Multi-Channel" yang membuat rate
-     * card baru — dan di setUp test supaya satu test tidak mewarisi cache test
-     * sebelumnya.
+     * Buang data yang sudah dimuat. WAJIB dipanggil setelah rate card atau baris
+     * DataKol berubah di tengah request — mis. aksi "Tambah KOL Multi-Channel" —
+     * dan di setUp test supaya satu test tidak mewarisi data test sebelumnya.
      */
     public static function lupakanCache(): void
     {
-        self::$cache = [];
+        self::$kolById = [];
+        self::$channelByUsername = [];
+        self::$pphAll = null;
+        self::$kolSpecialists = null;
     }
 
     /** Rate card satu KOL, lengkap dengan master SOW-nya. */
     private static function rateCardsFor(?int $dataKolId): \Illuminate\Support\Collection
     {
-        if (! $dataKolId) {
-            return collect();
-        }
-
-        return self::sekali("ratecards:{$dataKolId}", fn() => self::dataKol($dataKolId)
-            ?->rateCards()->with('masterSow')->get() ?? collect());
+        return self::dataKol($dataKolId)?->rateCards ?? collect();
     }
 
     private static function dataKol(?int $id): ?DataKol
     {
-        return $id ? self::sekali("kol:{$id}", fn() => DataKol::find($id)) : null;
+        if (! $id) {
+            return null;
+        }
+
+        // Baris yang baru ditambahkan setelah form dimuat belum ikut muatUntuk().
+        return self::$kolById[$id] ??= DataKol::with('rateCards.masterSow')->find($id);
     }
 
     private static function masterPph(?int $id): ?\App\Models\MasterPph
     {
-        return $id ? self::sekali("pph:{$id}", fn() => \App\Models\MasterPph::find($id)) : null;
+        if (! $id) {
+            return null;
+        }
+
+        // Tabelnya cuma empat baris; ambil semua sekali daripada satu per satu.
+        self::$pphAll ??= \App\Models\MasterPph::all()->keyBy('id');
+
+        return self::$pphAll->get($id);
+    }
+
+    /** Dropdown "PIC KOL" isinya sama untuk semua baris — cukup satu query. */
+    public static function kolSpecialists(): array
+    {
+        return self::$kolSpecialists ??= \App\Models\BvEmploye::whereHas(
+            'position.department.division',
+            fn($q) => $q->where('slug', 'creative'),
+        )->orderBy('nama_lengkap')->pluck('nama_lengkap', 'id')->all();
     }
 
     private static function kolSowLabels(?int $dataKolId): array
@@ -373,10 +429,10 @@ class MediaPlanForm
             return [];
         }
 
-        return self::sekali("channels:{$username}", fn() => DataKol::where('username', $username)
+        return self::$channelByUsername[$username] ??= DataKol::where('username', $username)
             ->pluck('channel', 'channel')
             ->filter()
-            ->toArray());
+            ->all();
     }
 
     /**
@@ -775,12 +831,7 @@ class MediaPlanForm
                                     Select::make('pic_project_internal_ids')
                                         ->label('Project Internal (KOL Specialist)')
                                         ->options(
-                                            fn() => \App\Models\BvEmploye::whereHas(
-                                                'position.department.division',
-                                                fn($q) => $q->where('slug', 'creative')
-                                            )
-                                                ->orderBy('nama_lengkap')
-                                                ->pluck('nama_lengkap', 'id')
+                                            fn() => self::kolSpecialists()
                                         )
                                         ->multiple()
                                         ->searchable()
@@ -1260,10 +1311,8 @@ class MediaPlanForm
                                     Select::make('pic')
                                         ->label('PIC KOL')
                                         ->placeholder('Pilih KOL Specialist')
-                                        ->options(fn() => \App\Models\BvEmploye::whereHas(
-                                            'position.department.division',
-                                            fn($q) => $q->where('slug', 'creative')
-                                        )->orderBy('nama_lengkap')->pluck('nama_lengkap', 'nama_lengkap'))
+                                        // Nilai tersimpan berupa NAMA, bukan id — jadi kunci opsinya nama.
+                                        ->options(fn() => array_combine(self::kolSpecialists(), self::kolSpecialists()))
                                         ->native(true)
                                         ->nullable(),
 

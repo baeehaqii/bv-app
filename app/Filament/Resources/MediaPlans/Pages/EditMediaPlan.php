@@ -20,8 +20,15 @@ class EditMediaPlan extends EditRecord
 
     protected function mutateFormDataBeforeFill(array $data): array
     {
-        // Load KOLs relationship data
-        $data['kols'] = $this->record->kols()->with('dataKol')->get()->map(function ($kol) {
+        $kols = $this->record->kols()->with('dataKol')->get();
+
+        // Muat sekali untuk SEMUA baris: DataKol, rate card, dan daftar channel.
+        // Harus sebelum pemetaan di bawah — pemetaan itu sudah memanggil
+        // computeRateFromSow(), jadi kalau dipanggil belakangan setiap baris
+        // terlanjur mengambil datanya sendiri-sendiri.
+        \App\Filament\Resources\MediaPlans\Schemas\MediaPlanForm::muatUntuk($kols);
+
+        $data['kols'] = $kols->map(function ($kol) {
             // Backfill ER & rate dari database KOL jika belum tersimpan di baris
             $erPercent = $kol->er_percent;
             if (!(float) $erPercent && $kol->dataKol) {
