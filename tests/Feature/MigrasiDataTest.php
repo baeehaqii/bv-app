@@ -317,3 +317,70 @@ it('memperingatkan nama client yang cuma beda tipis, tanpa menggabung diam-diam'
         // Tetap dibuat, bukan ditebak-tebak — user yang memutuskan digabung atau tidak.
         ->and(DataClient::where('nama_brand', 'ITDC - Injouney')->exists())->toBeTrue();
 });
+
+it('menemukan baris judul walau tidak di baris pertama', function () {
+    // Bentuk sheet (KOL) Project - Planning: judul besar, baris total, catatan,
+    // baru judul kolomnya di baris keempat.
+    $rows = [
+        ['', '', 'PLANNING TRACKER - Q2'],
+        ['', '', '', '', '', '', '', '', '', '', '', 'TOTAL', 2727500000],
+        ['*Di isi oleh BD', '', '', '', '', '', '', '', '', 'After Discuss BD & KOL'],
+        ['NO', 'Brief Dates', 'Brand', 'Brand/Agency Company', 'Campaign', 'Product Type', 'PIC BD', 'EXT Sheet', 'Core Services', 'DEADLINE SUBMIT', 'INT Sheet', 'Status KOL Teams', 'Budget Plan from Client'],
+        ['', "May'26"],
+        [1, 46147, 'Arummi', 'Direct', 'Social Media Content UGC', 'Food & Drinks', 'Gerry', '', '', '', '', 'WON - ON GOING', 15000000],
+    ];
+
+    $m = new \App\Service\PipelineSheetMigration();
+
+    expect($m->headerRowIndex($rows))->toBe(3);
+
+    $items = $m->parseRows($rows);
+    $isi = collect($items)->firstWhere('event_name', 'Social Media Content UGC');
+
+    expect($isi)->not->toBeNull()
+        ->and($isi['company_name'])->toBe('Arummi')
+        ->and($isi['status'])->toBe(\App\Enums\SalesStatus::CAMPAIGN_LIVE)
+        ->and((float) $isi['budget_propose'])->toBe(15000000.0)
+        // Nomor baris mengikuti tampilan Google Sheets, bukan indeks array.
+        ->and($isi['_row'])->toBe(6);
+});
+
+it('mencatat status yang tidak dikenali alih-alih menebak kolom kanban', function () {
+    $judul = ['Campaign', 'Brand', 'Status KOL Teams'];
+
+    $m = new \App\Service\PipelineSheetMigration();
+    $items = $m->parseRows([
+        $judul,
+        ['Campaign A', 'Arummi', 'HOLD'],
+        ['Campaign B', 'Arummi', 'LOST'],
+    ]);
+
+    expect($items[0]['status'])->toBeNull()
+        ->and($items[1]['status'])->toBe(\App\Enums\SalesStatus::CLOSE_LOSE)
+        ->and($m->statusTakDikenal())->toBe(['HOLD']);
+});
+
+it('membedakan kolom rupiah dari kolom persen di sebelahnya', function () {
+    // BvSales.margin menyimpan PERSEN, jadi yang harus terbaca kolom "%",
+    // bukan kolom rupiah yang judulnya nyaris sama.
+    $judul = ['Campaign', 'Brand', 'Projected Nett Margin', 'Projected Nett Margin %'];
+
+    $m = new \App\Service\PipelineSheetMigration();
+
+    expect($m->mapHeaders($judul))->toBe([0 => 'event_name', 1 => 'company_name', 3 => 'margin'])
+        ->and($m->unmappedHeaders($judul))->toBe(['Projected Nett Margin']);
+
+    // Sheet menulis 0,6533; yang disimpan 65,33 persen.
+    $items = $m->parseRows([$judul, ['Campaign A', 'Arummi', 9800000, 0.6533]]);
+    expect((float) $items[0]['margin'])->toBe(65.33);
+});
+
+it('satu field tetap hanya boleh diisi satu kolom', function () {
+    $judul = ['Campaign', 'Status', 'Status KOL Teams'];
+
+    $m = new \App\Service\PipelineSheetMigration();
+
+    // Kolom paling kiri menang; sisanya dilaporkan sebagai tidak terpakai.
+    expect($m->mapHeaders($judul))->toBe([0 => 'event_name', 1 => 'status'])
+        ->and($m->unmappedHeaders($judul))->toBe(['Status KOL Teams']);
+});

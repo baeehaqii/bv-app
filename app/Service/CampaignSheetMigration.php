@@ -31,22 +31,24 @@ class CampaignSheetMigration extends SheetMigration
     public function aliases(): array
     {
         return [
-            'campaign_name' => ['campaign name', 'nama campaign'],
-            'client' => ['client', 'client brand', 'nama brand'],
-            'brand_agency' => ['brand agency', 'agency'],
-            'pic' => ['pic'],
+            'campaign_name' => ['campaign name', 'nama campaign', 'campaign'],
+            'client' => ['client', 'client brand', 'nama brand', 'brand'],
+            'brand_agency' => ['brand agency', 'agency', 'brand agency company'],
+            'pic' => ['pic', 'pic am'],
+            'pic_media_plan' => ['pic kol on going', 'pic kol'],
             'start_date' => ['start date', 'tanggal mulai'],
             'end_date' => ['end date', 'tanggal selesai'],
-            'deal_value' => ['budget deals idr', 'budget deals', 'deal value'],
-            'total_cost' => ['real cost idr', 'real cost', 'total cost'],
-            'status' => ['status campaign', 'status'],
+            'close_date' => ['deal date'],
+            'deal_value' => ['budget deals idr', 'budget deals', 'deal value', 'revenue deals'],
+            'total_cost' => ['real cost idr', 'real cost', 'total cost', 'actual real cost tax kol'],
+            'status' => ['status campaign', 'status', 'project status'],
             'report_link' => ['ext link', 'link report'],
         ];
     }
 
     public function previewColumns(): array
     {
-        return ['campaign_name', 'client', 'brand_agency', 'pic', 'start_date', 'end_date', 'deal_value', 'total_cost', 'status'];
+        return ['campaign_name', 'client', 'brand_agency', 'pic', 'pic_media_plan', 'start_date', 'end_date', 'deal_value', 'total_cost', 'status'];
     }
 
     protected function requiredField(): string
@@ -58,6 +60,7 @@ class CampaignSheetMigration extends SheetMigration
     {
         $item['brand_agency'] = self::normalizeAgency($item['brand_agency'] ?? null);
         $item['start_date'] = self::toDate($item['start_date'] ?? null);
+        $item['close_date'] = self::toDate($item['close_date'] ?? null);
         $item['end_date'] = self::toDate($item['end_date'] ?? null);
         $item['deal_value'] = self::toNumber($item['deal_value'] ?? null);
         $item['total_cost'] = self::toNumber($item['total_cost'] ?? null);
@@ -109,7 +112,7 @@ class CampaignSheetMigration extends SheetMigration
 
         $campaign->campaign_type = BvCampign::TYPE_INTERNAL;
 
-        foreach (['start_date', 'end_date', 'deal_value', 'total_cost', 'status', 'report_link'] as $field) {
+        foreach (['start_date', 'end_date', 'close_date', 'deal_value', 'total_cost', 'status', 'report_link'] as $field) {
             if (($item[$field] ?? null) !== null && $item[$field] !== '') {
                 $campaign->{$field} = $item[$field];
             }
@@ -126,6 +129,10 @@ class CampaignSheetMigration extends SheetMigration
 
         if (filled($item['pic'] ?? null)) {
             $campaign->pic_internal = trim((string) $item['pic']);
+        }
+
+        if (filled($item['pic_media_plan'] ?? null)) {
+            $campaign->pic_media_plan = trim((string) $item['pic_media_plan']);
         }
 
         $campaign->save();
@@ -166,9 +173,9 @@ class CampaignSheetMigration extends SheetMigration
     private static function normalizeStatus(mixed $nilai): ?string
     {
         return match (self::normalize((string) $nilai)) {
-            'finish paid', 'paid', 'selesai' => 'completed',
+            'finish paid', 'paid', 'selesai', 'finish' => 'completed',
             'on going', 'ongoing', 'won on going' => 'ongoing',
-            'report', 'reporting', 'waiting payment', 'invoicing' => 'ongoing',
+            'report', 'reporting', 'waiting payment', 'invoicing', 'invoice' => 'ongoing',
             'cancelled', 'batal' => 'cancelled',
             'upcoming' => 'upcoming',
             default => null,

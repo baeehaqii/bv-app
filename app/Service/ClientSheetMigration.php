@@ -154,10 +154,10 @@ class ClientSheetMigration extends SheetMigration
 
         if (filled($item['pic_internal_sales'] ?? null)) {
             $nama = trim((string) $item['pic_internal_sales']);
-            $sales = BvSalesList::firstOrCreate(['nama_sales' => $nama]);
+            $sales = BvSalesList::untuk($nama);
 
             if ($sales->wasRecentlyCreated) {
-                $hasil['notes'][] = "Sales baru dibuat di master: \"{$nama}\".";
+                $hasil['notes'][] = "Sales baru dibuat di master: \"{$sales->nama_sales}\".";
             }
 
             $client->pic_internal_sales_id = $sales->id;

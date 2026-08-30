@@ -187,7 +187,7 @@ class MigrasiData extends Page
             return;
         }
 
-        if ($migrasi->mapHeaders($rows[0]) === []) {
+        if ($migrasi->mapHeaders($migrasi->headerRow($rows)) === []) {
             $this->errorMessage = 'Tidak ada judul kolom yang dikenali di baris pertama untuk jenis "'
                 . $migrasi->label() . '". Pastikan tab dan jenis datanya cocok.';
 
@@ -195,7 +195,7 @@ class MigrasiData extends Page
         }
 
         $items = $migrasi->parseRows($rows);
-        $this->unmapped = $migrasi->unmappedHeaders($rows[0]);
+        $this->unmapped = $migrasi->unmappedHeaders($migrasi->headerRow($rows));
         $this->totalItems = count($items);
         $this->warnCount = collect($items)->whereNotNull('_note')->count();
 

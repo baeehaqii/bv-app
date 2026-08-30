@@ -21,7 +21,7 @@ class PipelineSheetMigration extends SheetMigration
 {
     public function label(): string
     {
-        return 'Pipeline (Sales Activity Tracker)';
+        return 'Sales Activity Tracker (Pipeline / KOL Planning)';
     }
 
     public function defaultSheetName(): ?string
@@ -33,14 +33,18 @@ class PipelineSheetMigration extends SheetMigration
     {
         return [
             // "Campagin Name" — salah ketik di sheet, sengaja ikut diterima.
-            'event_name' => ['campagin name', 'campaign name', 'nama campaign', 'event name'],
+            'event_name' => ['campagin name', 'campaign name', 'nama campaign', 'event name', 'campaign'],
             'company_name' => ['client brand', 'client', 'brand', 'nama brand'],
-            'related_client_name' => ['brand agency', 'agency'],
-            'sales' => ['pic'],
-            'status' => ['stage status', 'stage', 'status'],
-            'budget_propose' => ['amount idr', 'amount', 'budget'],
+            'related_client_name' => ['brand agency', 'agency', 'brand agency company'],
+            'sales' => ['pic', 'pic bd'],
+            'status' => ['stage status', 'stage', 'status', 'status kol teams'],
+            'budget_propose' => ['amount idr', 'amount', 'budget', 'budget plan from client', 'budget plan from clients'],
             'deal_value' => ['amount deals', 'deal value'],
-            'close_date' => ['deadline date', 'deadline', 'close date'],
+            // BvSales.margin itu PERSEN (lihat getFormattedMarginAttribute), jadi
+            // yang diambil kolom persen — bukan kolom rupiah di sebelahnya.
+            'margin' => ['projected nett margin persen', 'margin persen', 'margin'],
+            'close_date' => ['deadline date', 'deadline', 'close date', 'deadline submit'],
+            'brief_submit_date' => ['brief dates', 'brief date'],
             'bulan' => ['months', 'month', 'bulan'],
         ];
     }
@@ -48,6 +52,14 @@ class PipelineSheetMigration extends SheetMigration
     public function previewColumns(): array
     {
         return ['event_name', 'company_name', 'related_client_name', 'sales', 'status', 'budget_propose', 'deal_value', 'close_date'];
+    }
+
+    /** Nilai status yang tidak dikenali, untuk dilaporkan sekali di akhir chunk. */
+    private array $statusTakDikenal = [];
+
+    public function statusTakDikenal(): array
+    {
+        return array_values(array_unique($this->statusTakDikenal));
     }
 
     protected function requiredField(): string
@@ -58,10 +70,14 @@ class PipelineSheetMigration extends SheetMigration
     protected function refine(array $item): array
     {
         $item['related_client_name'] = self::normalizeAgency($item['related_client_name'] ?? null);
-        $item['status'] = self::normalizeStatus($item['status'] ?? null);
+        $item['status'] = $this->normalizeStatus($item['status'] ?? null);
         $item['budget_propose'] = self::toNumber($item['budget_propose'] ?? null);
         $item['deal_value'] = self::toNumber($item['deal_value'] ?? null);
         $item['close_date'] = self::toDate($item['close_date'] ?? null);
+        $item['brief_submit_date'] = self::toDate($item['brief_submit_date'] ?? null);
+        // Sheet menulis margin sebagai pecahan (0,6533); kolomnya menyimpan persen.
+        $margin = self::toNumber($item['margin'] ?? null);
+        $item['margin'] = ($margin !== null && $margin <= 1) ? round($margin * 100, 2) : $margin;
 
         // "July 2025" / serial tanggal → bulan + tahun campaign.
         $bulan = self::toDate($item['bulan'] ?? null);
@@ -107,7 +123,7 @@ class PipelineSheetMigration extends SheetMigration
         ]);
 
         foreach (['related_client_name', 'budget_propose', 'deal_value', 'close_date',
-            'campaign_month', 'campaign_year'] as $field) {
+            'brief_submit_date', 'margin', 'campaign_month', 'campaign_year'] as $field) {
             if (($item[$field] ?? null) !== null && $item[$field] !== '') {
                 $sales->{$field} = $item[$field];
             }
@@ -119,10 +135,12 @@ class PipelineSheetMigration extends SheetMigration
 
         if (filled($item['sales'] ?? null)) {
             $nama = trim((string) $item['sales']);
-            $orang = BvSalesList::firstOrCreate(['nama_sales' => $nama]);
+            $orang = BvSalesList::untuk($nama);
 
             if ($orang->wasRecentlyCreated) {
-                $hasil['notes'][] = "Sales baru dibuat di master: \"{$nama}\".";
+                $hasil['notes'][] = "Sales baru dibuat di master: \"{$orang->nama_sales}\".";
+            } elseif ($orang->nama_sales !== $nama) {
+                $hasil['notes'][] = "Baris {$item['_row']}: \"{$nama}\" diarahkan ke \"{$orang->nama_sales}\".";
             }
 
             $sales->bv_sales_list_id = $orang->id;
@@ -143,10 +161,25 @@ class PipelineSheetMigration extends SheetMigration
      * Stage/Status di sheet → SalesStatus. Nilai yang tidak dikenali dibiarkan
      * null supaya tidak diam-diam mendarat di kolom kanban yang salah.
      */
-    private static function normalizeStatus(mixed $nilai): ?SalesStatus
+    private function normalizeStatus(mixed $nilai): ?SalesStatus
     {
         $teks = self::normalize((string) $nilai);
 
+        if ($teks === '') {
+            return null;
+        }
+
+        $status = self::petaStatus($teks);
+
+        if (! $status) {
+            $this->statusTakDikenal[] = trim((string) $nilai);
+        }
+
+        return $status;
+    }
+
+    private static function petaStatus(string $teks): ?SalesStatus
+    {
         return match ($teks) {
             'finish paid', 'paid' => SalesStatus::PAID,
             'lost', 'close lost' => SalesStatus::CLOSE_LOSE,

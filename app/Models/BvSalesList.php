@@ -8,6 +8,29 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class BvSalesList extends Model
 {
+    /**
+     * Nama yang tertulis di spreadsheet → nama resmi di master.
+     *
+     * Sheet ditulis banyak orang, jadi satu orang bisa muncul dengan beberapa
+     * ejaan. Tanpa peta ini tiap ejaan jadi baris sales sendiri dan laporan
+     * per-PIC-nya pecah.
+     */
+    public const ALIAS = [
+        'febi' => 'Febby',
+        'sita' => 'Gressita',
+        'gress' => 'Gressita',
+    ];
+
+    /** Baris master untuk nama PIC dari sheet; dibuat kalau memang belum ada. */
+    public static function untuk(string $nama): self
+    {
+        $nama = trim($nama);
+
+        return self::firstOrCreate([
+            'nama_sales' => self::ALIAS[\Illuminate\Support\Str::lower($nama)] ?? $nama,
+        ]);
+    }
+
     protected $guarded = [];
 
     protected static function booted(): void

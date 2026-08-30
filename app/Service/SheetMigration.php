@@ -74,9 +74,13 @@ abstract class SheetMigration
             }
 
             foreach ($this->aliases() as $field => $alias) {
-                if (in_array($normal, $alias, true)) {
-                    // Judul kembar: yang pertama menang.
-                    $peta[$i] ??= $field;
+                // Satu field hanya boleh diisi SATU kolom, yang paling kiri.
+                // Sheet nyata sering punya dua judul yang menyusut jadi sama —
+                // "Projected Nett Margin" (rupiah) dan "Projected Nett Margin %"
+                // kehilangan bedanya setelah tanda baca dibuang — dan kolom
+                // belakangan akan menimpa nilai kolom depan kalau dibiarkan.
+                if (in_array($normal, $alias, true) && ! in_array($field, $peta, true)) {
+                    $peta[$i] = $field;
                     break;
                 }
             }
@@ -104,7 +108,40 @@ abstract class SheetMigration
     }
 
     /**
-     * Baris mentah (baris 0 = judul) → item siap simpan.
+     * Baris mana yang berisi judul kolom.
+     *
+     * Tidak selalu baris pertama: banyak sheet diawali judul besar, baris total,
+     * dan catatan "*Di isi oleh BD". Jadi dicari baris yang paling banyak
+     * kolomnya dikenali, bukan diasumsikan.
+     *
+     * @param  array<int, array<int, mixed>>  $rows
+     */
+    public function headerRowIndex(array $rows): int
+    {
+        $terbaik = 0;
+        $skor = 0;
+
+        foreach (array_slice($rows, 0, 12, true) as $i => $row) {
+            $cocok = count($this->mapHeaders($row));
+
+            if ($cocok > $skor) {
+                $skor = $cocok;
+                $terbaik = $i;
+            }
+        }
+
+        return $terbaik;
+    }
+
+    /** @param array<int, array<int, mixed>> $rows */
+    public function headerRow(array $rows): array
+    {
+        return $rows[$this->headerRowIndex($rows)] ?? [];
+    }
+
+    /**
+     * Baris mentah → item siap simpan. Baris judul dicari sendiri, baris di
+     * atasnya diabaikan.
      *
      * @param  array<int, array<int, mixed>>  $rows
      * @return array<int, array<string, mixed>>
@@ -115,10 +152,11 @@ abstract class SheetMigration
             return [];
         }
 
-        $peta = $this->mapHeaders($rows[0]);
+        $barisJudul = $this->headerRowIndex($rows);
+        $peta = $this->mapHeaders($rows[$barisJudul]);
         $items = [];
 
-        foreach (array_slice($rows, 1) as $n => $row) {
+        foreach (array_slice($rows, $barisJudul + 1) as $n => $row) {
             $item = [];
 
             foreach ($peta as $i => $field) {
@@ -132,8 +170,8 @@ abstract class SheetMigration
 
             $item = $this->refine($item);
 
-            // +2: baris 1 adalah judul, dan nomor baris di Sheets mulai dari 1.
-            $item['_row'] = $n + 2;
+            // Nomor baris seperti yang terlihat di Google Sheets (mulai dari 1).
+            $item['_row'] = $barisJudul + $n + 2;
             $item['_note'] ??= blank($item[$this->requiredField()] ?? null)
                 ? 'Kolom wajib kosong — baris dilewati.'
                 : null;
@@ -150,6 +188,11 @@ abstract class SheetMigration
 
     public static function normalize(string $teks): string
     {
+        // "%" diubah jadi kata, bukan dibuang: judul "Projected Nett Margin" dan
+        // "Projected Nett Margin %" adalah dua kolom berbeda (rupiah vs persen),
+        // dan bedanya cuma tanda itu.
+        $teks = str_replace('%', ' persen ', $teks);
+
         return trim(preg_replace('/\s+/', ' ', Str::lower(preg_replace('/[^\p{L}\p{N}\s]+/u', ' ', $teks))) ?? '');
     }
 

@@ -6,8 +6,13 @@ didukung, dipilih lewat dropdown **Jenis data** di halaman migrasi:
 | Jenis | Tab bawaan | Masuk ke |
 |---|---|---|
 | Data Client | Pipeline | `data_clients` (Database Client) |
-| Pipeline | Pipeline | `bv_sales` (Sales Activity Tracker) |
+| Sales Activity Tracker | Pipeline | `bv_sales` |
 | Campaign | Campaigns | `bv_campaigns` (Campaign Ongoing Internal) |
+
+Profil Sales Activity Tracker dan Campaign masing-masing melayani DUA bentuk
+sheet: sheet Pipeline/Campaigns yang lama, dan sheet `(KOL) Project - Planning`
+/ `(AM) Project - Running` yang judul kolomnya berbeda. Alias judulnya digabung
+dalam satu profil karena tabel tujuannya sama.
 
 **Pull, bukan push**: Laravel yang membaca sheet-nya sendiri lewat service
 account, jadi tidak perlu Apps Script yang ditempel di tiap file.
@@ -64,8 +69,17 @@ Domain-wide Delegation, dengan scope `.../auth/spreadsheets.readonly`.
 
 ## Pemetaan kolom
 
-Lewat **judul di baris pertama**, bukan huruf kolom tetap — urutan kolom paling
-sering berubah. Besar-kecil huruf dan tanda baca diabaikan. Daftar alias
+Lewat **judul kolom**, bukan huruf kolom tetap — urutan kolom paling sering
+berubah. Besar-kecil huruf dan tanda baca diabaikan.
+
+Baris judulnya **dicari sendiri**, tidak diasumsikan baris pertama: banyak sheet
+diawali judul besar, baris TOTAL, dan catatan "*Di isi oleh BD". Yang dipakai
+adalah baris dengan kolom terkenali terbanyak dalam 12 baris pertama.
+
+Satu field hanya boleh diisi SATU kolom, yang paling kiri. Ini penting karena
+judul yang berbeda bisa menyusut jadi sama setelah tanda baca dibuang — tanda
+`%` karena itu diubah jadi kata "persen", supaya "Projected Nett Margin" (rupiah)
+dan "Projected Nett Margin %" tetap dua kolom berbeda. Daftar alias
 lengkapnya ada di `ClientSheetMigration::ALIASES`; menambah alias baru cukup
 menambah satu string di sana.
 
@@ -103,7 +117,11 @@ didaftarkan ke `agency_brands` milik agency (itu sumber relasinya di app ini,
 lihat `DataClient::syncAgencyBrands()`). Satu brand yang muncul di banyak bulan
 menyimpan bulan **paling awal**.
 
-**Pipeline** — kunci baris nama campaign + client. Kolom Stage/Status dipetakan ke
+**Sales Activity Tracker** — kunci baris nama campaign + client. Nama PIC di
+sheet dipetakan lewat `BvSalesList::ALIAS` (mis. "Sita" dan "Gress" → Gressita,
+"Febi" → Febby); tanpa itu tiap ejaan jadi baris sales sendiri dan laporan
+per-PIC-nya pecah. `BvSales.margin` menyimpan PERSEN, jadi yang dibaca kolom
+"%" — bukan kolom rupiah di sebelahnya. Kolom Stage/Status dipetakan ke
 `SalesStatus`; nilai yang tidak dikenali dibiarkan null supaya tidak mendarat di
 kolom kanban yang salah. Perlu diingat `BvSales` punya boot hook: perubahan status
 ke Briefing/Campaign Live memicu pembuatan FormBrief, Media Plan, atau Campaign.
