@@ -153,7 +153,29 @@ it('kolom agency berisi nama agency: barisnya dibuat lalu ditautkan, "Direct" di
         ->and($wardah->agency_client_id)->toBe($tbwa->id)
         ->and($wardah->has_agency)->toBeTrue()
         // Bulan dari kolom Months jadi tanggal awal bulan itu.
-        ->and((string) $wardah->date_outreach)->toBe('2025-08-01');
+        ->and((string) $wardah->date_outreach)->toBe('2025-08-01')
+        // Daftar "Brand yang Di-handle" milik agency ikut terisi — itu yang
+        // dihitung kolom Brand Di-handle di tab Agency, bukan agency_client_id.
+        ->and(collect($tbwa->fresh()->agency_brands)->pluck('nama_brand')->all())->toBe(['Wardah']);
+});
+
+it('brand yang sama tidak masuk dua kali ke daftar agency', function () {
+    $judul = ['Client/Brand', 'Brand / Agency', 'Months'];
+
+    $migrasi = new ClientSheetMigration();
+    // Satu brand, dua baris campaign, agency yang sama.
+    $migrasi->persist($migrasi->parseRows([
+        $judul,
+        ['Wardah', 'TBWA', 'July 2025'],
+        ['Wardah', 'TBWA', 'Aug 2025'],
+        ['Mobil1', 'TBWA', 'Aug 2025'],
+    ]));
+
+    $tbwa = DataClient::where('nama_brand', 'TBWA')->where('type', 'agency')->firstOrFail();
+
+    expect(collect($tbwa->agency_brands)->pluck('nama_brand')->sort()->values()->all())
+        ->toBe(['Mobil1', 'Wardah'])
+        ->and(DataClient::where('nama_brand', 'Wardah')->count())->toBe(1);
 });
 
 it('satu brand di banyak bulan menyimpan bulan paling awal', function () {

@@ -229,6 +229,8 @@ class ClientSheetMigration
             $client->pic_internal_sales_id = $sales->id;
         }
 
+        $agency = null;
+
         if ($client->type === 'direct' && filled($item['agency_handled_by'] ?? null)) {
             $nama = trim((string) $item['agency_handled_by']);
             $agency = DataClient::firstOrCreate(['nama_brand' => $nama, 'type' => 'agency']);
@@ -246,6 +248,39 @@ class ClientSheetMigration
         }
 
         $client->save();
+
+        // WAJIB setelah save(): daftar agency_brands milik agency adalah SUMBER
+        // relasinya di app ini — hook DataClient::syncAgencyBrands() yang
+        // menurunkannya jadi agency_client_id, bukan sebaliknya. Kalau daftar ini
+        // tidak ikut diisi, kolom "Brand Di-handle" di tab Agency menunjukkan 0.
+        // Dan kalau dipanggil SEBELUM save(), hook itu membuat baris direct-nya
+        // sendiri sehingga barisnya dobel.
+        if ($agency) {
+            $this->daftarkanKeAgency($agency, $client);
+        }
+    }
+
+    /** Tambahkan brand ke daftar "Brand yang Di-handle" milik agency, sekali saja. */
+    private function daftarkanKeAgency(DataClient $agency, DataClient $client): void
+    {
+        $daftar = collect($agency->agency_brands ?? []);
+
+        if ($daftar->contains(fn($b) => trim((string) ($b['nama_brand'] ?? '')) === $client->nama_brand)) {
+            return;
+        }
+
+        $pic = collect($client->pic_clients ?? [])->first() ?? [];
+
+        $agency->agency_brands = $daftar->push([
+            'nama_brand' => $client->nama_brand,
+            'category' => $client->category,
+            'nama_pic' => $pic['name'] ?? $pic['nama_pic'] ?? null,
+            'email' => $pic['email'] ?? null,
+            'wa_number' => $pic['wa_number'] ?? null,
+            'description' => $client->notes,
+        ])->all();
+
+        $agency->save();
     }
 
     /**
