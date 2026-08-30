@@ -34,8 +34,19 @@ class EditMediaPlan extends EditRecord
 
     public int $kolPerPage = 5;
 
-    /** @var array<int, int> id KOL yang benar-benar dimuat ke form halaman ini */
+    /** @var array<int, int> id KOL yang sudah pernah dimuat ke form sesi ini */
     public array $kolIdsDimuat = [];
+
+    /**
+     * Baris KOL yang sudah disunting tapi belum disimpan, per id.
+     *
+     * Pindah halaman TIDAK boleh membuang suntingan: barisnya disimpan di sini
+     * dulu, dipasang kembali saat halamannya dibuka lagi, dan ikut tertulis saat
+     * Save Changes ditekan — walau halaman yang sedang tampil bukan halamannya.
+     *
+     * @var array<int, array<string, mixed>>
+     */
+    public array $kolBelumSimpan = [];
 
     public function totalKol(): int
     {
@@ -50,24 +61,60 @@ class EditMediaPlan extends EditRecord
     public function gantiHalamanKol(int $halaman): void
     {
         $this->kolPage = max(1, min($halaman, $this->totalHalamanKol()));
-        $this->fillForm();
+        $this->muatHalamanKol();
     }
 
     public function aturKolPerPage(int $jumlah): void
     {
         $this->kolPerPage = in_array($jumlah, self::KOL_PER_PAGE, true) ? $jumlah : self::KOL_PER_PAGE[0];
         $this->kolPage = 1;
-        $this->fillForm();
+        $this->muatHalamanKol();
+    }
+
+    /**
+     * Tukar ISI daftar KOL saja, bukan mengisi ulang seluruh form.
+     *
+     * fillForm() akan menarik ulang semua step dari database, jadi apa pun yang
+     * diketik di Campaign Information ikut hilang cuma karena user pindah
+     * halaman KOL. Yang berganti memang cuma daftarnya.
+     */
+    private function muatHalamanKol(): void
+    {
+        // Titipkan dulu suntingan halaman yang sedang tampil.
+        foreach ($this->data['kols'] ?? [] as $baris) {
+            if (filled($baris['id'] ?? null)) {
+                $this->kolBelumSimpan[$baris['id']] = $baris;
+            }
+        }
+
+        $this->data['kols'] = $this->barisKolUntukForm();
     }
 
     protected function mutateFormDataBeforeFill(array $data): array
+    {
+        $data['kols'] = $this->barisKolUntukForm();
+
+        return $this->lengkapiDataForm($data);
+    }
+
+    /**
+     * Baris KOL halaman yang sedang dibuka, siap dipakai form.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function barisKolUntukForm(): array
     {
         // Satu halaman saja; sisanya tetap utuh di database.
         $kols = $this->record->kols()->with('dataKol')
             ->forPage($this->kolPage, $this->kolPerPage)
             ->get();
 
-        $this->kolIdsDimuat = $kols->pluck('id')->all();
+        // Akumulatif, bukan ditimpa: penghapusan di afterSave() dibatasi ke id
+        // yang PERNAH dimuat, dan user bisa menyunting beberapa halaman sebelum
+        // menekan Save Changes sekali.
+        $this->kolIdsDimuat = array_values(array_unique(
+            array_merge($this->kolIdsDimuat, $kols->pluck('id')->all()),
+        ));
 
         // Muat sekali untuk SEMUA baris: DataKol, rate card, dan daftar channel.
         // Harus sebelum pemetaan di bawah — pemetaan itu sudah memanggil
@@ -75,7 +122,7 @@ class EditMediaPlan extends EditRecord
         // terlanjur mengambil datanya sendiri-sendiri.
         \App\Filament\Resources\MediaPlans\Schemas\MediaPlanForm::muatUntuk($kols);
 
-        $data['kols'] = $kols->map(function ($kol) {
+        return $kols->map(function ($kol) {
             // Backfill ER & rate dari database KOL jika belum tersimpan di baris
             $erPercent = $kol->er_percent;
             if (!(float) $erPercent && $kol->dataKol) {
@@ -121,8 +168,15 @@ class EditMediaPlan extends EditRecord
                 // ini datang dari migrasi spreadsheet, bukan diinput manual.
                 'imported_at' => $kol->imported_at,
             ];
-        })->toArray();
+        })
+            // Suntingan yang belum disimpan menang atas isi database — user bisa
+            // menyunting beberapa halaman dulu, baru menekan Save Changes sekali.
+            ->map(fn(array $baris) => $this->kolBelumSimpan[$baris['id']] ?? $baris)
+            ->toArray();
+    }
 
+    private function lengkapiDataForm(array $data): array
+    {
         // Belum ada baris KOL sama sekali → generate 1 baris per SOW brief (dropdown KOL tetap manual).
         // Baris hanya tersimpan kalau user menekan Save changes.
         if (empty($data['kols'])) {
@@ -165,10 +219,23 @@ class EditMediaPlan extends EditRecord
 
     protected function mutateFormDataBeforeSave(array $data): array
     {
-        $this->guardKolRateCards($data['kols'] ?? []);
+        // Gabungkan halaman yang sedang tampil dengan suntingan halaman lain yang
+        // belum disimpan. Tanpa ini, menyunting halaman 1 lalu pindah ke halaman 2
+        // dan menekan Save Changes akan membuang suntingan halaman 1 diam-diam.
+        $gabungan = $this->kolBelumSimpan;
+
+        foreach ($data['kols'] ?? [] as $baris) {
+            filled($baris['id'] ?? null)
+                ? $gabungan[$baris['id']] = $baris
+                : $gabungan[] = $baris;   // baris baru, belum punya id
+        }
+
+        $data['kols'] = array_values($gabungan);
+
+        $this->guardKolRateCards($data['kols']);
 
         // Store kols data temporarily and remove from main data
-        $this->kolsData = $data['kols'] ?? [];
+        $this->kolsData = $data['kols'];
         $this->budgetItemsData = $data['budget_items'] ?? [];
         unset($data['kols']);
         unset($data['kol_margins']);
@@ -234,6 +301,9 @@ class EditMediaPlan extends EditRecord
 
     protected function afterSave(): void
     {
+        // Sudah tertulis ke database; jangan dipasang lagi ke halaman berikutnya.
+        $this->kolBelumSimpan = [];
+
         // Ensure internal budget exists
         $internalBudget = $this->record->internalBudget;
         if (!$internalBudget) {

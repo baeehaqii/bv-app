@@ -123,3 +123,57 @@ it('menghapus baris dari form tetap menghapus KOL-nya', function () {
         // Halaman lain tetap utuh.
         ->and($plan->kols()->where('name', 'KOL 12')->exists())->toBeTrue();
 });
+
+it('pindah halaman tidak membuang isian step lain yang belum disimpan', function () {
+    Gate::before(fn() => true);
+    $plan = planDengan(12);
+
+    $halaman = Livewire::actingAs(paginasiUser())->test(EditMediaPlan::class, ['record' => $plan->id]);
+
+    // Ketik sesuatu di step Campaign Information, lalu pindah halaman KOL.
+    $halaman->set('data.notes', 'catatan yang belum disimpan')
+        ->call('gantiHalamanKol', 2);
+
+    // Dulu gantiHalamanKol() memanggil fillForm() dan menarik ulang SEMUA step
+    // dari database, jadi catatan ini ikut hilang.
+    expect($halaman->get('data')['notes'])->toBe('catatan yang belum disimpan')
+        ->and($halaman->get('data')['kols'])->toHaveCount(5);
+});
+
+it('suntingan KOL bertahan saat pindah halaman lalu kembali', function () {
+    Gate::before(fn() => true);
+    $plan = planDengan(12);
+
+    $halaman = Livewire::actingAs(paginasiUser())->test(EditMediaPlan::class, ['record' => $plan->id]);
+
+    $kols = $halaman->get('data')['kols'];
+    $kunci = array_key_first($kols);
+    $kols[$kunci]['notes'] = 'nego lewat WA';
+    $halaman->set('data.kols', $kols);
+
+    $halaman->call('gantiHalamanKol', 2)->call('gantiHalamanKol', 1);
+
+    expect(collect($halaman->get('data')['kols'])->firstWhere('id', $kols[$kunci]['id'])['notes'])
+        ->toBe('nego lewat WA');
+});
+
+it('suntingan halaman lain ikut tersimpan saat Save Changes ditekan', function () {
+    Gate::before(fn() => true);
+    $plan = planDengan(12);
+
+    $halaman = Livewire::actingAs(paginasiUser())->test(EditMediaPlan::class, ['record' => $plan->id]);
+
+    // Sunting satu baris di halaman 1 …
+    $kols = $halaman->get('data')['kols'];
+    $kunci = array_key_first($kols);
+    $idDisunting = $kols[$kunci]['id'];
+    $kols[$kunci]['notes'] = 'disunting di halaman 1';
+    $halaman->set('data.kols', $kols);
+
+    // … lalu pindah ke halaman 2 dan menyimpan dari sana.
+    $halaman->call('gantiHalamanKol', 2)->call('save')->assertHasNoErrors();
+
+    expect(MediaPlanKol::find($idDisunting)->notes)->toBe('disunting di halaman 1')
+        // Dan tidak ada yang hilang.
+        ->and($plan->kols()->count())->toBe(12);
+});
