@@ -42,6 +42,15 @@ return [
     'google' => [
         'folder_id' => env('GOOGLE_DRIVE_FOLDER_ID'),
         'share_with_email' => env('GOOGLE_SHARE_WITH_EMAIL'),
+
+        // Service account untuk membaca Google Spreadsheet privat (Migrasi Data).
+        // Berkas JSON-nya rahasia; storage/app/google sudah masuk .gitignore.
+        'credentials' => env('GOOGLE_SERVICE_ACCOUNT', storage_path('app/google/service-account.json')),
+
+        // Domain-Wide Delegation: service account menyamar jadi user Workspace ini
+        // supaya bisa membaca SEMUA sheet miliknya tanpa share satu per satu.
+        // Kosongkan bila sheet-nya cukup di-share manual ke client_email SA.
+        'impersonate' => env('GOOGLE_IMPERSONATE_EMAIL'),
     ],
 
     'webhook' => [
