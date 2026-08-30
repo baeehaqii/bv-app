@@ -227,3 +227,38 @@ it('halaman ter-render penuh saat data lengkap (grafik growth + grid postingan)'
         ->assertSee('10 Postingan Terakhir')
         ->assertSee('Video');
 });
+
+it('meringkas angka gabungan seluruh channel milik satu KOL', function () {
+    $ig = DataKol::create([
+        'username' => 'gabungan', 'channel' => 'Instagram',
+        'link_userprofile' => 'https://instagram.com/gabungan',
+        'followers' => 40_000, 'engagements' => 2_000,
+        'engagement_rate' => 5.0, 'average_views' => 10_000,
+    ]);
+    DataKol::create([
+        'username' => 'gabungan', 'channel' => 'TikTok',
+        'link_userprofile' => 'https://tiktok.com/@gabungan',
+        'followers' => 80_000, 'engagements' => 6_000,
+        'engagement_rate' => 7.0, 'average_views' => 30_000,
+    ]);
+
+    $gab = $ig->crossChannelSummary();
+
+    expect($gab['channels'])->toBe(2)
+        // Followers & engagements dijumlahkan; ER dan avg views dirata-rata —
+        // aturan yang sama dengan kolom di KOL Data.
+        ->and($gab['followers'])->toBe(120_000)
+        ->and($gab['engagements'])->toBe(8_000)
+        ->and($gab['engagement_rate'])->toBe(6.0)
+        ->and($gab['average_views'])->toBe(20_000)
+        // Tier ikut followers GABUNGAN, bukan followers channel yang dibuka.
+        ->and($gab['tier'])->toBe('Macro');
+
+    Livewire::actingAs(analyzerUser())
+        ->test(KolAnalyzer::class, ['channelId' => $ig->id])
+        ->assertSee('Total Followers')
+        ->assertSee('ER Gabungan')
+        // 120.000 gabungan, bukan 40.000 milik channel Instagram yang dibuka.
+        ->assertSee('120.000')
+        ->assertSee('2 channel · tier Macro', escape: false);
+});

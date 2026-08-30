@@ -72,6 +72,17 @@ class KolAnalyzer extends Page implements HasTable
     }
 
     /**
+     * Angka gabungan seluruh channel KOL ini — kartu ringkasan di atas tabel
+     * Social Data. Aturan agregasinya milik model, sama dengan kolom KOL Data.
+     *
+     * @return array<string, int|float|string>
+     */
+    public function getGabunganProperty(): array
+    {
+        return $this->channel?->crossChannelSummary() ?? [];
+    }
+
+    /**
      * Postingan untuk tab Latest Performa. Tab Overview memakai angka rata-rata
      * yang tersimpan (dari seluruh postingan saat scraping), tab ini memakai
      * 10 postingan terakhir apa adanya.

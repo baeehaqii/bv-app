@@ -104,9 +104,36 @@
 
         </div>
 
-        {{-- 2. Tabel semua channel milik KOL ini --}}
+        {{-- 2. Angka gabungan seluruh channel + tabel channel-nya --}}
         <div class="kolz-card">
+            @php $gab = $this->gabungan; @endphp
             <div class="kolz-label" style="margin-bottom:.5rem">Social Data — Semua Channel &#64;{{ $channel->username }}</div>
+
+            <div class="kolz-grid kolz-cols-4" style="margin-bottom:1rem">
+                <div>
+                    <div class="kolz-label">Total Followers</div>
+                    <div class="kolz-value">{{ $angka($gab['followers']) }}</div>
+                    <div class="kolz-muted" style="font-size:.75rem">
+                        {{ $gab['channels'] }} channel · tier {{ $gab['tier'] }}
+                    </div>
+                </div>
+                <div>
+                    <div class="kolz-label">Total Engagements</div>
+                    <div class="kolz-value">{{ $angka($gab['engagements']) }}</div>
+                    <div class="kolz-muted" style="font-size:.75rem">seluruh channel dijumlahkan</div>
+                </div>
+                <div>
+                    <div class="kolz-label">ER Gabungan</div>
+                    <div class="kolz-value">{{ number_format($gab['engagement_rate'], 2) }}%</div>
+                    <div class="kolz-muted" style="font-size:.75rem">rata-rata ER antar channel</div>
+                </div>
+                <div>
+                    <div class="kolz-label">Avg Views Gabungan</div>
+                    <div class="kolz-value">{{ $angka($gab['average_views']) }}</div>
+                    <div class="kolz-muted" style="font-size:.75rem">rata-rata antar channel</div>
+                </div>
+            </div>
+
             <div style="overflow-x:auto">
                 <table class="kolz-table">
                     <thead>

@@ -82,6 +82,33 @@ class DataKol extends Model
         return $this->channels()->with('rateCards')->orderBy('channel')->get();
     }
 
+    /**
+     * Angka gabungan seluruh channel KOL ini — dipakai ringkasan KOL Analyzer.
+     *
+     * Aturan agregasinya sengaja sama persis dengan kolom di KOL Data
+     * (DataKolsTable): followers & engagements dijumlahkan, ER dan avg views
+     * dirata-rata antar channel, tier dihitung ulang dari followers gabungan.
+     * Di sana bentuknya withSum/withAvg karena harus bisa di-sort & di-filter
+     * lewat SQL; di sini koleksinya memang sudah dimuat.
+     *
+     * @return array{channels: int, followers: int, engagements: int,
+     *               engagement_rate: float, average_views: int, tier: string}
+     */
+    public function crossChannelSummary(): array
+    {
+        $channels = $this->channelSiblings();
+        $followers = (int) $channels->sum('followers');
+
+        return [
+            'channels' => $channels->count(),
+            'followers' => $followers,
+            'engagements' => (int) $channels->sum('engagements'),
+            'engagement_rate' => round((float) $channels->avg('engagement_rate'), 2),
+            'average_views' => (int) round((float) $channels->avg('average_views')),
+            'tier' => static::tierFor($followers),
+        ];
+    }
+
     public function rateCards(): HasMany
     {
         return $this->hasMany(KolRateCard::class)->orderByDesc('valid_from');
