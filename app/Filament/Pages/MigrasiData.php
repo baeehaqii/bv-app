@@ -114,7 +114,7 @@ class MigrasiData extends Page
         $this->form->fill([
             'jenis' => $jenis,
             'sumber' => 'paste',
-            'mediaPlanId' => request('media_plan'),
+            'bvSalesId' => request('sales'),
             'sheetName' => app(self::PROFIL[$jenis])->defaultSheetName(),
         ]);
     }
@@ -152,7 +152,7 @@ class MigrasiData extends Page
                     ->label('Sumber spreadsheet')
                     ->options([
                         'paste' => 'Tempel link',
-                        'daftar' => 'Pilih dari yang di-share ke service account',
+                        'daftar' => 'Pilih dari yang di-share',
                     ])
                     ->default('paste')
                     ->inline()
@@ -205,11 +205,14 @@ class MigrasiData extends Page
                     ->live(onBlur: true)
                     ->afterStateUpdated(fn() => $this->muatNamaTab()),
 
-                Select::make('mediaPlanId')
-                    ->label('Media Plan tujuan')
-                    ->helperText('KOL dari sheet akan masuk ke Media Plan ini.')
-                    ->options(fn() => \App\Models\MediaPlan::orderByDesc('id')->limit(100)
-                        ->pluck('campaign_name', 'id')->all())
+                Select::make('bvSalesId')
+                    ->label('Deal di Sales Activity Tracker')
+                    ->helperText('KOL dari sheet masuk ke Media Plan milik deal ini. '
+                        . 'Kalau Media Plan-nya belum ada, dibuatkan otomatis.')
+                    ->options(fn() => \App\Models\BvSales::orderByDesc('id')->limit(200)->get()
+                        ->mapWithKeys(fn($s) => [$s->id => $s->event_name
+                            . ($s->company_name ? ' — ' . $s->company_name : '')])
+                        ->all())
                     ->searchable()
                     ->native(false)
                     ->required(fn(callable $get) => $get('jenis') === 'mediaplan')
@@ -231,7 +234,7 @@ class MigrasiData extends Page
 
         // Profil KOL List perlu tahu Media Plan tujuannya; profil lain tidak.
         return $profil instanceof MediaPlanSheetMigration
-            ? $profil->untukMediaPlan($this->data['mediaPlanId'] ?? null)
+            ? $profil->untukSales($this->data['bvSalesId'] ?? null)
             : $profil;
     }
 
@@ -266,8 +269,8 @@ class MigrasiData extends Page
             return;
         }
 
-        if (($this->data['jenis'] ?? null) === 'mediaplan' && blank($this->data['mediaPlanId'] ?? null)) {
-            $this->errorMessage = 'Pilih dulu Media Plan tujuannya.';
+        if (($this->data['jenis'] ?? null) === 'mediaplan' && blank($this->data['bvSalesId'] ?? null)) {
+            $this->errorMessage = 'Pilih dulu deal di Sales Activity Tracker.';
 
             return;
         }

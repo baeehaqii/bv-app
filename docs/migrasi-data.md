@@ -149,8 +149,12 @@ Jadi baris tanpa username bukan baris kosong — ia digabung ke KOL di atasnya.
 `qty` dan `rate` KOL adalah JUMLAH seluruh SOW-nya, karena sheet menaruh
 angkanya per baris SOW. Tiap tier (Nano/Micro/Macro/Homeless Media) satu tab
 dengan susunan kolom yang sama, jadi tab-nya dipilih manual dan dijalankan
-bergantian. Wajib memilih **Media Plan tujuan** dulu; tanpa itu tidak ada yang
-disimpan. Kunci baris = nama + channel.
+bergantian. Wajib memilih **deal di Sales Activity Tracker** dulu; tanpa itu tidak ada yang
+disimpan. Yang dipilih deal-nya, bukan Media Plan-nya langsung — Media Plan
+memang turunan dari deal (`BvSales::ensureMediaPlanExists()`), jadi memilih deal
+memastikan KOL mendarat di Media Plan yang benar, dan Media Plan yang belum ada
+dibuatkan dengan cara yang sama persis dengan alur normal. Kunci baris = nama +
+channel.
 
 Tombol pintasnya ada di header tabel **Media Plan Internal** ("Migrasi KOL dari
 Spreadsheet") — membuka halaman ini dengan jenisnya sudah terpilih.

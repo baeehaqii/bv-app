@@ -2,6 +2,7 @@
 
 namespace App\Service;
 
+use App\Models\BvSales;
 use App\Models\MediaPlan;
 use App\Models\MediaPlanKol;
 use Illuminate\Support\Facades\DB;
@@ -20,12 +21,19 @@ use Illuminate\Support\Facades\DB;
  */
 class MediaPlanSheetMigration extends SheetMigration
 {
-    /** Media Plan tujuan — WAJIB dipilih user sebelum migrasi dijalankan. */
-    private ?int $mediaPlanId = null;
+    /**
+     * Deal di Sales Activity Tracker yang jadi tujuan — WAJIB dipilih user.
+     *
+     * Yang dipilih deal-nya, bukan Media Plan-nya langsung: Media Plan memang
+     * turunan dari deal (BvSales::ensureMediaPlanExists()), jadi memilih deal
+     * berarti KOL-nya pasti mendarat di Media Plan yang benar — dan kalau Media
+     * Plan-nya belum ada, dibuatkan dengan cara yang sama seperti alur normal.
+     */
+    private ?int $bvSalesId = null;
 
-    public function untukMediaPlan(?int $id): static
+    public function untukSales(?int $id): static
     {
-        $this->mediaPlanId = $id;
+        $this->bvSalesId = $id;
 
         return $this;
     }
@@ -144,11 +152,10 @@ class MediaPlanSheetMigration extends SheetMigration
     {
         $hasil = ['success' => 0, 'skipped' => 0, 'failed' => 0, 'notes' => []];
 
-        $mediaPlan = $this->mediaPlanId ? MediaPlan::find($this->mediaPlanId) : null;
+        $mediaPlan = $this->mediaPlanTujuan($hasil);
 
         if (! $mediaPlan) {
             $hasil['skipped'] = count($items);
-            $hasil['notes'][] = 'Media Plan tujuan belum dipilih — tidak ada yang disimpan.';
 
             return $hasil;
         }
@@ -172,6 +179,36 @@ class MediaPlanSheetMigration extends SheetMigration
         });
 
         return $hasil;
+    }
+
+    /** @param array{notes: array<int, string>} $hasil */
+    private function mediaPlanTujuan(array &$hasil): ?MediaPlan
+    {
+        if (! $this->bvSalesId) {
+            $hasil['notes'][] = 'Deal di Sales Activity Tracker belum dipilih — tidak ada yang disimpan.';
+
+            return null;
+        }
+
+        $sales = BvSales::find($this->bvSalesId);
+
+        if (! $sales) {
+            $hasil['notes'][] = 'Deal yang dipilih sudah tidak ada.';
+
+            return null;
+        }
+
+        // Deal yang belum sampai tahap briefing belum punya Media Plan; dibuatkan
+        // lewat method milik model itu sendiri supaya isinya sama dengan alur normal.
+        $sales->ensureMediaPlanExists();
+
+        $mediaPlan = $sales->mediaPlan()->first();
+
+        if (! $mediaPlan) {
+            $hasil['notes'][] = 'Media Plan untuk deal ini gagal disiapkan.';
+        }
+
+        return $mediaPlan;
     }
 
     private function simpanSatu(array $item, MediaPlan $mediaPlan, array &$hasil): void

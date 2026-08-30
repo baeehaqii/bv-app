@@ -460,13 +460,15 @@ it('menggabungkan baris scope of work ke KOL di atasnya', function () {
 });
 
 it('menyimpan KOL beserta total qty dan rate seluruh scope of work-nya', function () {
+    $sales = \App\Models\BvSales::create(['event_name' => 'Bir Kawan Senja', 'company_name' => 'Multi Bintang']);
     $plan = \App\Models\MediaPlan::create([
+        'bv_sales_id' => $sales->id,
         'campaign_name' => 'Bir Kawan Senja',
-        'brand' => 'Bir Kawan Senja',
+        'brand' => 'Multi Bintang',
         'quotation_number' => 'BVN/QUOT/TEST/001',
     ]);
 
-    $m = (new \App\Service\MediaPlanSheetMigration())->untukMediaPlan($plan->id);
+    $m = (new \App\Service\MediaPlanSheetMigration())->untukSales($sales->id);
     $hasil = $m->persist($m->parseRows(kolListRows()));
 
     expect($hasil['success'])->toBe(2)->and($hasil['failed'])->toBe(0);
@@ -485,12 +487,30 @@ it('menyimpan KOL beserta total qty dan rate seluruh scope of work-nya', functio
     expect(\App\Models\MediaPlanKol::where('media_plan_id', $plan->id)->count())->toBe(2);
 });
 
-it('menolak migrasi KOL List sebelum Media Plan tujuannya dipilih', function () {
+it('menolak migrasi KOL List sebelum deal-nya dipilih', function () {
     $m = new \App\Service\MediaPlanSheetMigration();
     $hasil = $m->persist($m->parseRows(kolListRows()));
 
     expect($hasil['success'])->toBe(0)
         ->and($hasil['skipped'])->toBe(2)
-        ->and($hasil['notes'][0])->toContain('Media Plan tujuan belum dipilih')
+        ->and($hasil['notes'][0])->toContain('belum dipilih')
         ->and(\App\Models\MediaPlanKol::count())->toBe(0);
+});
+
+it('membuatkan Media Plan bila deal-nya belum punya', function () {
+    $sales = \App\Models\BvSales::create(['event_name' => 'Bir Kawan Senja', 'company_name' => 'Multi Bintang']);
+
+    expect($sales->mediaPlan()->exists())->toBeFalse();
+
+    $m = (new \App\Service\MediaPlanSheetMigration())->untukSales($sales->id);
+    $hasil = $m->persist($m->parseRows(kolListRows()));
+
+    $plan = $sales->fresh()->mediaPlan;
+
+    expect($hasil['success'])->toBe(2)
+        // Dibuat lewat BvSales::ensureMediaPlanExists(), jadi isinya sama dengan
+        // Media Plan yang lahir dari alur normal.
+        ->and($plan)->not->toBeNull()
+        ->and($plan->campaign_name)->toBe('Bir Kawan Senja')
+        ->and(\App\Models\MediaPlanKol::where('media_plan_id', $plan->id)->count())->toBe(2);
 });
