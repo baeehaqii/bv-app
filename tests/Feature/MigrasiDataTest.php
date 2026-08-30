@@ -421,3 +421,76 @@ it('memberi tahu kalau daftar spreadsheet tidak bisa diambil', function () {
         ->assertSet('daftarSpreadsheet', [])
         ->assertSet('errorMessage', fn($v) => str_contains((string) $v, 'Drive API'));
 });
+
+/* -------------------------------------------------------------------------
+ | KOL List → Media Plan Internal
+ * ---------------------------------------------------------------------- */
+
+/** Susunan sheet "[INT] ... - KOL List": judul di baris 2, satu KOL beberapa baris. */
+function kolListRows(): array
+{
+    return [
+        ['', '', '', '', '', '', '', '', '', 'MEDIA PLAN - Bir Kawan Senja'],
+        ['No', 'PIC', 'Status', 'Username', 'Link', 'Channel', 'Categories', 'Followers', 'Tier', 'ER %', 'Avg Views', 'Engagement', '', '', '', '', '', '', '', 'Qty', 'Item', 'Rate'],
+        ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+        [1, 'Sheila', 'Approaching', 'Bagus Gandhi', 'https://instagram.com/bagus', 'Instagram', 'Lifestyle', 12000, 'Nano', 4.5, 8000, 540, '', '', '', '', '', '', '', 1, 'IG Reels', 1500000],
+        ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', 1, 'IG Story with Link', 500000],
+        ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', 1, 'Visit Store', 0],
+        [2, 'Salwa', 'Approaching', 'Ivan Wahyu', 'https://instagram.com/ivan', 'Instagram', 'Food', 9000, 'Nano', 3.2, 5000, 288, '', '', '', '', '', '', '', 1, 'IG Reels', 1200000],
+    ];
+}
+
+it('menggabungkan baris scope of work ke KOL di atasnya', function () {
+    $m = new \App\Service\MediaPlanSheetMigration();
+    $items = $m->parseRows(kolListRows());
+
+    // Enam baris data, tapi hanya DUA KOL — sisanya lanjutan SOW.
+    expect($items)->toHaveCount(2);
+
+    $bagus = $items[0];
+    expect($bagus['name'])->toBe('Bagus Gandhi')
+        ->and($bagus['channel'])->toBe('Instagram')
+        ->and($bagus['followers'])->toBe(12000)
+        ->and(collect($bagus['scope_items'])->pluck('item')->all())
+        ->toBe(['IG Reels', 'IG Story with Link', 'Visit Store'])
+        ->and($bagus['sow_ringkas'])->toContain('IG Story with Link');
+
+    expect($items[1]['name'])->toBe('Ivan Wahyu')
+        ->and($items[1]['scope_items'])->toHaveCount(1);
+});
+
+it('menyimpan KOL beserta total qty dan rate seluruh scope of work-nya', function () {
+    $plan = \App\Models\MediaPlan::create([
+        'campaign_name' => 'Bir Kawan Senja',
+        'brand' => 'Bir Kawan Senja',
+        'quotation_number' => 'BVN/QUOT/TEST/001',
+    ]);
+
+    $m = (new \App\Service\MediaPlanSheetMigration())->untukMediaPlan($plan->id);
+    $hasil = $m->persist($m->parseRows(kolListRows()));
+
+    expect($hasil['success'])->toBe(2)->and($hasil['failed'])->toBe(0);
+
+    $kol = \App\Models\MediaPlanKol::where('name', 'Bagus Gandhi')->firstOrFail();
+
+    expect($kol->media_plan_id)->toBe($plan->id)
+        ->and($kol->pic)->toBe('Sheila')
+        ->and($kol->scope_items)->toBe(['IG Reels', 'IG Story with Link', 'Visit Store'])
+        ->and((int) $kol->qty)->toBe(3)
+        // Rate KOL = jumlah rate tiap SOW, karena sheet menaruhnya per baris.
+        ->and((float) $kol->rate)->toBe(2000000.0);
+
+    // Idempoten: kunci nama + channel, jadi jalan ulang tidak menggandakan.
+    $m->persist($m->parseRows(kolListRows()));
+    expect(\App\Models\MediaPlanKol::where('media_plan_id', $plan->id)->count())->toBe(2);
+});
+
+it('menolak migrasi KOL List sebelum Media Plan tujuannya dipilih', function () {
+    $m = new \App\Service\MediaPlanSheetMigration();
+    $hasil = $m->persist($m->parseRows(kolListRows()));
+
+    expect($hasil['success'])->toBe(0)
+        ->and($hasil['skipped'])->toBe(2)
+        ->and($hasil['notes'][0])->toContain('Media Plan tujuan belum dipilih')
+        ->and(\App\Models\MediaPlanKol::count())->toBe(0);
+});

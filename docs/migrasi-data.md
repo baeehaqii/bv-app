@@ -8,6 +8,7 @@ didukung, dipilih lewat dropdown **Jenis data** di halaman migrasi:
 | Data Client | Pipeline | `data_clients` (Database Client) |
 | Sales Activity Tracker | Pipeline | `bv_sales` |
 | Campaign | Campaigns | `bv_campaigns` (Campaign Ongoing Internal) |
+| KOL List | (pilih tab tier) | `media_plan_kols` (Media Plan Internal) |
 
 Profil Sales Activity Tracker dan Campaign masing-masing melayani DUA bentuk
 sheet: sheet Pipeline/Campaigns yang lama, dan sheet `(KOL) Project - Planning`
@@ -140,6 +141,19 @@ kolom kanban yang salah. Perlu diingat `BvSales` punya boot hook: perubahan stat
 ke Briefing/Campaign Live memicu pembuatan FormBrief, Media Plan, atau Campaign.
 Hook itu hanya berjalan saat UPDATE, jadi migrasi pertama aman — tapi migrasi ulang
 yang mengubah status bisa memicunya.
+
+**KOL List** — bentuk sheet-nya berbeda dari yang lain: **satu KOL menempati
+beberapa baris**. Baris pertama berisi identitas KOL plus scope of work
+pertamanya; baris di bawahnya hanya SOW tambahan dengan kolom identitas kosong.
+Jadi baris tanpa username bukan baris kosong — ia digabung ke KOL di atasnya.
+`qty` dan `rate` KOL adalah JUMLAH seluruh SOW-nya, karena sheet menaruh
+angkanya per baris SOW. Tiap tier (Nano/Micro/Macro/Homeless Media) satu tab
+dengan susunan kolom yang sama, jadi tab-nya dipilih manual dan dijalankan
+bergantian. Wajib memilih **Media Plan tujuan** dulu; tanpa itu tidak ada yang
+disimpan. Kunci baris = nama + channel.
+
+Tombol pintasnya ada di header tabel **Media Plan Internal** ("Migrasi KOL dari
+Spreadsheet") — membuka halaman ini dengan jenisnya sudah terpilih.
 
 **Campaign** — kunci baris nama campaign + client. Client yang belum ada dibuat,
 tapi nama yang cuma beda tipis dari client yang sudah ada (mis. "ITDC - Injouney"

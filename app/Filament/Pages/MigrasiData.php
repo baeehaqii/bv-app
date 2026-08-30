@@ -5,6 +5,7 @@ namespace App\Filament\Pages;
 use App\Service\CampaignSheetMigration;
 use App\Service\ClientSheetMigration;
 use App\Service\GoogleSheetReader;
+use App\Service\MediaPlanSheetMigration;
 use App\Service\PipelineSheetMigration;
 use App\Service\SheetMigration;
 use Filament\Forms\Components\Radio;
@@ -49,6 +50,7 @@ class MigrasiData extends Page
         'client' => ClientSheetMigration::class,
         'pipeline' => PipelineSheetMigration::class,
         'campaign' => CampaignSheetMigration::class,
+        'mediaplan' => MediaPlanSheetMigration::class,
     ];
 
     /** @var array<string, mixed> state form: jenis, sheetLink, sheetName */
@@ -105,10 +107,15 @@ class MigrasiData extends Page
 
     public function mount(): void
     {
+        // Tombol "Migrasi dari Spreadsheet" di halaman lain membuka halaman ini
+        // dengan jenisnya sudah terpilih.
+        $jenis = array_key_exists((string) request('jenis'), self::PROFIL) ? (string) request('jenis') : 'client';
+
         $this->form->fill([
-            'jenis' => 'client',
+            'jenis' => $jenis,
             'sumber' => 'paste',
-            'sheetName' => app(ClientSheetMigration::class)->defaultSheetName(),
+            'mediaPlanId' => request('media_plan'),
+            'sheetName' => app(self::PROFIL[$jenis])->defaultSheetName(),
         ]);
     }
 
@@ -198,6 +205,16 @@ class MigrasiData extends Page
                     ->live(onBlur: true)
                     ->afterStateUpdated(fn() => $this->muatNamaTab()),
 
+                Select::make('mediaPlanId')
+                    ->label('Media Plan tujuan')
+                    ->helperText('KOL dari sheet akan masuk ke Media Plan ini.')
+                    ->options(fn() => \App\Models\MediaPlan::orderByDesc('id')->limit(100)
+                        ->pluck('campaign_name', 'id')->all())
+                    ->searchable()
+                    ->native(false)
+                    ->required(fn(callable $get) => $get('jenis') === 'mediaplan')
+                    ->visible(fn(callable $get) => $get('jenis') === 'mediaplan'),
+
                 Select::make('sheetName')
                     ->label('Tab')
                     ->options(fn() => array_combine($this->sheetNames, $this->sheetNames))
@@ -210,7 +227,12 @@ class MigrasiData extends Page
 
     public function profil(): SheetMigration
     {
-        return app(self::PROFIL[$this->data['jenis'] ?? 'client'] ?? ClientSheetMigration::class);
+        $profil = app(self::PROFIL[$this->data['jenis'] ?? 'client'] ?? ClientSheetMigration::class);
+
+        // Profil KOL List perlu tahu Media Plan tujuannya; profil lain tidak.
+        return $profil instanceof MediaPlanSheetMigration
+            ? $profil->untukMediaPlan($this->data['mediaPlanId'] ?? null)
+            : $profil;
     }
 
     /** Isi dropdown tab begitu link ditempel, sekalian uji akses lebih awal. */
@@ -240,6 +262,12 @@ class MigrasiData extends Page
 
         if (! $id) {
             $this->errorMessage = 'Link Google Sheets tidak dikenali.';
+
+            return;
+        }
+
+        if (($this->data['jenis'] ?? null) === 'mediaplan' && blank($this->data['mediaPlanId'] ?? null)) {
+            $this->errorMessage = 'Pilih dulu Media Plan tujuannya.';
 
             return;
         }
