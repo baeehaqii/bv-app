@@ -45,8 +45,9 @@
             </div>
 
             <p class="mt-5 text-sm text-gray-600 leading-relaxed">
-                Mohon tandai KOL / SOW mana saja yang <strong>dipakai</strong> (✓) atau <strong>tidak dipakai</strong> (✗)
-                untuk campaign ini. Tambahkan catatan / feedback bila ada, lalu klik <strong>Submit Review</strong> di bawah.
+                Mohon tandai KOL mana saja yang <strong>dipakai</strong> (✓) atau <strong>tidak dipakai</strong> (✗)
+                untuk campaign ini. Klik nama scope of work-nya untuk melihat rincian tiap KOL.
+                Tambahkan catatan / feedback bila ada, lalu klik <strong>Submit Review</strong> di bawah.
             </p>
         </div>
 
@@ -64,38 +65,36 @@
 
             {{-- Ringkasan pilihan client --}}
             <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                <div class="px-6 py-4 border-b border-gray-100">
+                <div class="px-5 py-4 border-b border-gray-100">
                     <h2 class="text-base font-semibold text-gray-900">Ringkasan Pilihan Anda</h2>
                 </div>
                 <div class="divide-y divide-gray-100">
                     @foreach ($groupedItems as $group)
-                        <div class="px-6 py-4">
-                            <p class="text-sm font-semibold text-gray-900">{{ $group['kol_name'] }}</p>
-                            @include('media-plan.partials.kol-stats', ['kol' => $group['kol']])
-                            <div class="mt-2"></div>
-                            @foreach ($group['items'] as $item)
-                                <div class="flex items-start justify-between gap-3 py-1.5">
-                                    <div class="text-sm text-gray-600">
-                                        {{ $item->scope_item }}
-                                        <span class="text-gray-400">·</span>
-                                        <span class="text-gray-900 font-medium">Rp {{ number_format($item->rounded ?? 0, 0, ',', '.') }}</span>
-                                        @if ($item->client_feedback)
-                                            <p class="text-xs text-gray-500 mt-0.5 italic">“{{ $item->client_feedback }}”</p>
-                                        @endif
-                                    </div>
-                                    @php
-                                        $choice = $item->client_choice;
-                                        $badge = match ($choice) {
-                                            'approved' => ['✓ Dipakai', 'bg-green-100 text-green-800'],
-                                            'rejected' => ['✗ Tidak', 'bg-red-100 text-red-800'],
-                                            default    => ['— Belum dipilih', 'bg-gray-100 text-gray-600'],
-                                        };
-                                    @endphp
-                                    <span class="shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $badge[1] }}">
-                                        {{ $badge[0] }}
-                                    </span>
-                                </div>
-                            @endforeach
+                        @php
+                            $badge = match ($group['choice']) {
+                                'approved' => ['✓ Dipakai', 'bg-green-100 text-green-800'],
+                                'rejected' => ['✗ Tidak', 'bg-red-100 text-red-800'],
+                                default    => ['— Belum dipilih', 'bg-gray-100 text-gray-600'],
+                            };
+                        @endphp
+                        <div class="px-5 py-3 flex flex-wrap items-start gap-x-3 gap-y-2">
+                            <div class="min-w-0 flex-1">
+                                @include('media-plan.partials.kol-baris-kepala', ['group' => $group])
+                                @if ($group['feedback'])
+                                    <p class="mt-1 text-xs text-gray-500 italic">“{{ $group['feedback'] }}”</p>
+                                @endif
+                                @if ($group['replace'])
+                                    <p class="mt-1 text-xs text-amber-700">
+                                        <span class="font-semibold">Usulan KOL pengganti:</span> {{ $group['replace'] }}
+                                    </p>
+                                @endif
+                            </div>
+                            <div class="flex shrink-0 items-center gap-2">
+                                @include('media-plan.partials.sow-tombol', ['group' => $group])
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $badge[1] }}">
+                                    {{ $badge[0] }}
+                                </span>
+                            </div>
                         </div>
                     @endforeach
                 </div>
@@ -105,51 +104,69 @@
             <form method="POST" action="{{ route('media-plan-external.review.submit', ['token' => $budget->review_token]) }}">
                 @csrf
 
-                <div class="space-y-4">
+                @include('media-plan.partials.kol-kontrol')
+
+                <div id="kol-daftar" class="bg-white rounded-2xl shadow-sm border border-gray-100 divide-y divide-gray-100 overflow-hidden">
                     @foreach ($groupedItems as $group)
-                        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                            <div class="px-6 py-3 border-b border-gray-100 bg-gray-50">
-                                <p class="text-sm font-semibold text-gray-900">{{ $group['kol_name'] }}</p>
-                                @include('media-plan.partials.kol-stats', ['kol' => $group['kol']])
+                        {{-- data-cari dipakai kotak pencarian; sudah huruf kecil supaya
+                             pencocokannya tidak perlu memproses ulang tiap ketikan. --}}
+                        <div data-kol-baris
+                             data-cari="{{ strtolower($group['kol_name'] . ' ' . $group['username'] . ' ' . $group['sow_utama']) }}"
+                             class="px-5 py-3">
+                            <div class="flex flex-wrap items-start gap-x-3 gap-y-2">
+                                @include('media-plan.partials.kol-baris-kepala', ['group' => $group])
+
+                                <div class="ml-auto flex shrink-0 items-center gap-1.5">
+                                    @include('media-plan.partials.sow-tombol', ['group' => $group])
+
+                                    {{-- Satu keputusan untuk seluruh SOW milik KOL ini. --}}
+                                    <label class="cursor-pointer">
+                                        <input type="radio" name="choices[{{ $group['key'] }}]" value="approved"
+                                               class="peer sr-only"
+                                               {{ $group['choice'] === 'approved' ? 'checked' : '' }}>
+                                        <span class="inline-flex items-center px-2.5 py-1 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 peer-checked:bg-green-600 peer-checked:text-white peer-checked:border-green-600 transition">
+                                            ✓ Dipakai
+                                        </span>
+                                    </label>
+                                    <label class="cursor-pointer">
+                                        <input type="radio" name="choices[{{ $group['key'] }}]" value="rejected"
+                                               class="peer sr-only"
+                                               {{ $group['choice'] === 'rejected' ? 'checked' : '' }}>
+                                        <span class="inline-flex items-center px-2.5 py-1 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 peer-checked:bg-red-600 peer-checked:text-white peer-checked:border-red-600 transition">
+                                            ✗ Tidak
+                                        </span>
+                                    </label>
+
+                                    {{-- Usulan KOL pengganti dari client. Kolomnya disembunyikan
+                                         sampai diminta — kalau selalu tampil, 98 KOL jadi 98
+                                         kotak isian lagi. --}}
+                                    <button type="button" data-ganti-tombol
+                                            onclick="this.closest('[data-kol-baris]').querySelector('[data-ganti-isian]').classList.toggle('hidden')"
+                                            title="Usulkan KOL pengganti"
+                                            class="inline-flex items-center rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-500 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 transition">
+                                        ⇄
+                                    </button>
+                                </div>
                             </div>
-                            <div class="divide-y divide-gray-100">
-                                @foreach ($group['items'] as $item)
-                                    <div class="px-6 py-4">
-                                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                                            <div>
-                                                <p class="text-sm font-medium text-gray-900">{{ $item->scope_item }}</p>
-                                                <p class="text-xs text-gray-500 mt-0.5">
-                                                    Harga: Rp {{ number_format($item->rounded ?? 0, 0, ',', '.') }}
-                                                </p>
-                                            </div>
-                                            <div class="flex items-center gap-2">
-                                                <label class="cursor-pointer">
-                                                    <input type="radio" name="choices[{{ $item->id }}]" value="approved"
-                                                           class="peer sr-only"
-                                                           {{ $item->client_choice === 'approved' ? 'checked' : '' }}>
-                                                    <span class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-600 peer-checked:bg-green-600 peer-checked:text-white peer-checked:border-green-600 transition">
-                                                        ✓ Dipakai
-                                                    </span>
-                                                </label>
-                                                <label class="cursor-pointer">
-                                                    <input type="radio" name="choices[{{ $item->id }}]" value="rejected"
-                                                           class="peer sr-only"
-                                                           {{ $item->client_choice === 'rejected' ? 'checked' : '' }}>
-                                                    <span class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-600 peer-checked:bg-red-600 peer-checked:text-white peer-checked:border-red-600 transition">
-                                                        ✗ Tidak
-                                                    </span>
-                                                </label>
-                                            </div>
-                                        </div>
-                                        <textarea name="feedback[{{ $item->id }}]" rows="1"
-                                                  placeholder="Feedback / catatan (opsional)…"
-                                                  class="mt-3 w-full text-sm rounded-lg border border-gray-200 px-3 py-2 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400 outline-none">{{ $item->client_feedback }}</textarea>
-                                    </div>
-                                @endforeach
+
+                            <textarea name="feedback[{{ $group['key'] }}]" rows="1"
+                                      placeholder="Feedback atau catatan dari Anda…"
+                                      class="mt-2 w-full text-sm rounded-lg border border-gray-200 px-3 py-1.5 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400 outline-none">{{ $group['feedback'] }}</textarea>
+
+                            <div data-ganti-isian class="{{ $group['replace'] ? '' : 'hidden' }}">
+                                <textarea name="replace[{{ $group['key'] }}]" rows="1"
+                                          placeholder="Punya KOL sendiri? Tulis nama / akunnya di sini…"
+                                          class="mt-2 w-full text-sm rounded-lg border border-amber-200 bg-amber-50/50 px-3 py-1.5 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 outline-none">{{ $group['replace'] }}</textarea>
                             </div>
                         </div>
                     @endforeach
                 </div>
+
+                <p id="kol-kosong" class="hidden py-8 text-center text-sm text-gray-400">
+                    Tidak ada KOL yang cocok dengan pencarian Anda.
+                </p>
+
+                @include('media-plan.partials.kol-pager')
 
                 <div class="mt-6 flex justify-end">
                     <button type="submit"
@@ -159,6 +176,12 @@
                 </div>
             </form>
         @endif
+
+        {{-- Modal rincian SOW, satu per KOL. Ditaruh di luar <form> supaya tombol
+             tutupnya (method="dialog") tidak ikut men-submit review. --}}
+        @foreach ($groupedItems as $group)
+            @include('media-plan.partials.sow-modal', ['group' => $group])
+        @endforeach
 
         <p class="text-center text-xs text-gray-400 pt-4">© {{ now()->year }} Beyond Viral Indonesia</p>
     </main>
