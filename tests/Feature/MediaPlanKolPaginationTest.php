@@ -177,3 +177,43 @@ it('suntingan halaman lain ikut tersimpan saat Save Changes ditekan', function (
         // Dan tidak ada yang hilang.
         ->and($plan->kols()->count())->toBe(12);
 });
+
+it('SOW dipilih lewat modal, bukan tag berjajar di dalam baris', function () {
+    Gate::before(fn() => true);
+    $plan = planDengan(2);
+
+    $halaman = Livewire::actingAs(paginasiUser())->test(EditMediaPlan::class, ['record' => $plan->id]);
+
+    $kunci = array_key_first($halaman->get('data')['kols']);
+
+    // Tombolnya menggantikan Select multiple: satu baris dengan 4 SOW dulunya
+    // setinggi tiga baris dan seluruh KOL List ikut memanjang.
+    $halaman->callFormComponentAction("kols.{$kunci}.sow", 'ubah_sow', data: [
+        'scope_items' => ['IG Reels', 'IG Story', 'Visit To Store'],
+    ])->assertHasNoFormErrors();
+
+    expect($halaman->get('data')['kols'][$kunci]['scope_items'])
+        ->toBe(['IG Reels', 'IG Story', 'Visit To Store']);
+
+    // scope_items sekarang Hidden, bukan Select. Yang dipakai saat menyimpan
+    // adalah state ter-dehydrate, bukan $this->data — jadi itu yang dicek.
+    expect($halaman->instance()->form->getState()['kols'][0]['scope_items'])
+        ->toBe(['IG Reels', 'IG Story', 'Visit To Store']);
+});
+
+it('meringkas SOW jadi yang pertama plus sisanya', function () {
+    expect(\App\Filament\Resources\MediaPlans\Schemas\MediaPlanForm::labelSow([]))->toBe('Pilih SOW')
+        ->and(\App\Filament\Resources\MediaPlans\Schemas\MediaPlanForm::labelSow(['IG Reels']))->toBe('IG Reels')
+        ->and(\App\Filament\Resources\MediaPlans\Schemas\MediaPlanForm::labelSow(['IG Reels', 'IG Story', 'Visit To Store']))->toBe('IG Reels  +2')
+        // Nilai kosong tidak boleh ikut terhitung jadi "+n".
+        ->and(\App\Filament\Resources\MediaPlans\Schemas\MediaPlanForm::labelSow(['IG Reels', null, '']))->toBe('IG Reels');
+});
+
+it('SOW yang sudah tersimpan tetap jadi opsi walau di luar daftar baku', function () {
+    // Kalau tidak, Filament menolaknya sebagai pilihan tak sah dan SOW hasil
+    // migrasi spreadsheet hilang begitu barisnya disimpan ulang.
+    $opsi = \App\Filament\Resources\MediaPlans\Schemas\MediaPlanForm::sowOptions(null, ['Beer enjoyment with friends']);
+
+    expect($opsi)->toHaveKey('Beer enjoyment with friends')
+        ->and($opsi)->toHaveKey('IG Reels');
+});

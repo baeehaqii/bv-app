@@ -212,6 +212,7 @@ class MediaPlanForm
     private static array $channelByUsername = [];
     private static ?\Illuminate\Support\Collection $pphAll = null;
     private static ?array $kolSpecialists = null;
+    private static ?\Illuminate\Support\Collection $usulanGanti = null;
 
     /**
      * Muat sekali untuk seluruh baris. Dipanggil dari halaman Media Plan sebelum
@@ -261,6 +262,104 @@ class MediaPlanForm
         self::$channelByUsername = [];
         self::$pphAll = null;
         self::$kolSpecialists = null;
+        self::$usulanGanti = null;
+    }
+
+    /**
+     * Usulan KOL pengganti yang ditulis client di halaman Link Review.
+     *
+     * Satu per KOL: client_replace_note ditulis seragam ke seluruh SOW milik
+     * satu KOL, jadi barisnya di-unique agar tidak tampil berulang.
+     *
+     * @return \Illuminate\Support\Collection<int, \App\Models\InternalBudgetItem>
+     */
+    private static function usulanGantiClient(?\App\Models\MediaPlan $record): \Illuminate\Support\Collection
+    {
+        if (! $record?->internalBudget) {
+            return collect();
+        }
+
+        return self::$usulanGanti ??= $record->internalBudget->items()
+            ->whereNotNull('client_replace_note')
+            ->where('client_replace_note', '!=', '')
+            ->with('mediaPlanKol')
+            ->get()
+            ->unique('media_plan_kol_id')
+            ->values();
+    }
+
+    private static function renderUsulanGantiClient(?\App\Models\MediaPlan $record): \Illuminate\Support\HtmlString
+    {
+        $baris = self::usulanGantiClient($record)
+            ->map(fn($item) => '<li><strong>' . e($item->mediaPlanKol?->name ?? 'KOL tanpa nama')
+                . '</strong> &rarr; ' . e($item->client_replace_note) . '</li>')
+            ->implode('');
+
+        return new \Illuminate\Support\HtmlString(
+            '<div style="border:1px solid #fcd34d;background:#fffbeb;border-radius:.75rem;padding:.75rem 1rem;">'
+            . '<p style="font-weight:600;color:#92400e;">&#8646; Client mengusulkan KOL pengganti</p>'
+            . '<ul style="margin:.25rem 0 0 1.25rem;list-style:disc;color:#78350f;">' . $baris . '</ul>'
+            . '<p style="margin-top:.5rem;font-size:.75rem;color:#b45309;">Usulan dari halaman Link Review Client. '
+            . 'Penggantian sesungguhnya dilakukan lewat tombol &ldquo;Ganti KOL&rdquo; di Media Plan External.</p>'
+            . '</div>'
+        );
+    }
+
+    /**
+     * Ringkasan SOW untuk label tombol: SOW pertama + jumlah sisanya.
+     *
+     * @param  array<int, string|null>  $scopes
+     */
+    public static function labelSow(array $scopes): string
+    {
+        $scopes = array_values(array_filter($scopes, fn($s) => filled($s)));
+
+        if (empty($scopes)) {
+            return 'Pilih SOW';
+        }
+
+        $sisa = count($scopes) - 1;
+
+        return $sisa > 0 ? "{$scopes[0]}  +{$sisa}" : $scopes[0];
+    }
+
+    /**
+     * Opsi SOW: daftar baku + SOW dari rate card KOL terpilih.
+     *
+     * @param  array<int, string|null>  $terpilih
+     * @return array<string, string>
+     */
+    public static function sowOptions(?int $dataKolId, array $terpilih = []): array
+    {
+        $base = [
+            'IG Post' => 'IG Post',
+            'IG Reels' => 'IG Reels',
+            'IG Story' => 'IG Story',
+            'TikTok Post' => 'TikTok Post',
+            'TikTok Video' => 'TikTok Video',
+            'TikTok Story' => 'TikTok Story',
+            'Threads Post' => 'Threads Post',
+            'YouTube Video' => 'YouTube Video',
+            'YouTube Shorts' => 'YouTube Shorts',
+            'Facebook Post' => 'Facebook Post',
+            'Facebook Reels' => 'Facebook Reels',
+            'Talent Appearance' => 'Talent Appearance',
+            'X Post' => 'X Post',
+        ];
+
+        foreach (self::kolSowLabels($dataKolId) as $label) {
+            $base[$label] = $label;
+        }
+
+        // Nilai yang sudah tersimpan WAJIB tetap ada di daftar — kalau tidak,
+        // Filament menolaknya sebagai pilihan tak sah dan SOW-nya hilang saat disimpan.
+        foreach ($terpilih as $selected) {
+            if (filled($selected) && ! isset($base[$selected])) {
+                $base[$selected] = $selected;
+            }
+        }
+
+        return $base;
     }
 
     /** Rate card satu KOL, lengkap dengan master SOW-nya. */
@@ -1015,6 +1114,16 @@ class MediaPlanForm
                                 ->extraAttributes(['style' => 'border-bottom:1px solid #e5e7eb;padding-bottom:14px;margin-bottom:4px;'])
                                 ->columnSpanFull(),
 
+                            // Usulan KOL pengganti dari client (halaman Link Review).
+                            // Ditaruh DI ATAS daftar, bukan sebagai kolom baru: KOL List
+                            // sudah 17 kolom dan kolom ke-18 hanya kelihatan setelah
+                            // digeser jauh ke kanan. Yang begini harus langsung terbaca.
+                            Placeholder::make('usulan_ganti_client')
+                                ->hiddenLabel()
+                                ->visible(fn(?\App\Models\MediaPlan $record) => self::usulanGantiClient($record)->isNotEmpty())
+                                ->content(fn(?\App\Models\MediaPlan $record) => self::renderUsulanGantiClient($record))
+                                ->columnSpanFull(),
+
                             Repeater::make('kols')
                                 ->label('KOL List')
                                 ->extraItemActions([
@@ -1293,7 +1402,7 @@ class MediaPlanForm
                                     TableColumn::make('ER %')->width('150px'),
                                     TableColumn::make('Avg Views')->width('110px'),
                                     TableColumn::make('Engagement')->width('110px'),
-                                    TableColumn::make('SOW (Request)')->width('320px'),
+                                    TableColumn::make('SOW (Request)')->width('200px'),
                                     TableColumn::make('Qty')->width('90px'),
                                     TableColumn::make('Rate per SOW')->width('420px'),
                                     TableColumn::make('Margin %')->width('150px'),
@@ -1763,50 +1872,60 @@ class MediaPlanForm
                                         ->readOnly()
                                         ->dehydrated(),
 
-                                    Select::make('scope_items')
-                                        ->label('SOW')
-                                        ->multiple()
-                                        ->options(function (callable $get): array {
-                                            // Opsi default + SOW dari rate card KOL terpilih (agar value auto-fill valid & tampil)
-                                            $base = [
-                                                'IG Post' => 'IG Post',
-                                                'IG Reels' => 'IG Reels',
-                                                'IG Story' => 'IG Story',
-                                                'TikTok Post' => 'TikTok Post',
-                                                'TikTok Video' => 'TikTok Video',
-                                                'TikTok Story' => 'TikTok Story',
-                                                'Threads Post' => 'Threads Post',
-                                                'YouTube Video' => 'YouTube Video',
-                                                'YouTube Shorts' => 'YouTube Shorts',
-                                                'Facebook Post' => 'Facebook Post',
-                                                'Facebook Reels' => 'Facebook Reels',
-                                                'Talent Appearance' => 'Talent Appearance',
-                                                'X Post' => 'X Post',
-                                            ];
-                                            foreach (self::kolSowLabels($get('data_kol_id')) as $label) {
-                                                $base[$label] = $label;
-                                            }
-                                            // Pastikan value yang sudah terpilih tetap tampil walau tak ada di daftar
-                                            foreach ((array) $get('scope_items') as $selected) {
-                                                if (filled($selected) && ! isset($base[$selected])) {
-                                                    $base[$selected] = $selected;
-                                                }
-                                            }
+                                    // SOW pindah ke modal. Ditampilkan berjajar sebagai tag,
+                                    // satu baris dengan 4 SOW jadi tiga baris tinggi dan seluruh
+                                    // KOL List ikut memanjang. Yang tersisa di kolom cuma SOW
+                                    // pertama + jumlah sisanya, sama seperti Media Plan External.
+                                    Hidden::make('scope_items')->default([]),
 
-                                            return $base;
-                                        })
-                                        ->searchable()
-                                        ->live()
-                                        ->default([])
-                                        ->afterStateUpdated(function ($state, callable $set, callable $get) {
-                                            $set('rate', number_format(round(self::computeRateFromSow(
-                                                $get('data_kol_id'),
-                                                $get('name'),
-                                                $get('channel'),
-                                                (array) $state,
-                                                (int) ($get('qty') ?: 1)
-                                            )), 0, '.', ','));
-                                        }),
+                                    Actions::make([
+                                        Action::make('ubah_sow')
+                                            ->label(fn(callable $get): string => self::labelSow((array) $get('scope_items')))
+                                            ->icon('heroicon-m-pencil-square')
+                                            ->link()
+                                            ->modalHeading('Scope of Work')
+                                            ->modalDescription('SOW yang dipilih menentukan rate baris ini.')
+                                            ->modalWidth('lg')
+                                            ->modalSubmitActionLabel('Simpan SOW')
+                                            // data_kol_id ikut dibawa masuk: di dalam modal, $get
+                                            // membaca state MODAL, bukan state baris — tanpa ini
+                                            // daftar SOW milik KOL-nya tidak ikut jadi opsi.
+                                            ->fillForm(fn(callable $get): array => [
+                                                'scope_items' => (array) $get('scope_items'),
+                                                'data_kol_id' => $get('data_kol_id'),
+                                            ])
+                                            ->schema([
+                                                Hidden::make('data_kol_id'),
+
+                                                Select::make('scope_items')
+                                                    ->label('SOW')
+                                                    ->multiple()
+                                                    ->options(fn(callable $get): array => self::sowOptions(
+                                                        $get('data_kol_id'),
+                                                        (array) $get('scope_items'),
+                                                    ))
+                                                    ->searchable()
+                                                    ->default([]),
+                                            ])
+                                            ->action(function (array $data, callable $set, callable $get) {
+                                                $scopes = array_values(array_filter(
+                                                    (array) ($data['scope_items'] ?? []),
+                                                    fn($s) => filled($s),
+                                                ));
+
+                                                $set('scope_items', $scopes);
+                                                $set('rate', number_format(round(self::computeRateFromSow(
+                                                    $get('data_kol_id'),
+                                                    $get('name'),
+                                                    $get('channel'),
+                                                    $scopes,
+                                                    (int) ($get('qty') ?: 1),
+                                                )), 0, '.', ','));
+                                            }),
+                                    ])
+                                        // Diberi key supaya aksinya punya alamat tetap di schema
+                                        // (kols.<uuid>.sow), bisa dipanggil dari test.
+                                        ->key('sow'),
 
                                     // Berapa kali SOW baris ini di-request (5x IG Reels → rate × 5).
                                     TextInput::make('qty')
