@@ -12,29 +12,241 @@ class EditInternalBudget extends EditRecord
     protected static string $resource = InternalBudgetResource::class;
 
     /**
-     * Persist Status KOL (field non-dehydrated di repeater items) ke MediaPlanKol.
-     * Satu KOL bisa punya banyak item — cukup update sekali per KOL.
+     * Daftar Budget Items: satu baris per KOL, dengan drill-down ke SOW-nya.
+     *
+     * Satu media plan bisa punya 590 item milik 98 KOL. Dua alasan barisnya
+     * diringkas per KOL: Filament Repeater membangun komponen seluruh baris
+     * sekaligus (590 baris = kehabisan memori), dan membaca 7 baris berturut-turut
+     * dengan nama KOL yang sama itu tidak ada gunanya. Baris KOL menampilkan SOW
+     * pertama + sisanya sebagai "+6"; tombol Detail SOW membuka rinciannya.
+     *
+     * Yang dimuat ke form tetap satu halaman saja — sekarang halaman KOL, bukan
+     * halaman item, jadi 20 halaman alih-alih 118.
      */
-    protected function afterSave(): void
+    public const ITEM_PER_PAGE = [5, 10, 15];
+
+    public int $itemPage = 1;
+
+    public int $itemPerPage = 5;
+
+    /** KOL yang sedang dibuka rincian SOW-nya; null = daftar ringkas per KOL. */
+    public ?int $kolFokus = null;
+
+    /**
+     * Repeater items tidak lagi ber-relationship(): isinya bentukan sendiri
+     * (baris ringkas per KOL) dan tidak selalu satu-lawan-satu dengan record.
+     */
+    protected function mutateFormDataBeforeFill(array $data): array
     {
-        $applied = [];
+        $data['items'] = $this->barisItemUntukForm();
 
-        foreach ($this->data['items'] ?? [] as $row) {
-            $status = $row['kol_status'] ?? null;
-            $kolId = $row['media_plan_kol_id'] ?? null;
+        return $data;
+    }
 
-            // Fallback: ambil media_plan_kol_id dari item bila tidak ada di state (field disabled).
-            if (! $kolId && ! empty($row['id'])) {
-                $kolId = \App\Models\InternalBudgetItem::find($row['id'])?->media_plan_kol_id;
-            }
+    public function muatUlangItems(): void
+    {
+        // Status item bisa saja baru berubah; peringatan "belum masuk Campaign
+        // Ongoing" harus ikut angka terbaru, bukan hitungan awal request.
+        \App\Filament\Resources\InternalBudgets\Schemas\InternalBudgetForm::lupakanTertahan();
 
-            if (! $kolId || blank($status) || isset($applied[$kolId])) {
-                continue;
-            }
+        $this->data['items'] = $this->barisItemUntukForm();
+    }
 
-            \App\Models\MediaPlanKol::where('id', $kolId)->update(['status' => $status]);
-            $applied[$kolId] = true;
+    public function bukaDetailKol(int $kolId): void
+    {
+        $this->kolFokus = $kolId;
+        $this->muatUlangItems();
+    }
+
+    public function tutupDetailKol(): void
+    {
+        $this->kolFokus = null;
+        $this->muatUlangItems();
+    }
+
+    public function namaKolFokus(): string
+    {
+        return \App\Models\MediaPlanKol::find($this->kolFokus)?->name ?? 'KOL ini';
+    }
+
+    public function totalItem(): int
+    {
+        return $this->urutanKol()->count();
+    }
+
+    public function totalHalamanItem(): int
+    {
+        return max(1, (int) ceil($this->totalItem() / $this->itemPerPage));
+    }
+
+    public function gantiHalamanItem(int $halaman): void
+    {
+        $this->itemPage = max(1, min($halaman, $this->totalHalamanItem()));
+        $this->muatUlangItems();
+    }
+
+    public function aturItemPerPage(int $jumlah): void
+    {
+        $this->itemPerPage = in_array($jumlah, self::ITEM_PER_PAGE, true) ? $jumlah : self::ITEM_PER_PAGE[0];
+        $this->itemPage = 1;
+        $this->muatUlangItems();
+    }
+
+    /**
+     * Urutan KOL di daftar, mengikuti urutan item pertamanya.
+     *
+     * Bisa memuat null: item yang belum terhubung ke KOL mana pun tetap harus
+     * kelihatan, dikelompokkan jadi satu baris tersendiri.
+     *
+     * @return \Illuminate\Support\Collection<int, int|null>
+     */
+    private function urutanKol(): \Illuminate\Support\Collection
+    {
+        return $this->record->items()
+            // reorder() wajib: relasi items() sudah membawa orderBy('sort_order'),
+            // dan kolom itu tidak ada di GROUP BY — MySQL only_full_group_by
+            // menolaknya (error 1055). SQLite membiarkannya, jadi test saja tidak
+            // cukup untuk menangkap ini.
+            ->reorder()
+            ->selectRaw('media_plan_kol_id, MIN(sort_order) as urut, MIN(id) as urut_id')
+            ->groupBy('media_plan_kol_id')
+            ->orderBy('urut')
+            ->orderBy('urut_id')
+            ->pluck('media_plan_kol_id');
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function barisItemUntukForm(): array
+    {
+        // Mode rincian: satu KOL, semua SOW-nya. Jumlahnya sedikit (paling
+        // banyak belasan), jadi tidak perlu dipaginasi lagi.
+        if ($this->kolFokus !== null) {
+            return $this->record->items()
+                ->with('mediaPlanKol')
+                ->where('media_plan_kol_id', $this->kolFokus)
+                ->orderBy('sort_order')
+                ->orderBy('id')
+                ->get()
+                ->map(fn($item) => $this->barisSow($item))
+                ->all();
         }
+
+        $idHalaman = $this->urutanKol()->forPage($this->itemPage, $this->itemPerPage)->values();
+        $adaTanpaKol = $idHalaman->contains(null);
+        $ids = $idHalaman->filter()->all();
+
+        $items = $this->record->items()
+            ->with('mediaPlanKol')
+            ->where(function ($query) use ($ids, $adaTanpaKol) {
+                $query->whereIn('media_plan_kol_id', $ids);
+
+                if ($adaTanpaKol) {
+                    $query->orWhereNull('media_plan_kol_id');
+                }
+            })
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get()
+            ->groupBy(fn($item) => (string) $item->media_plan_kol_id);
+
+        // Dipetakan lewat $idHalaman supaya urutan barisnya ikut urutan KOL di
+        // halaman, bukan urutan kunci hasil groupBy.
+        return $idHalaman
+            ->map(fn($id) => $items->get((string) $id))
+            ->filter()
+            ->map(fn($grup) => $this->barisKol($grup))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Satu baris = satu SOW (mode rincian). Bentuknya sama dengan baris KOL
+     * supaya kolom repeater-nya tidak perlu berubah antar mode.
+     *
+     * @return array<string, mixed>
+     */
+    private function barisSow(\App\Models\InternalBudgetItem $item): array
+    {
+        return [
+            // id terisi = baris ini record sungguhan; dipakai aksi yang memang
+            // hanya masuk akal per SOW (Ganti KOL).
+            'id' => $item->id,
+            // Sasaran Approve / Reject / Nego. Di mode rincian isinya satu SOW;
+            // di baris ringkas seluruh SOW milik KOL itu — approval diputuskan
+            // per KOL, sama seperti di Link Review Client.
+            'item_ids' => [$item->id],
+            'media_plan_kol_id' => $item->media_plan_kol_id,
+            'kol_status' => $item->mediaPlanKol?->status,
+            'scope_item' => $item->scope_item,
+            'qty' => $item->qty,
+            'rate_base' => $item->rate_base,
+            'master_pph_id' => $item->master_pph_id,
+            'mu_pph' => $item->mu_pph,
+            'published_rate' => $item->published_rate,
+            'rounded' => $item->rounded,
+            'actual_margin_percent' => $item->actual_margin_percent,
+            'notes' => $item->notes,
+            'status' => $item->status ?: 'pending',
+            'rejection_notes' => $item->rejection_notes,
+            'nego_notes' => $item->nego_notes,
+            'client_choice' => $item->client_choice,
+            'client_feedback' => $item->client_feedback,
+            'jumlah_sow' => 1,
+        ];
+    }
+
+    /**
+     * Satu baris = satu KOL, angka-angkanya dijumlah dari seluruh SOW miliknya.
+     *
+     * @param  \Illuminate\Support\Collection<int, \App\Models\InternalBudgetItem>  $items
+     * @return array<string, mixed>
+     */
+    private function barisKol(\Illuminate\Support\Collection $items): array
+    {
+        $pertama = $items->first();
+
+        $muPph = (float) $items->sum('mu_pph');
+        $rounded = (float) $items->sum('rounded');
+
+        return [
+            // Sengaja null: baris ini gabungan, bukan satu record — aksi yang
+            // hanya masuk akal per SOW menyembunyikan diri kalau id kosong.
+            'id' => null,
+            'item_ids' => $items->pluck('id')->all(),
+            'media_plan_kol_id' => $pertama->media_plan_kol_id,
+            'kol_status' => $pertama->mediaPlanKol?->status,
+            'scope_item' => $pertama->scope_item,
+            'qty' => $items->sum('qty'),
+            'rate_base' => $items->sum('rate_base'),
+            'master_pph_id' => $pertama->master_pph_id,
+            'mu_pph' => $muPph,
+            'published_rate' => $items->sum('published_rate'),
+            'rounded' => $rounded,
+            // Dihitung ulang dari total, bukan rata-rata persen per item —
+            // rata-rata persen salah kalau nominal antar SOW timpang.
+            'actual_margin_percent' => $rounded > 0 ? round(($rounded - $muPph) / $rounded * 100, 2) : 0,
+            'notes' => $items->pluck('notes')->filter()->implode(' • '),
+            'status' => self::ringkas($items->pluck('status'), 'pending'),
+            'rejection_notes' => null,
+            'nego_notes' => $items->pluck('nego_notes')->filter()->implode(' • '),
+            'client_choice' => self::ringkas($items->pluck('client_choice'), ''),
+            'client_feedback' => $items->pluck('client_feedback')->filter()->implode(' • '),
+            'jumlah_sow' => $items->count(),
+        ];
+    }
+
+    /**
+     * Nilai gabungan beberapa SOW: seragam → nilainya, beda-beda → "campuran".
+     *
+     * @param  \Illuminate\Support\Collection<int, string|null>  $nilai
+     */
+    private static function ringkas(\Illuminate\Support\Collection $nilai, string $bawaan): string
+    {
+        $unik = $nilai->map(fn($v) => filled($v) ? $v : $bawaan)->unique();
+
+        return $unik->count() === 1 ? (string) $unik->first() : 'campuran';
     }
 
     protected function getHeaderActions(): array

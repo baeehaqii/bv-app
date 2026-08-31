@@ -105,6 +105,10 @@ it('aksi "Ganti KOL" di halaman Media Plan External memanggil replaceItemKol', f
         ['record' => $budget->getRouteKey()],
     );
 
+    // Daftar bawaan halaman ini satu baris per KOL; aksi per-SOW baru muncul
+    // setelah rinciannya dibuka (tombol "Detail SOW").
+    $page->call('bukaDetailKol', $item->media_plan_kol_id);
+
     // uuid item repeater = key array state 'items'
     $uuid = array_key_first(collect($page->get('data')['items'])->filter(fn($row) => (int) ($row['id'] ?? 0) === $item->id)->all());
 

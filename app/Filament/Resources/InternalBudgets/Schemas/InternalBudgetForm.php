@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\InternalBudgets\Schemas;
 
 use App\Enums\MediaPlanKolStatus;
+use App\Filament\Resources\InternalBudgets\Pages\EditInternalBudget;
 use App\Models\MediaPlanKol;
 use App\Models\InternalBudgetItem;
 use Filament\Schemas\Schema;
@@ -20,6 +21,112 @@ use Filament\Notifications\Notification;
 
 class InternalBudgetForm
 {
+    /** @var array<int, array<int, string>> daftar KOL per media plan, diingat sepanjang request */
+    private static array $opsiKol = [];
+
+    /** @var array<int, array{kol:int, sow:int, campaign:?\App\Models\BvCampign}> per budget, diingat sepanjang request */
+    private static array $tertahan = [];
+
+    /**
+     * Buang hitungan yang diingat. WAJIB dipanggil setelah status item berubah
+     * di tengah request — kalau tidak, peringatannya masih menyebut angka lama.
+     */
+    public static function lupakanTertahan(): void
+    {
+        static::$tertahan = [];
+    }
+
+    /**
+     * Item yang sudah di-approve tapi belum sampai ke Campaign Ongoing.
+     *
+     * Approve per KOL cuma menandai internal_budget_items.status. Yang benar-benar
+     * mengisi Campaign Ongoing adalah syncCampaignKolsFromApprovedBudget(), dan itu
+     * hanya jalan saat status budget berubah jadi "Approve AM". Tanpa keterangan,
+     * approve terasa seperti tidak melakukan apa-apa.
+     *
+     * @return array{kol:int, sow:int, campaign:?\App\Models\BvCampign}
+     */
+    private static function approvedTertahan(?\App\Models\InternalBudget $record): array
+    {
+        if (! $record) {
+            return ['kol' => 0, 'sow' => 0, 'campaign' => null];
+        }
+
+        return static::$tertahan[$record->id] ??= [
+            'kol' => (int) $record->items()->where('status', 'approved')
+                ->whereNotNull('media_plan_kol_id')->distinct()->count('media_plan_kol_id'),
+            'sow' => (int) $record->items()->where('status', 'approved')->count(),
+            'campaign' => $record->mediaPlan?->bvSales?->campaign()->first(),
+        ];
+    }
+
+    /**
+     * Id SOW yang jadi sasaran aksi baris ini.
+     *
+     * Approval diputuskan per KOL, bukan per SOW — sama seperti di Link Review
+     * Client. Baris ringkas karena itu membawa seluruh SOW milik KOL-nya;
+     * baris di mode rincian cuma membawa dirinya sendiri, jadi aksinya tetap
+     * bisa dipakai untuk mengoreksi satu SOW.
+     *
+     * @return array<int, int>
+     */
+    private static function sasaranSow(Repeater $component, ?string $uuid): array
+    {
+        return array_values(array_filter(
+            (array) (self::stateBaris($component, $uuid)['item_ids'] ?? []),
+        ));
+    }
+
+    /** "SOW \"IG Reels\"" atau "6 SOW milik KOL ini" — untuk keterangan modal. */
+    private static function sebutanSasaran(Repeater $component, ?string $uuid): string
+    {
+        $state = self::stateBaris($component, $uuid);
+        $jumlah = count(self::sasaranSow($component, $uuid));
+
+        if ($jumlah <= 1) {
+            return 'SOW "' . ($state['scope_item'] ?? 'ini') . '"';
+        }
+
+        return "seluruh {$jumlah} SOW milik KOL ini";
+    }
+
+    /**
+     * Isi satu baris repeater, aman terhadap uuid yang sudah tidak ada.
+     *
+     * Mengganti isi daftar — membuka rincian SOW, pindah halaman, ganti jumlah
+     * per halaman — membuat Filament menerbitkan uuid baru untuk tiap baris,
+     * sementara aksi yang barusan diklik masih memegang uuid lama. getChildSchema()
+     * mengembalikan null untuk uuid itu dan getRawItemState() meledak di atasnya.
+     *
+     * Baris yang tidak ditemukan dianggap kosong; semua visible() di bawah membaca
+     * 'id' yang blank sebagai "bukan sasaran aksi", jadi aksinya diam.
+     *
+     * @return array<string, mixed>
+     */
+    private static function stateBaris(Repeater $component, ?string $uuid): array
+    {
+        if (blank($uuid) || ! $component->getChildSchema($uuid)) {
+            return [];
+        }
+
+        return $component->getRawItemState($uuid);
+    }
+
+    /**
+     * Sama seperti stateBaris(), tapi state yang sudah lewat hook — dipakai aksi
+     * yang butuh id record sungguhan.
+     *
+     * @return array<string, mixed>
+     */
+    private static function stateBarisPenuh(Repeater $component, ?string $uuid): array
+    {
+        if (blank($uuid) || ! $component->getChildSchema($uuid)) {
+            return [];
+        }
+
+        return $component->getItemState($uuid);
+    }
+
 
     public static function configure(Schema $schema): Schema
     {
@@ -139,6 +246,32 @@ class InternalBudgetForm
                         return 'Items otomatis dari Media Plan Internal. Gunakan tombol "Sync from Media Plan" untuk memperbarui.';
                     })
                     ->schema([
+                        // Di atas daftarnya, bukan di dekat dropdown Status: yang perlu
+                        // diberi tahu adalah orang yang barusan menekan Approve.
+                        Placeholder::make('approved_tertahan')
+                            ->hiddenLabel()
+                            ->visible(fn(?\App\Models\InternalBudget $record) => $record !== null
+                                && $record->status !== 'approve_am'
+                                && self::approvedTertahan($record)['sow'] > 0)
+                            ->content(function (?\App\Models\InternalBudget $record): \Illuminate\Support\HtmlString {
+                                ['kol' => $kol, 'sow' => $sow, 'campaign' => $campaign] = self::approvedTertahan($record);
+
+                                $lanjutan = $campaign
+                                    ? 'Ubah <strong>Status</strong> di atas menjadi <strong>&ldquo;Approve AM&rdquo;</strong> '
+                                        . 'untuk mengirimkannya ke campaign <strong>' . e($campaign->campaign_name) . '</strong>.'
+                                    : 'Media Plan ini belum punya campaign di Campaign Ongoing Internal, '
+                                        . 'jadi belum ada tujuan pengirimannya walau statusnya diubah.';
+
+                                return new \Illuminate\Support\HtmlString(
+                                    '<div style="border:1px solid #fcd34d;background:#fffbeb;border-radius:.75rem;padding:.75rem 1rem;">'
+                                    . '<p style="font-weight:600;color:#92400e;">&#9888; ' . $kol . ' KOL (' . $sow . ' SOW) '
+                                    . 'sudah di-approve tapi belum masuk Campaign Ongoing</p>'
+                                    . '<p style="margin-top:.25rem;font-size:.8rem;color:#b45309;">' . $lanjutan . '</p>'
+                                    . '</div>'
+                                );
+                            })
+                            ->columnSpanFull(),
+
                         Placeholder::make('budget_items_sticky_css')
                             ->label('')
                             ->content(new \Illuminate\Support\HtmlString('
@@ -174,26 +307,51 @@ class InternalBudgetForm
                                     }
                                     .dark #ib-budget-items table thead th:nth-child(1),
                                     .dark #ib-budget-items table thead th:nth-child(2) { background-color: #1f2937; }
+
+                                    /* Scope Item pada baris ringkas: tombol yang membuka rincian SOW. */
+                                    #ib-budget-items .ib-sow-link { display:inline-flex; align-items:center; gap:.4rem;
+                                        font-weight:600; text-align:left; text-decoration:underline;
+                                        text-underline-offset:3px; text-decoration-style:dotted; }
+                                    #ib-budget-items .ib-sow-link:hover { color: var(--primary-600,#6d28d9); }
+                                    #ib-budget-items .ib-sow-sisa { padding:.05rem .35rem; border-radius:.35rem;
+                                        font-size:.7rem; font-weight:700; background:rgba(124,58,237,.12);
+                                        color: var(--primary-600,#6d28d9); text-decoration:none; }
+                                    #ib-budget-items .ib-sow-teks { opacity:.85; }
                                 </style>
                             '))
                             ->columnSpanFull(),
 
                         Repeater::make('items')
-                            ->relationship()
+                            // Isinya dibentuk EditInternalBudget::barisItemUntukForm(), bukan
+                            // relationship(): baris bawaan halaman ini gabungan per KOL, jadi
+                            // tidak satu-lawan-satu dengan record. dehydrated(false) menutup
+                            // seluruh risikonya — semua kolom di sini read-only, dan setiap
+                            // suntingan (Status KOL, Approve, Reject, Nego, Ganti KOL) sudah
+                            // menulis langsung ke database lewat aksinya masing-masing.
+                            ->dehydrated(false)
                             ->extraAttributes(['id' => 'ib-budget-items'])
                             ->schema([
                                 Select::make('media_plan_kol_id')
                                     ->label('KOL')
+                                    // Diingat per media plan: closure options() dijalankan ulang
+                                    // untuk SETIAP baris, dan daftarnya sama persis tiap kali.
                                     ->options(function ($livewire) {
                                         $mediaPlanId = $livewire->record?->media_plan_id;
                                         if (!$mediaPlanId)
                                             return [];
-                                        return MediaPlanKol::where('media_plan_id', $mediaPlanId)
+
+                                        return static::$opsiKol[$mediaPlanId] ??= MediaPlanKol::where('media_plan_id', $mediaPlanId)
                                             ->orderBy('name')
                                             ->pluck('name', 'id')
                                             ->toArray();
                                     })
-                                    ->disabled(),
+                                    ->disabled()
+                                    // disabled() ikut mematikan dehydrate, dan yang tidak
+                                    // ter-dehydrate TIDAK ikut getRawItemState() — itu yang dibaca
+                                    // visible() tiap aksi baris. Tanpa ini tombol Detail SOW tidak
+                                    // pernah muncul. Aman: repeater-nya dehydrated(false), jadi
+                                    // tidak ada yang ikut tertulis saat Save.
+                                    ->dehydrated(),
 
                                 // Status KOL (editable di External) — tanpa "Payment Gateway".
                                 // Tidak disimpan ke item; di-persist ke MediaPlanKol via EditInternalBudget::afterSave.
@@ -225,11 +383,50 @@ class InternalBudgetForm
                                         if ($kolId) {
                                             $component->state(MediaPlanKol::find($kolId)?->status);
                                         }
+                                    })
+                                    // Ditulis seketika, tidak menunggu Save Changes: daftar item
+                                    // dipaginasi, jadi baris halaman lain sudah tidak ada lagi di
+                                    // state saat Save ditekan. Aksi baris lain (Approve, Reject,
+                                    // Nego) juga sudah menyimpan langsung ke database.
+                                    ->live()
+                                    ->afterStateUpdated(function ($state, callable $get) {
+                                        $kolId = $get('media_plan_kol_id')
+                                            ?: InternalBudgetItem::find($get('id'))?->media_plan_kol_id;
+
+                                        if ($kolId && filled($state)) {
+                                            MediaPlanKol::whereKey($kolId)->update(['status' => $state]);
+                                        }
                                     }),
 
-                                TextInput::make('scope_item')
+                                // Baris ringkas: teksnya sendiri yang jadi tombol pembuka
+                                // rincian. Kolom aksi ada di ujung kanan tabel dan baru
+                                // kelihatan setelah digeser horizontal — terlalu jauh untuk
+                                // sesuatu yang dipakai sesering ini.
+                                Placeholder::make('scope_item_display')
                                     ->label('Scope Item')
-                                    ->disabled(),
+                                    ->content(function ($get): \Illuminate\Support\HtmlString {
+                                        $teks = e((string) $get('scope_item'));
+                                        $kolId = (int) ($get('media_plan_kol_id') ?? 0);
+                                        $sisa = max(0, (int) ($get('jumlah_sow') ?? 1) - 1);
+
+                                        // Mode rincian (id terisi) atau item tanpa KOL: tidak
+                                        // ada yang bisa dibuka, tampilkan teks biasa.
+                                        if (filled($get('id')) || ! $kolId) {
+                                            return new \Illuminate\Support\HtmlString(
+                                                "<span class=\"ib-sow-teks\">{$teks}</span>"
+                                            );
+                                        }
+
+                                        $sisaLabel = $sisa > 0
+                                            ? "<span class=\"ib-sow-sisa\">+{$sisa}</span>"
+                                            : '';
+
+                                        return new \Illuminate\Support\HtmlString(
+                                            "<button type=\"button\" class=\"ib-sow-link\" "
+                                            . "wire:click=\"bukaDetailKol({$kolId})\" "
+                                            . "title=\"Lihat semua SOW KOL ini\">{$teks}{$sisaLabel}</button>"
+                                        );
+                                    }),
 
                                 TextInput::make('qty')
                                     ->label('Qty')
@@ -281,6 +478,8 @@ class InternalBudgetForm
                                         [$label, $class] = match ($choice) {
                                             'approved' => ['✓ Dipakai', 'bg-green-100 text-green-800'],
                                             'rejected' => ['✗ Tidak', 'bg-red-100 text-red-800'],
+                                            // Baris ringkas dengan SOW yang pilihannya beda-beda.
+                                            'campuran' => ['◑ Sebagian', 'bg-blue-100 text-blue-800'],
                                             default    => ['— Belum', 'bg-gray-100 text-gray-600'],
                                         };
                                         return new \Illuminate\Support\HtmlString(
@@ -294,6 +493,11 @@ class InternalBudgetForm
                                     ->disabled(),
 
                                 Hidden::make('id'),
+                                // Sasaran Approve / Reject / Nego: satu SOW di mode rincian,
+                                // seluruh SOW milik KOL di baris ringkas.
+                                Hidden::make('item_ids')->default([]),
+                                Hidden::make('scope_item'),
+                                Hidden::make('jumlah_sow')->default(1),
                                 Hidden::make('status')->default('pending'),
                                 Hidden::make('rejection_notes'),
                                 Hidden::make('nego_notes'),
@@ -308,12 +512,15 @@ class InternalBudgetForm
                                             'rejected' => 'bg-red-100 text-red-800',
                                             'nego'     => 'bg-yellow-100 text-yellow-800',
                                             'pending'  => 'bg-gray-100 text-gray-800',
+                                            // Baris ringkas: SOW-nya tidak seragam statusnya.
+                                            'campuran' => 'bg-blue-100 text-blue-800',
                                         ];
                                         $labels = [
                                             'approved' => 'Approved',
                                             'rejected' => 'Rejected',
                                             'nego'     => 'Nego',
                                             'pending'  => 'Pending',
+                                            'campuran' => 'Campuran',
                                         ];
                                         $colorClass = $colors[$status] ?? $colors['pending'];
                                         $label = $labels[$status] ?? ucfirst($status);
@@ -345,6 +552,33 @@ class InternalBudgetForm
                                 TableColumn::make('Status')->width('110px'),
                             ])
                             ->extraItemActions([
+                                // Baris bawaan halaman ini satu per KOL, bukan per SOW. Tombol
+                                // ini menukar isi daftar ke SOW milik KOL tersebut; kembalinya
+                                // lewat tombol di bawah tabel.
+                                Action::make('detail_sow')
+                                    ->label('Detail SOW')
+                                    ->icon('heroicon-m-list-bullet')
+                                    ->color('gray')
+                                    ->iconButton()
+                                    ->tooltip(fn(array $arguments, Repeater $component): string => 'Lihat '
+                                        . (self::stateBaris($component, $arguments['item'] ?? '')['jumlah_sow'] ?? 0)
+                                        . ' SOW milik KOL ini')
+                                    ->visible(function (array $arguments, Repeater $component, $livewire): bool {
+                                        $itemUuid = $arguments['item'] ?? null;
+                                        if (! $itemUuid || ($livewire->kolFokus ?? null) !== null) {
+                                            return false;
+                                        }
+
+                                        return (bool) (self::stateBaris($component, $itemUuid)['media_plan_kol_id'] ?? null);
+                                    })
+                                    ->action(function (array $arguments, Repeater $component, $livewire) {
+                                        $kolId = self::stateBaris($component, $arguments['item'] ?? '')['media_plan_kol_id'] ?? null;
+
+                                        if ($kolId) {
+                                            $livewire->bukaDetailKol((int) $kolId);
+                                        }
+                                    }),
+
                                 // Terbitkan SPK untuk KOL di baris ini saja.
                                 // Gerbangnya sama dengan tombol batch di header: status budget
                                 // harus final (client sudah approve) dan itemnya approved.
@@ -367,7 +601,7 @@ class InternalBudgetForm
                                             return false;
                                         }
 
-                                        $state = $component->getRawItemState($itemUuid);
+                                        $state = self::stateBaris($component, $itemUuid);
                                         $kolId = $state['media_plan_kol_id'] ?? null;
 
                                         return ($state['status'] ?? null) === 'approved'
@@ -384,7 +618,7 @@ class InternalBudgetForm
                                             return 'Terbitkan SPK untuk KOL ini?';
                                         }
 
-                                        $state = $component->getRawItemState($itemUuid);
+                                        $state = self::stateBaris($component, $itemUuid);
                                         $kolId = (int) ($state['media_plan_kol_id'] ?? 0);
                                         $kol = MediaPlanKol::find($kolId);
 
@@ -407,7 +641,7 @@ class InternalBudgetForm
                                             return;
                                         }
 
-                                        $state = $component->getRawItemState($itemUuid);
+                                        $state = self::stateBaris($component, $itemUuid);
                                         $kolId = (int) ($state['media_plan_kol_id'] ?? 0);
 
                                         $spk = \App\Models\BvSPK::createForKol($livewire->record, $kolId);
@@ -438,17 +672,12 @@ class InternalBudgetForm
                                     ->icon('heroicon-m-check-circle')
                                     ->color('success')
                                     ->iconButton()
-                                    ->tooltip('Approve item ini')
+                                    ->tooltip('Approve KOL ini')
                                     ->requiresConfirmation()
-                                    ->modalHeading('Approve SOW Item')
-                                    ->modalDescription(function (array $arguments, Repeater $component): string {
-                                        $itemUuid = $arguments['item'] ?? null;
-                                        if (!$itemUuid)
-                                            return 'Apakah Anda yakin ingin meng-approve item ini?';
-                                        $rawState = $component->getRawItemState($itemUuid);
-                                        $scopeItem = $rawState['scope_item'] ?? 'item ini';
-                                        return "Apakah Anda yakin ingin meng-approve SOW \"{$scopeItem}\"? Tindakan ini akan mengubah status item menjadi Approved.";
-                                    })
+                                    ->modalHeading('Approve')
+                                    ->modalDescription(fn(array $arguments, Repeater $component): string => 'Approve '
+                                        . self::sebutanSasaran($component, $arguments['item'] ?? null)
+                                        . '? Statusnya berubah jadi Approved.')
                                     ->modalSubmitActionLabel('Ya, Approve')
                                     ->modalIcon('heroicon-o-check-circle')
                                     ->modalIconColor('success')
@@ -456,32 +685,28 @@ class InternalBudgetForm
                                         $itemUuid = $arguments['item'] ?? null;
                                         if (!$itemUuid)
                                             return true;
-                                        $rawState = $component->getRawItemState($itemUuid);
+                                        $rawState = self::stateBaris($component, $itemUuid);
+                                        if (empty(self::sasaranSow($component, $itemUuid)))
+                                            return false;
+                                        // "campuran" = SOW-nya belum seragam, jadi masih boleh diputuskan.
                                         $status = $rawState['status'] ?? 'pending';
-                                        if ($status === 'pending')
+                                        if (in_array($status, ['pending', 'campuran'], true))
                                             return true;
                                         return auth()->user()?->hasRole(['super_admin', 'superadmin', 'Super Admin', 'CEO', 'COO']) ?? false;
                                     })
                                     ->action(function (array $arguments, Repeater $component, $livewire) {
-                                        $itemUuid = $arguments['item'] ?? null;
-                                        if (!$itemUuid)
+                                        $ids = self::sasaranSow($component, $arguments['item'] ?? null);
+                                        if (empty($ids))
                                             return;
 
-                                        // Get the actual database ID from form state
-                                        $itemState = $component->getItemState($itemUuid);
-                                        $itemId = $itemState['id'] ?? null;
-                                        if (!$itemId)
-                                            return;
-
-                                        $item = InternalBudgetItem::find($itemId);
-                                        if (!$item)
-                                            return;
-
-                                        $item->approve();
+                                        // approve() per baris, bukan mass update: hook & observer
+                                        // model harus tetap jalan. Paling banyak belasan baris.
+                                        $items = InternalBudgetItem::whereIn('id', $ids)->get();
+                                        $items->each->approve();
 
                                         Notification::make()
-                                            ->title('Item Approved')
-                                            ->body("Item {$item->scope_item} berhasil di-approve.")
+                                            ->title($items->count() . ' SOW di-approve')
+                                            ->body($items->pluck('scope_item')->implode(', '))
                                             ->success()
                                             ->send();
 
@@ -489,8 +714,7 @@ class InternalBudgetForm
                                         // Promosi status budget (Review → Approve Client → Approve AM) dan
                                         // pembuatan quotation dilakukan manual oleh BV/AM via dropdown Status
                                         // dan tombol "Generate Quotation". Tidak ada auto-jump di sini.
-                                        $component->clearCachedExistingRecords();
-                                        $livewire->refreshFormData(['items']);
+                                        $livewire->muatUlangItems();
                                     }),
 
                                 Action::make('reject_item')
@@ -498,14 +722,16 @@ class InternalBudgetForm
                                     ->icon('heroicon-m-x-circle')
                                     ->color('danger')
                                     ->iconButton()
-                                    ->tooltip('Reject item ini')
+                                    ->tooltip('Reject KOL ini')
                                     ->visible(function (array $arguments, Repeater $component): bool {
                                         $itemUuid = $arguments['item'] ?? null;
                                         if (!$itemUuid)
                                             return true;
-                                        $rawState = $component->getRawItemState($itemUuid);
+                                        $rawState = self::stateBaris($component, $itemUuid);
+                                        if (empty(self::sasaranSow($component, $itemUuid)))
+                                            return false;
                                         $status = $rawState['status'] ?? 'pending';
-                                        if ($status === 'pending')
+                                        if (in_array($status, ['pending', 'campuran'], true))
                                             return true;
                                         return auth()->user()?->hasRole(['super_admin', 'superadmin', 'Super Admin', 'CEO', 'COO']) ?? false;
                                     })
@@ -516,32 +742,25 @@ class InternalBudgetForm
                                             ->required()
                                             ->rows(3),
                                     ])
-                                    ->modalHeading('Reject Item')
+                                    ->modalHeading('Reject')
+                                    ->modalDescription(fn(array $arguments, Repeater $component): string => 'Menolak '
+                                        . self::sebutanSasaran($component, $arguments['item'] ?? null) . '.')
                                     ->modalSubmitActionLabel('Reject')
                                     ->action(function (array $arguments, array $data, Repeater $component, $livewire) {
-                                        $itemUuid = $arguments['item'] ?? null;
-                                        if (!$itemUuid)
+                                        $ids = self::sasaranSow($component, $arguments['item'] ?? null);
+                                        if (empty($ids))
                                             return;
 
-                                        $itemState = $component->getItemState($itemUuid);
-                                        $itemId = $itemState['id'] ?? null;
-                                        if (!$itemId)
-                                            return;
-
-                                        $item = InternalBudgetItem::find($itemId);
-                                        if (!$item)
-                                            return;
-
-                                        $item->reject($data['rejection_notes']);
+                                        $items = InternalBudgetItem::whereIn('id', $ids)->get();
+                                        $items->each->reject($data['rejection_notes']);
 
                                         Notification::make()
-                                            ->title('Item Rejected')
-                                            ->body("Item {$item->scope_item} ditolak.")
+                                            ->title($items->count() . ' SOW ditolak')
+                                            ->body($items->pluck('scope_item')->implode(', '))
                                             ->warning()
                                             ->send();
 
-                                        $component->clearCachedExistingRecords();
-                                        $livewire->refreshFormData(['items']);
+                                        $livewire->muatUlangItems();
                                     }),
 
                                 Action::make('nego_item')
@@ -549,14 +768,16 @@ class InternalBudgetForm
                                     ->icon('heroicon-m-chat-bubble-left-right')
                                     ->color('warning')
                                     ->iconButton()
-                                    ->tooltip('Tandai sebagai Nego & tambah catatan')
+                                    ->tooltip('Tandai Nego & tambah catatan')
                                     ->visible(function (array $arguments, Repeater $component): bool {
                                         $itemUuid = $arguments['item'] ?? null;
                                         if (!$itemUuid)
                                             return true;
-                                        $rawState = $component->getRawItemState($itemUuid);
+                                        $rawState = self::stateBaris($component, $itemUuid);
+                                        if (empty(self::sasaranSow($component, $itemUuid)))
+                                            return false;
                                         $status = $rawState['status'] ?? 'pending';
-                                        if (in_array($status, ['pending', 'nego']))
+                                        if (in_array($status, ['pending', 'nego', 'campuran'], true))
                                             return true;
                                         return auth()->user()?->hasRole(['super_admin', 'superadmin', 'Super Admin', 'CEO', 'COO']) ?? false;
                                     })
@@ -567,35 +788,28 @@ class InternalBudgetForm
                                             ->required()
                                             ->rows(3),
                                     ])
-                                    ->modalHeading('Nego Item')
-                                    ->modalDescription('Tandai item ini sebagai "Nego" dan tambahkan catatan negosiasi untuk disampaikan ke client.')
+                                    ->modalHeading('Nego')
+                                    ->modalDescription(fn(array $arguments, Repeater $component): string => 'Menandai '
+                                        . self::sebutanSasaran($component, $arguments['item'] ?? null)
+                                        . ' sebagai "Nego" beserta catatan negosiasinya untuk disampaikan ke client.')
                                     ->modalSubmitActionLabel('Simpan Nego')
                                     ->modalIcon('heroicon-o-chat-bubble-left-right')
                                     ->modalIconColor('warning')
                                     ->action(function (array $arguments, array $data, Repeater $component, $livewire) {
-                                        $itemUuid = $arguments['item'] ?? null;
-                                        if (!$itemUuid)
+                                        $ids = self::sasaranSow($component, $arguments['item'] ?? null);
+                                        if (empty($ids))
                                             return;
 
-                                        $itemState = $component->getItemState($itemUuid);
-                                        $itemId = $itemState['id'] ?? null;
-                                        if (!$itemId)
-                                            return;
-
-                                        $item = InternalBudgetItem::find($itemId);
-                                        if (!$item)
-                                            return;
-
-                                        $item->nego($data['nego_notes']);
+                                        $items = InternalBudgetItem::whereIn('id', $ids)->get();
+                                        $items->each->nego($data['nego_notes']);
 
                                         Notification::make()
-                                            ->title('Item Ditandai Nego')
-                                            ->body("Item \"{$item->scope_item}\" ditandai sebagai Nego.")
+                                            ->title($items->count() . ' SOW ditandai Nego')
+                                            ->body($items->pluck('scope_item')->implode(', '))
                                             ->warning()
                                             ->send();
 
-                                        $component->clearCachedExistingRecords();
-                                        $livewire->refreshFormData(['items']);
+                                        $livewire->muatUlangItems();
                                     }),
 
                                 // KOL sudah di-ACC client tapi ternyata tidak available / client minta ganti orang.
@@ -610,8 +824,17 @@ class InternalBudgetForm
                                         if (!$itemUuid)
                                             return true;
 
+                                        $rawState = self::stateBaris($component, $itemUuid);
+                                        // Tetap per SOW, TIDAK ikut jadi per KOL: replaceItemKol()
+                                        // membuat satu baris KOL baru untuk tiap item, jadi
+                                        // menjalankannya untuk 6 SOW akan melahirkan 6 baris KOL
+                                        // pengganti yang orangnya sama. Hanya muncul di mode
+                                        // rincian, saat barisnya memang satu SOW.
+                                        if (blank($rawState['id'] ?? null))
+                                            return false;
+
                                         // Item yang sudah di-reject/diganti tidak bisa diganti lagi.
-                                        return (($component->getRawItemState($itemUuid)['status'] ?? 'pending') !== 'rejected');
+                                        return (($rawState['status'] ?? 'pending') !== 'rejected');
                                     })
                                     ->form([
                                         Select::make('data_kol_id')
@@ -634,7 +857,7 @@ class InternalBudgetForm
                                     ->modalSubmitActionLabel('Ganti KOL')
                                     ->modalIcon('heroicon-o-arrows-right-left')
                                     ->action(function (array $arguments, array $data, Repeater $component, $livewire) {
-                                        $itemId = $component->getItemState($arguments['item'] ?? '')['id'] ?? null;
+                                        $itemId = self::stateBarisPenuh($component, $arguments['item'] ?? '')['id'] ?? null;
                                         $item = $itemId ? InternalBudgetItem::find($itemId) : null;
                                         if (!$item)
                                             return;
@@ -661,14 +884,21 @@ class InternalBudgetForm
                                                 ->send();
                                         }
 
-                                        $component->clearCachedExistingRecords();
-                                        $livewire->refreshFormData(['items']);
+                                        $livewire->muatUlangItems();
                                     }),
                             ])
                             ->addable(false)
                             ->deletable(false)
                             ->reorderable(false)
                             ->defaultItems(0),
+
+                        // Paginasi ditaruh DI BAWAH daftarnya: yang dinavigasi isi tabel.
+                        // Halaman Create belum punya item tersimpan untuk dipaginasi.
+                        Placeholder::make('item_pagination')
+                            ->hiddenLabel()
+                            ->visible(fn($livewire) => $livewire instanceof EditInternalBudget)
+                            ->content(fn() => view('filament.forms.components.item-pagination'))
+                            ->columnSpanFull(),
                     ])
                     ->columnSpanFull(),
 
