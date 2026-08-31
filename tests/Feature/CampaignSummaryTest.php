@@ -228,6 +228,28 @@ it('halaman summary ter-render dengan semua section', function () {
         ->assertDontSee('Komentar belum pernah diambil');
 });
 
+it('aksi mode detail dikumpulkan ke satu dropdown, navigasi tetap berdiri sendiri', function () {
+    Gate::before(fn() => true);
+
+    $campaign = summaryCampaign([['views' => 100]]);
+
+    $halaman = Livewire::actingAs(summaryUser())
+        ->test(CampaignSummaryList::class, ['campaignId' => $campaign->id]);
+
+    $aksi = tap(new ReflectionMethod($halaman->instance(), 'getHeaderActions'),
+        fn($m) => $m->setAccessible(true))->invoke($halaman->instance());
+
+    // Lima tombol berjajar mendorong judul campaign sampai terpotong; yang
+    // boleh berdiri sendiri cuma navigasinya.
+    expect(collect($aksi)->filter(fn($a) => $a instanceof \Filament\Actions\ActionGroup))->toHaveCount(1);
+
+    // Dikelompokkan, bukan dihapus: semuanya tetap bisa dipanggil per nama.
+    $halaman->assertActionVisible('kembali')
+        ->assertActionVisible('export_pdf')
+        ->assertActionVisible('fetch_all')
+        ->assertActionVisible('analyze_sentiment');
+});
+
 it('section sentimen memberi arahan saat komentar belum diambil', function () {
     Gate::before(fn() => true);
 

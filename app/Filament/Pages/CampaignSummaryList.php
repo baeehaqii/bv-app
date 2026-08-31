@@ -11,6 +11,7 @@ use App\Service\PostCommentsFetcher;
 use App\Service\PostPerformanceService;
 use Exception;
 use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Support\Enums\FontWeight;
@@ -219,9 +220,13 @@ class CampaignSummaryList extends Page implements HasTable
     }
 
     /**
-     * Daftar aksi header di-cache Filament sejak mount, jadi ketiganya selalu
+     * Daftar aksi header di-cache Filament sejak mount, jadi semuanya selalu
      * didaftarkan dan yang menentukan tampil/tidak adalah visible() — bukan
      * percabangan di sini, yang akan membeku pada mode saat halaman dibuka.
+     *
+     * Aksi mode detail dikumpulkan ke satu dropdown "Aksi": lima tombol berjajar
+     * mendorong judul campaign sampai terpotong jadi tiga baris. Yang tetap
+     * berdiri sendiri cuma navigasinya — itu jalan keluar dari halaman.
      */
     protected function getHeaderActions(): array
     {
@@ -242,107 +247,110 @@ class CampaignSummaryList extends Page implements HasTable
                 ->visible($detail)
                 ->url(static::getUrl()),
 
-            Action::make('export_pdf')
-                ->label('Export PDF')
-                ->icon('heroicon-o-arrow-down-tray')
-                ->color('gray')
-                ->visible($detail)
-                ->url(fn() => route('campaign-summary.pdf', ['bvCampign' => $this->campaignId]))
-                ->openUrlInNewTab(),
+            ActionGroup::make([
+                Action::make('export_pdf')
+                    ->label('Export PDF')
+                    ->icon('heroicon-o-arrow-down-tray')
+                    ->color('gray')
+                    ->url(fn() => route('campaign-summary.pdf', ['bvCampign' => $this->campaignId]))
+                    ->openUrlInNewTab(),
 
-            Action::make('fetch_all')
-                ->label('Fetch All Performance')
-                ->icon('heroicon-o-arrow-path')
-                ->visible($detail)
-                ->requiresConfirmation()
-                ->modalDescription('Menarik ulang metrik semua postingan yang sudah tayang, sekaligus mencatat satu baris Retrieve History.')
-                ->action(function () {
-                    $kols = $this->summary->published();
+                Action::make('fetch_all')
+                    ->label('Fetch All Performance')
+                    ->icon('heroicon-o-arrow-path')
+                    ->requiresConfirmation()
+                    ->modalDescription('Menarik ulang metrik semua postingan yang sudah tayang, sekaligus mencatat satu baris Retrieve History.')
+                    ->action(function () {
+                        $kols = $this->summary->published();
 
-                    if ($kols->isEmpty()) {
-                        Notification::make()->warning()->title('Belum ada postingan tayang')->send();
+                        if ($kols->isEmpty()) {
+                            Notification::make()->warning()->title('Belum ada postingan tayang')->send();
 
-                        return;
-                    }
-
-                    $hasil = (new PostPerformanceService())->bulkFetchAndUpdate($kols);
-
-                    Notification::make()->success()
-                        ->title('Performa diperbarui')
-                        ->body("{$hasil['success']} dari {$hasil['total']} postingan berhasil.")
-                        ->send();
-                }),
-
-            Action::make('ringkasan_ai')
-                ->label('Ringkasan AI')
-                ->icon('heroicon-o-sparkles')
-                ->color('info')
-                ->visible(fn() => $detail() && AiWriter::configured())
-                ->requiresConfirmation()
-                ->modalHeading('Tulis Ulang Ringkasan AI')
-                ->modalDescription('Sekali klik memakai satu panggilan berbayar ke Gemini. '
-                    . 'Hasilnya disimpan, jadi tidak perlu diklik lagi sampai angkanya berubah.')
-                ->modalSubmitActionLabel('Ya, tulis sekarang')
-                ->action(function () {
-                    try {
-                        $teks = AiWriter::write(
-                            'Kamu analis kampanye influencer di agency Indonesia. Tulis ringkasan '
-                            . 'performa campaign dalam Bahasa Indonesia, 3 paragraf pendek: (1) hasil '
-                            . 'secara umum, (2) metrik yang menonjol dan yang lemah beserta alasannya, '
-                            . '(3) satu rekomendasi konkret untuk campaign berikutnya. Jangan mengarang '
-                            . 'angka di luar data yang diberikan, dan jangan memakai format markdown.',
-                            $this->summary->factsForAi(),
-                        );
-                    } catch (Exception $e) {
-                        Notification::make()->danger()->title('Ringkasan gagal dibuat')->body($e->getMessage())->send();
-
-                        return;
-                    }
-
-                    $this->campaign->update(['ai_summary' => $teks, 'ai_summary_at' => now()]);
-
-                    Notification::make()->success()->title('Ringkasan AI diperbarui')->send();
-                }),
-
-            Action::make('analyze_sentiment')
-                ->label('Analisis Sentimen')
-                ->icon('heroicon-o-chat-bubble-left-right')
-                ->color('warning')
-                ->visible($detail)
-                ->requiresConfirmation()
-                ->modalHeading('Ambil & Analisis Komentar')
-                ->modalDescription(fn() => 'Komentar diambil per postingan dan tiap postingan memakai kredit API, '
-                    . 'jadi tidak dijalankan otomatis. Yang akan diambil: '
-                    . ($this->summary?->published()->count() ?? 0) . ' postingan tayang. '
-                    . 'Threads dilewati — belum ada endpoint komentarnya.')
-                ->modalSubmitActionLabel('Ya, ambil sekarang')
-                ->action(function () {
-                    $fetcher = new PostCommentsFetcher();
-                    $berhasil = 0;
-                    $komentar = 0;
-
-                    foreach ($this->summary->published() as $kol) {
-                        if (! PostCommentsFetcher::supports($kol->platform)) {
-                            continue;
+                            return;
                         }
 
+                        $hasil = (new PostPerformanceService())->bulkFetchAndUpdate($kols);
+
+                        Notification::make()->success()
+                            ->title('Performa diperbarui')
+                            ->body("{$hasil['success']} dari {$hasil['total']} postingan berhasil.")
+                            ->send();
+                    }),
+
+                Action::make('ringkasan_ai')
+                    ->label('Ringkasan AI')
+                    ->icon('heroicon-o-sparkles')
+                    ->color('info')
+                    ->visible(fn() => $detail() && AiWriter::configured())
+                    ->requiresConfirmation()
+                    ->modalHeading('Tulis Ulang Ringkasan AI')
+                    ->modalDescription('Sekali klik memakai satu panggilan berbayar ke Gemini. '
+                        . 'Hasilnya disimpan, jadi tidak perlu diklik lagi sampai angkanya berubah.')
+                    ->modalSubmitActionLabel('Ya, tulis sekarang')
+                    ->action(function () {
                         try {
-                            $teks = $fetcher->fetch($kol->post_url, $kol->platform);
+                            $teks = AiWriter::write(
+                                'Kamu analis kampanye influencer di agency Indonesia. Tulis ringkasan '
+                                . 'performa campaign dalam Bahasa Indonesia, 3 paragraf pendek: (1) hasil '
+                                . 'secara umum, (2) metrik yang menonjol dan yang lemah beserta alasannya, '
+                                . '(3) satu rekomendasi konkret untuk campaign berikutnya. Jangan mengarang '
+                                . 'angka di luar data yang diberikan, dan jangan memakai format markdown.',
+                                $this->summary->factsForAi(),
+                            );
                         } catch (Exception $e) {
-                            continue;
+                            Notification::make()->danger()->title('Ringkasan gagal dibuat')->body($e->getMessage())->send();
+
+                            return;
                         }
 
-                        $kol->update(['comments_data' => $teks, 'comments_fetched_at' => now()]);
-                        $berhasil++;
-                        $komentar += count($teks);
-                    }
+                        $this->campaign->update(['ai_summary' => $teks, 'ai_summary_at' => now()]);
 
-                    Notification::make()
-                        ->title($berhasil > 0 ? 'Analisis sentimen selesai' : 'Tidak ada komentar terambil')
-                        ->body("{$komentar} komentar dari {$berhasil} postingan.")
-                        ->{$berhasil > 0 ? 'success' : 'warning'}()
-                        ->send();
-                }),
+                        Notification::make()->success()->title('Ringkasan AI diperbarui')->send();
+                    }),
+
+                Action::make('analyze_sentiment')
+                    ->label('Analisis Sentimen')
+                    ->icon('heroicon-o-chat-bubble-left-right')
+                    ->color('warning')
+                    ->requiresConfirmation()
+                    ->modalHeading('Ambil & Analisis Komentar')
+                    ->modalDescription(fn() => 'Komentar diambil per postingan dan tiap postingan memakai kredit API, '
+                        . 'jadi tidak dijalankan otomatis. Yang akan diambil: '
+                        . ($this->summary?->published()->count() ?? 0) . ' postingan tayang. '
+                        . 'Threads dilewati — belum ada endpoint komentarnya.')
+                    ->modalSubmitActionLabel('Ya, ambil sekarang')
+                    ->action(function () {
+                        $fetcher = new PostCommentsFetcher();
+                        $berhasil = 0;
+                        $komentar = 0;
+
+                        foreach ($this->summary->published() as $kol) {
+                            if (! PostCommentsFetcher::supports($kol->platform)) {
+                                continue;
+                            }
+
+                            try {
+                                $teks = $fetcher->fetch($kol->post_url, $kol->platform);
+                            } catch (Exception $e) {
+                                continue;
+                            }
+
+                            $kol->update(['comments_data' => $teks, 'comments_fetched_at' => now()]);
+                            $berhasil++;
+                            $komentar += count($teks);
+                        }
+
+                        Notification::make()
+                            ->title($berhasil > 0 ? 'Analisis sentimen selesai' : 'Tidak ada komentar terambil')
+                            ->body("{$komentar} komentar dari {$berhasil} postingan.")
+                            ->{$berhasil > 0 ? 'success' : 'warning'}()
+                            ->send();
+                    }),
+            ])
+                ->label('Aksi')
+                ->icon('heroicon-o-ellipsis-horizontal')
+                ->button()
+                ->visible($detail),
         ];
     }
 }
