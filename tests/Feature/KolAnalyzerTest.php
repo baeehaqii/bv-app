@@ -62,9 +62,13 @@ it('Analyzer mulai dari daftar KOL, lalu klik baris untuk membuka analisis', fun
         ->assertSee('Klik satu baris')
         ->assertCanSeeTableRecords(DataKol::oneRowPerKol()->get());
 
-    // Klik baris → detail analisis KOL itu.
-    $page->callAction(TestAction::make('analisis')->table($raffi))
-        ->assertSet('channelId', $raffi->id)
+    // Barisnya tautan, bukan tombol aksi: tombol bernama "Analyze" di sini pernah
+    // tertukar dengan Analyze di halaman edit KOL yang men-scrape ulang.
+    expect($page->instance()->getTable()->getRecordUrl($raffi))
+        ->toContain('channelId=' . $raffi->id);
+
+    // Membuka tautannya → detail analisis KOL itu.
+    $page->set('channelId', $raffi->id)
         ->assertDontSee('Estimasi Rate Card')
         ->assertSee('Social Data');
 

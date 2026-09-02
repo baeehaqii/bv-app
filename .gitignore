@@ -26,3 +26,5 @@ yarn-error.log
 
 # Export/data client mentah di root (jangan masuk repo)
 /*.xlsx
+
+.DS_Store

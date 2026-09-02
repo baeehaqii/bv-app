@@ -2,31 +2,67 @@
 
 namespace App\Filament\Resources\DataKols\Pages;
 
+use App\Filament\Concerns\MenyegarkanChannelKol;
 use App\Filament\Resources\DataKols\DataKolResource;
 use App\Models\DataKol;
-use App\Service\KolProfileImporter;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
-use Throwable;
 
 class EditDataKol extends EditRecord
 {
+    use MenyegarkanChannelKol;
+
     protected static string $resource = DataKolResource::class;
 
-    /** Kolom yang ikut berubah saat scraping ulang, untuk menyegarkan isi form. */
+    /**
+     * Field form yang ikut berubah saat scraping ulang.
+     *
+     * Isinya HARUS irisan antara kolom yang ditulis KolProfileImporter::toRow()
+     * dan field yang benar-benar ada di DataKolForm. Daftar lama menyebut
+     * full_name/email/wa_number/contact/category — tidak satu pun disentuh
+     * scraping — dan melewatkan followers, tier, ER, engagements, impressions:
+     * angkanya berubah di database tapi form tetap menampilkan yang lama sampai
+     * halamannya dimuat ulang.
+     */
     private const FIELD_HASIL_SCRAPING = [
-        'notes', 'terakhir_update', 'full_name', 'email', 'wa_number', 'contact', 'category',
+        'username', 'followers', 'tier', 'engagement_rate',
+        'engagements', 'impressions', 'status', 'notes',
     ];
 
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('analyze')
+                ->label('Analyze')
+                ->icon('heroicon-o-arrow-path')
+                ->color('info')
+                ->requiresConfirmation()
+                ->modalHeading('Analyze — Tarik Ulang Data Channel')
+                ->modalDescription(fn() => $this->keteranganAnalyze($this->getRecord()->kol_key))
+                ->modalSubmitActionLabel('Ya, ambil sekarang')
+                ->action(fn() => $this->analyzeKol()),
+
             Action::make('save')
                 ->label('Save Changes')
                 ->action('save')
                 ->keyBindings(['mod+s']),
         ];
+    }
+
+    /**
+     * Scraping ulang SELURUH channel milik KOL ini.
+     *
+     * Halaman edit memang membuka satu baris channel, tapi yang dimaksud orang
+     * dengan "perbarui data KOL" adalah orangnya — termasuk channel lain yang
+     * tampil di tabel Social Media Data di bawah.
+     */
+    public function analyzeKol(): void
+    {
+        $this->segarkanSeluruhChannel($this->getRecord()->kol_key);
+
+        $this->getRecord()->refresh();
+        $this->refreshFormData(self::FIELD_HASIL_SCRAPING);
     }
 
     protected function getFormActions(): array
@@ -46,71 +82,11 @@ class EditDataKol extends EditRecord
             ->where('kol_key', $this->getRecord()->kol_key)
             ->findOrFail($id);
 
-        $sebelum = (int) $row->followers;
-
-        $importer = app(KolProfileImporter::class);
-
-        // Profil + video = dua panggilan API berurutan; beri ruang di atas jumlah
-        // timeout keduanya supaya yang menghentikan adalah timeout HTTP (bisa
-        // ditangkap & dinotifikasi), bukan max_execution_time (fatal, layar 500).
-        if (function_exists('set_time_limit')) {
-            @set_time_limit(KolProfileImporter::BATAS_WAKTU_PER_BARIS);
-        }
-
-        try {
-            // fetch & save dipisah supaya media_count bisa dibaca — itu yang
-            // membedakan "akun tidak punya postingan" dari "API tidak memberi data".
-            $profil = $importer->fetchProfile($row->channel, (string) $row->link_userprofile);
-            $baru = $importer->save($profil, $row->channel, (string) $row->link_userprofile, $row->kol_key, $row);
-        } catch (Throwable $e) {
-            Notification::make()
-                ->title("Gagal memperbarui {$row->channel}")
-                ->body($e->getMessage())
-                ->danger()
-                ->persistent()
-                ->send();
-
-            return;
-        }
-
-        $selisih = (int) $baru->followers - $sebelum;
-
-        $ringkas = number_format((int) $baru->followers) . ' followers'
-            . ($selisih !== 0 ? ' (' . ($selisih > 0 ? '+' : '−') . number_format(abs($selisih)) . ')' : ' (tidak berubah)')
-            . ' · ER ' . number_format((float) $baru->engagement_rate, 2) . '%'
-            . ' · ' . number_format((int) $baru->impressions) . ' avg impressions';
-
-        /*
-         * Engagement 0 punya DUA sebab yang harus dibedakan, karena tindak lanjutnya
-         * beda jauh:
-         *  - akun memang belum punya postingan → datanya benar, tidak ada yang rusak
-         *  - akun punya postingan tapi engagement tetap 0 → API tidak memberi data
-         *    per-post, angka 0-nya bukan hasil pengukuran dan jangan dipercaya
-         */
-        $jumlahPost = (int) ($profil['media_count'] ?? 0);
-        $nolEngagement = (int) $baru->followers > 0 && (int) $baru->engagements === 0;
-
-        $catatan = match (true) {
-            ! $nolEngagement => '',
-            $jumlahPost === 0 => ' — Akun ini belum punya postingan, jadi engagement & ER memang 0.',
-            default => ' — Engagement & ER tidak terhitung: data per-post tidak tersedia dari API,'
-                . ' angka 0 di sini bukan hasil pengukuran.',
-        };
-
-        $notifikasi = Notification::make()
-            ->title("{$row->channel} diperbarui")
-            ->body($ringkas . $catatan);
-
-        // persistent() tidak menerima argumen — harus dicabang, bukan persistent($bool).
-        $nolEngagement
-            ? $notifikasi->warning()->persistent()
-            : $notifikasi->success();
-
-        $notifikasi->send();
+        $baru = $this->segarkanBarisKol($row);
 
         // Kalau yang di-scrape kebetulan baris yang sedang dibuka, isi form ikut basi.
         // Tabelnya sendiri query ulang tiap render, jadi tidak perlu redirect.
-        if ($baru->is($this->getRecord())) {
+        if ($baru?->is($this->getRecord())) {
             $this->getRecord()->refresh();
             $this->refreshFormData(self::FIELD_HASIL_SCRAPING);
         }

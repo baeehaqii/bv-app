@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use App\Filament\Concerns\MenyegarkanChannelKol;
 use App\Filament\Resources\DataKols\Tables\DataKolsTable;
 use App\Models\DataKol;
 use App\Service\AiWriter;
@@ -13,6 +14,7 @@ use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
 use Illuminate\Support\Collection;
+use Livewire\Attributes\Url;
 
 /**
  * KOL Analyzer — analisis mendalam SATU channel KOL.
@@ -26,6 +28,7 @@ use Illuminate\Support\Collection;
 class KolAnalyzer extends Page implements HasTable
 {
     use InteractsWithTable;
+    use MenyegarkanChannelKol;
 
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-chart-bar-square';
     protected static string|\UnitEnum|null $navigationGroup = 'KOL Area';
@@ -35,7 +38,13 @@ class KolAnalyzer extends Page implements HasTable
     protected static ?string $slug = 'kol-analyzer';
     protected string $view = 'filament.pages.kol-analyzer';
 
-    /** Channel yang sedang dianalisis (id baris data_kols). */
+    /**
+     * Channel yang sedang dianalisis (id baris data_kols).
+     *
+     * Ikut query string supaya barisnya bisa dibuka sebagai tautan biasa — tanpa
+     * tombol di kolom aksi — dan halaman analisisnya bisa di-bookmark.
+     */
+    #[Url]
     public ?int $channelId = null;
 
     /** 'overview' | 'latest' */
@@ -50,14 +59,12 @@ class KolAnalyzer extends Page implements HasTable
     {
         // Halaman biasa (bukan Resource) tidak punya query bawaan — harus disuplai sendiri.
         return DataKolsTable::configure($table->query(DataKol::query()))
-            ->recordActions([
-                Action::make('analisis')
-                    ->label('Analisis')
-                    ->icon('heroicon-o-chart-bar-square')
-                    ->action(fn(DataKol $record) => $this->channelId = $record->id),
-            ])
-            // Klik di mana pun pada baris ikut membuka analisis.
-            ->recordAction('analisis')
+            // Tanpa tombol di baris sama sekali: SELURUH baris jadi tautan ke
+            // analisisnya. Tombol bernama "Analyze" di sini pernah bikin salah
+            // paham — yang men-scrape adalah tombol Analyze di halaman edit KOL,
+            // sementara yang ini cuma membuka tampilan analisis.
+            ->recordActions([])
+            ->recordUrl(fn(DataKol $record) => static::getUrl(['channelId' => $record->id]))
             ->toolbarActions([]);
     }
 
@@ -147,6 +154,28 @@ class KolAnalyzer extends Page implements HasTable
                 ->color('gray')
                 ->visible(fn() => $this->channelId !== null)
                 ->action(fn() => $this->channelId = null),
+
+            // Halaman ini yang paling sering memperlihatkan data basi (bio kosong,
+            // following & posts 0 untuk baris hasil migrasi), jadi tombolnya harus
+            // ada DI SINI juga — bukan cuma di halaman edit KOL Data.
+            Action::make('analyze')
+                ->label('Analyze')
+                ->icon('heroicon-o-arrow-path')
+                ->color('info')
+                ->visible(fn() => $this->channelId !== null)
+                ->requiresConfirmation()
+                ->modalHeading('Analyze — Tarik Ulang Data Channel')
+                ->modalDescription(fn() => $this->keteranganAnalyze($this->channel?->kol_key))
+                ->modalSubmitActionLabel('Ya, ambil sekarang')
+                ->action(function () {
+                    $this->segarkanSeluruhChannel((string) $this->channel?->kol_key);
+
+                    // $this->channel & $this->siblings itu computed property —
+                    // Livewire menyimpan hasilnya untuk sisa request ini. Tanpa
+                    // dibuang, render setelah scraping masih memakai model lama
+                    // dan halamannya terlihat seperti tidak berubah apa-apa.
+                    unset($this->channel, $this->siblings);
+                }),
 
             Action::make('kartu_ai')
                 ->label(fn() => $this->channel?->ai_insight ? 'Tulis Ulang Kartu AI' : 'Buat Kartu AI')

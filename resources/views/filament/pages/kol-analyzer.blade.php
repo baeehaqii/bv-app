@@ -348,5 +348,15 @@
                 </div>
             @endif
         </div>
+
+        {{--
+            WAJIB di cabang ini. Halaman ber-HasTable TIDAK dirender modalnya oleh
+            <x-filament-panels::page> — Filament menyerahkannya ke komponen tabel
+            (lihat vendor/filament/filament/.../components/page/index.blade.php).
+            Di mode rincian tabelnya tidak dirender, jadi tanpa baris ini tombol
+            header yang pakai modal (Analyze, Buat Kartu AI, Ambil Data Audiens)
+            diklik tanpa terjadi apa-apa.
+        --}}
+        <x-filament-actions::modals />
     @endif
 </x-filament-panels::page>

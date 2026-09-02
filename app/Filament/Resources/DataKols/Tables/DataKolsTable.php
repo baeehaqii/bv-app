@@ -301,7 +301,9 @@ class DataKolsTable
                     DeleteBulkAction::make(),
                 ]),
             ])
-            ->defaultSort('username');
+            ->defaultSort(fn(Builder $query) => $query
+                ->orderByDesc('created_at')
+                ->orderByDesc('id'));
     }
 
     private static function spkCount(DataKol $record): int
