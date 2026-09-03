@@ -64,6 +64,10 @@ class DatabaseSeeder extends Seeder
         $this->call(BvEmployeSeeder::class);
         $this->command->info('BvEmploye seeding completed!');
 
+        // Target 2026 dari sheet "2026 Sales Target" (butuh user & bv_sales_lists)
+        $this->call(SalesTarget2026Seeder::class);
+        $this->command->info('SalesTarget2026 seeding completed!');
+
         $this->command->info('Database seeding completed successfully!');
     }
 }
