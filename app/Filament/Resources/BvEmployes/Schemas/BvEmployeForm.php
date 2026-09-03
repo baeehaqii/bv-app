@@ -115,7 +115,11 @@ class BvEmployeForm
                         TextInput::make('whatsapp')
                             ->label('WhatsApp')
                             ->placeholder('08xxxxxxxxxx')
-                            ->required(),
+                            ->required()
+                            // Kolomnya unique di DB: tanpa aturan ini nomor kembar
+                            // baru ketahuan sebagai error 500 saat disimpan.
+                            ->unique(ignoreRecord: true)
+                            ->validationMessages(['unique' => 'Nomor WhatsApp ini sudah dipakai karyawan lain.']),
 
                         TextInput::make('alamat')
                             ->label('Alamat')
