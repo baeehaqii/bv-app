@@ -131,12 +131,17 @@ jobs:
           # seluruh deploy sebelum satu langkah pun berjalan.
           for d in /www/server/nodejs/*/bin; do [ -d "$d" ] && PATH="$PATH:$d"; done || true
 
-          # sudo hanya dipakai kalau user SSH memang bukan pemilik aplikasi.
-          # Kalau keduanya sama, sudo malah jadi syarat tambahan yang tidak perlu.
+          # Setiap perintah dijalankan DARI DALAM direktori aplikasi sebagai
+          # pemiliknya. Direktori situs aaPanel ber-mode 0700 milik www, jadi user
+          # SSH deploy bahkan tidak bisa `cd` ke sana — semua akses harus lewat
+          # sini, termasuk pemeriksaan `test -d .git`.
+          #
+          # sudo dilewati kalau user SSH memang pemilik aplikasi; di situ sudo cuma
+          # jadi syarat tambahan yang tidak perlu.
           if [ "$(id -un)" = "$RUN_AS" ]; then
-            as_app() { "$@"; }
+            run() { bash -c "cd '$SITE' && $*"; }
           else
-            as_app() { sudo -u "$RUN_AS" -H "$@"; }
+            run() { sudo -n -u "$RUN_AS" -H bash -c "cd '$SITE' && $*"; }
           fi
 
           echo "==> [1/7] Validasi lingkungan server"
@@ -145,63 +150,66 @@ jobs:
           command -v composer >/dev/null || { echo "ERROR: composer tidak ditemukan"; exit 1; }
           command -v npm  >/dev/null || { echo "ERROR: npm tidak ditemukan — aset Filament tidak bisa dibuild"; exit 1; }
           if [ "$(id -un)" != "$RUN_AS" ]; then
-            sudo -n true 2>/dev/null || { echo "ERROR: user deploy butuh sudo tanpa password untuk menjadi '$RUN_AS'"; exit 1; }
+            # Diuji tepat pada kemampuan yang dipakai (`sudo -u $RUN_AS`), bukan
+            # `sudo -n true` yang berarti sudo penuh sebagai root. Bedanya nyata:
+            # yang pertama cukup diberi satu baris sudoers sempit, yang kedua
+            # memaksa user deploy jadi setara root.
+            sudo -n -u "$RUN_AS" true 2>/dev/null || { echo "ERROR: user deploy tidak bisa 'sudo -u $RUN_AS' tanpa password"; exit 1; }
           fi
           PHP_VER=$("$PHP" -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')
           echo "  php $PHP_VER di $PHP"
-          cd "$SITE"
-          [ -d .git ] || { echo "ERROR: $SITE bukan git clone"; exit 1; }
+          run test -d .git || { echo "ERROR: $SITE bukan git clone"; exit 1; }
           # Tanpa .env, Laravel jalan tanpa APP_KEY dan semua sesi tertolak.
-          [ -f .env ] || { echo "ERROR: $SITE/.env tidak ada"; exit 1; }
+          run test -f .env || { echo "ERROR: $SITE/.env tidak ada"; exit 1; }
 
           echo "==> [2/7] Ambil kode dari GitHub"
           # Reset ke SHA persis milik run ini, bukan origin/main, supaya push yang
           # lebih baru tidak diam-diam ikut terbawa ke deploy ini.
-          as_app git fetch --quiet origin main
-          as_app git reset --hard --quiet "$SHA"
-          echo "  HEAD sekarang: $(as_app git rev-parse --short HEAD)"
+          run git fetch --quiet origin main
+          run git reset --hard --quiet "$SHA"
+          echo "  HEAD sekarang: $(run git rev-parse --short HEAD)"
           # reset --hard hanya membatalkan perubahan pada file yang DI-TRACK. .env
           # ada di .gitignore, dan berkas unggahan di storage/app/public tidak
           # ter-track, jadi keduanya aman. Jangan pernah menambahkan `git clean -x`
           # di sini — itu justru menghapus keduanya.
 
           echo "==> [3/7] Install dependency PHP"
-          as_app composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev
+          run composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev
 
           echo "==> [4/7] Build aset"
           # Dibuild di server, bukan mengandalkan public/build yang ikut ter-commit:
           # kelas Tailwind baru pada tema Filament baru muncul setelah build, dan
           # kalau ada yang lupa build sebelum push, halamannya tampil tanpa gaya
           # tanpa satu pun error.
-          as_app npm ci --no-audit --no-fund
-          as_app npm run build
+          run npm ci --no-audit --no-fund
+          run npm run build
 
           echo "==> [5/7] Migrasi database"
-          as_app "$PHP" artisan migrate --force
+          run "$PHP" artisan migrate --force
 
           echo "==> [6/7] Segarkan aset vendor & cache"
           # Aset Livewire di repo ini IKUT TER-COMMIT. Kalau versinya tertinggal
           # dari paket composer-nya, seluruh interaktivitas Filament mati tanpa
           # satu pun error di layar maupun di log.
-          as_app "$PHP" artisan vendor:publish --tag=livewire:assets --force --quiet
-          as_app "$PHP" artisan storage:link || true
-          as_app "$PHP" artisan optimize:clear
-          as_app "$PHP" artisan config:cache
-          as_app "$PHP" artisan route:cache
-          as_app "$PHP" artisan view:cache
-          as_app "$PHP" artisan filament:optimize
+          run "$PHP" artisan vendor:publish --tag=livewire:assets --force --quiet
+          run "$PHP" artisan storage:link || true
+          run "$PHP" artisan optimize:clear
+          run "$PHP" artisan config:cache
+          run "$PHP" artisan route:cache
+          run "$PHP" artisan view:cache
+          run "$PHP" artisan filament:optimize
           # Worker yang sedang jalan masih memegang kode versi sebelumnya. Ini
           # menyuruhnya berhenti setelah job yang sedang dikerjakan selesai,
           # lalu supervisor menyalakannya lagi dengan kode baru.
-          as_app "$PHP" artisan queue:restart
+          run "$PHP" artisan queue:restart
 
           echo "==> [7/7] Health check"
           # Dua-duanya harus benar. HTTP 200 saja tidak cukup: nginx bisa menjawab
           # dari cache opcache lama, dan deploy yang sebenarnya gagal tetap
           # melapor hijau. Jadi SHA di disk ikut diperiksa.
-          DEPLOYED=$(as_app git rev-parse HEAD)
+          DEPLOYED=$(run git rev-parse HEAD)
           [ "$DEPLOYED" = "$SHA" ] || { echo "ERROR: HEAD di server ($DEPLOYED) bukan SHA run ini ($SHA)"; exit 1; }
-          echo "==> DEPLOY SELESAI: $(as_app git rev-parse --short HEAD)"
+          echo "==> DEPLOY SELESAI: $(run git rev-parse --short HEAD)"
           DEPLOY
 
       - name: Health check aplikasi
