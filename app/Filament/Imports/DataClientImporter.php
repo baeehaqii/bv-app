@@ -2,11 +2,13 @@
 
 namespace App\Filament\Imports;
 
+use App\Enums\ClientStatus;
 use App\Models\BvSalesList;
 use App\Models\DataClient;
 use Filament\Actions\Imports\ImportColumn;
 use Filament\Actions\Imports\Importer;
 use Filament\Actions\Imports\Models\Import;
+use Illuminate\Validation\Rule;
 use Illuminate\Support\Number;
 
 class DataClientImporter extends Importer
@@ -49,9 +51,9 @@ class DataClientImporter extends Importer
                 ->example('Garudafood Group'),
 
             ImportColumn::make('status_client')
-                ->label('Status Client (won/lost/revision/mediaplan/awaiting/invoicing)')
-                ->rules(['nullable', 'in:won,lost,revision,mediaplan,awaiting,invoicing'])
-                ->example('awaiting'),
+                ->label('Status Client (' . implode('/', array_keys(ClientStatus::options())) . ')')
+                ->rules(['nullable', Rule::in(array_keys(ClientStatus::options()))])
+                ->example(ClientStatus::AWAITING_FEEDBACK->value),
 
             ImportColumn::make('status')
                 ->label('Status Campaign')

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use App\Enums\ClientStatus;
 use App\Enums\SalesStatus;
 use App\Models\BvSales;
 use App\Models\BvSalesList;
@@ -315,7 +316,7 @@ class SalesDashboard extends Page
                 'name' => $client->nama_brand,
                 'type' => $client->type,
                 'category' => $client->category ?? '—',
-                'status' => $client->status_client ?? '—',
+                'status' => ClientStatus::labelFor($client->status_client) ?? '—',
                 'follow_up' => $client->date_follow_up ? Carbon::parse($client->date_follow_up)->translatedFormat('d M Y') : null,
                 'priority' => $client->priority,
             ])

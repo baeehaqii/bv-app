@@ -2,6 +2,8 @@
 
 namespace App\Service;
 
+use App\Enums\ClientStatus;
+use App\Enums\SalesStatus;
 use App\Models\BvSalesList;
 use App\Models\DataClient;
 use Carbon\CarbonImmutable;
@@ -48,16 +50,31 @@ class ClientSheetMigration extends SheetMigration
     public const ALIASES = [
         'nama_brand' => ['nama brand', 'brand', 'nama brand agency', 'client', 'nama client', 'nama', 'client brand'],
         'type' => ['tipe', 'type', 'tipe client', 'direct agency'],
-        'category' => ['kategori', 'category'],
+        // Sheet pipeline menamainya "Product Type" (FMCG, Snacks, APP, ...) — isinya
+        // kategori brand yang sama, dan kolom category memang string bebas.
+        'category' => ['kategori', 'category', 'product type', 'tipe produk'],
         'priority' => ['prioritas', 'priority'],
         'website' => ['website', 'web', 'situs'],
         'parent_brand' => ['parent brand', 'induk brand', 'grup'],
-        'status_client' => ['status client', 'status klien'],
-        'status' => ['status campaign', 'status'],
-        'pic_internal_sales' => ['pic internal', 'pic internal sales', 'sales', 'nama sales'],
+        // Kolom "STATUS" di sheet pipeline adalah tahap deal dari sisi BD (WON - ON
+        // GOING, LOST, FINISH, ...) — itu Status Client, bukan Status Campaign.
+        // Urutan penting: status_client dideklarasikan lebih dulu, jadi kolom
+        // berjudul "Status" jatuh ke sini, sementara "Status Campaign" tetap ke
+        // field status.
+        'status_client' => ['status client', 'status klien', 'status'],
+        'status' => ['status campaign'],
+        // "PIC BD" adalah nama kolom di sheet pipeline; jangan tambahkan 'pic'
+        // telanjang — di sheet client itu PIC dari sisi client, bukan sales kita.
+        'pic_internal_sales' => ['pic internal', 'pic internal sales', 'pic bd', 'sales', 'nama sales'],
         // "Brand / Agency": isinya "Direct" atau NAMA agency yang menangani brand
         // itu — bukan kolom tipe. Nilai "Direct" diperlakukan sebagai tanpa agency.
-        'agency_handled_by' => ['dihandel agency', 'handled by agency', 'agency', 'brand agency'],
+        // "Brand/Agency Company" dipakai di sheet PIPELINE BD — profil Pipeline
+        // sudah mengenalinya, profil Data Client dulu belum, jadi semua barisnya
+        // jatuh jadi direct tanpa agency (IPG, Curve, CPXI, ... tidak terbaca).
+        'agency_handled_by' => [
+            'dihandel agency', 'handled by agency', 'agency', 'brand agency',
+            'brand agency company', 'agency company',
+        ],
         'agency_brands' => ['brand yang dihandel', 'agency brands', 'brand handled'],
         'date_outreach' => ['tanggal outreach', 'date outreach', 'outreach', 'months', 'month', 'bulan'],
         'date_follow_up' => ['tanggal follow up', 'date follow up', 'follow up'],
@@ -165,8 +182,17 @@ class ClientSheetMigration extends SheetMigration
 
         $agency = null;
 
-        if ($client->type === 'direct' && filled($item['agency_handled_by'] ?? null)) {
-            $nama = trim((string) $item['agency_handled_by']);
+        $nama = trim((string) ($item['agency_handled_by'] ?? ''));
+
+        // Sheet kadang menulis nama brand itu sendiri di kolom agency (mis.
+        // "Ofero" / "Ofero") untuk menandai ditangani sendiri — sama artinya
+        // dengan "Direct". Tanpa ini terbuat baris agency kembar bernama sama
+        // dengan brand-nya.
+        if (Str::lower($nama) === Str::lower((string) $client->nama_brand)) {
+            $nama = '';
+        }
+
+        if ($client->type === 'direct' && filled($nama)) {
             $agency = DataClient::firstOrCreate(['nama_brand' => $nama, 'type' => 'agency']);
 
             if ($agency->wasRecentlyCreated) {
@@ -179,6 +205,13 @@ class ClientSheetMigration extends SheetMigration
 
         if ($client->type === 'agency' && filled($item['agency_brands'] ?? null)) {
             $client->agency_brands = $this->agencyBrands((string) $item['agency_brands']);
+        }
+
+        // Status Campaign tidak lagi diambil dari sheet (nilainya tahap deal, bukan
+        // tahap campaign), jadi baris baru diberi status awal yang sah supaya
+        // dropdown-nya tidak kosong saat dibuka.
+        if (blank($client->status)) {
+            $client->status = SalesStatus::NOT_STARTED->value;
         }
 
         $client->save();
@@ -283,11 +316,7 @@ class ClientSheetMigration extends SheetMigration
 
     private static function normalizeStatusClient(mixed $nilai): ?string
     {
-        $teks = Str::lower(trim((string) $nilai));
-
-        return in_array($teks, ['won', 'lost', 'revision', 'mediaplan', 'awaiting', 'invoicing'], true)
-            ? $teks
-            : null;
+        return ClientStatus::fromSheet($nilai)?->value;
     }
 
 }

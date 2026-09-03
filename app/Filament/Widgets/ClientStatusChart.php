@@ -2,6 +2,7 @@
 
 namespace App\Filament\Widgets;
 
+use App\Enums\ClientStatus;
 use App\Filament\Traits\HasDashboardFilter;
 use App\Models\DataClient;
 use Filament\Widgets\ChartWidget;
@@ -60,7 +61,7 @@ class ClientStatusChart extends ChartWidget
                     'borderWidth' => 1,
                 ],
             ],
-            'labels' => $rows->keys()->all(),
+            'labels' => $rows->keys()->map(fn($status) => ClientStatus::labelFor($status))->all(),
         ];
     }
 

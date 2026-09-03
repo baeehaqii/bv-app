@@ -2,6 +2,7 @@
 
 namespace App\Filament\Widgets;
 
+use App\Enums\ClientStatus;
 use App\Models\BvCampign;
 use App\Models\DataClient;
 use Filament\Widgets\Widget;
@@ -70,7 +71,7 @@ class TopSpenderWidget extends Widget
                 'total_campaigns' => $client->campaigns_count,
                 'total_spent' => (float) $client->total_spent,
                 'last_campaign' => $client->latestCampaign?->campaign_name ?? '-',
-                'status' => $client->status_client ?: '—',
+                'status' => ClientStatus::labelFor($client->status_client) ?: '—',
             ])
             ->toArray();
     }

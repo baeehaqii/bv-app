@@ -36,7 +36,7 @@ class TestOferoFlowSeeder extends Seeder
                 'agency_name'    => [],
                 'account_owner'  => 'Gerry',
                 'status'         => 'not_started',
-                'status_client'  => 'aktif',
+                'status_client'  => \App\Enums\ClientStatus::ON_PROGRESS->value,
             ]
         );
         $this->command->info("DataClient: #{$client->id} {$client->nama_brand}");

@@ -67,7 +67,7 @@ class OferoFullFlowSeeder extends Seeder
         // ── 1. Master: DataClient Ofero + DataKol ──────────────────────────
         $client = DataClient::updateOrCreate(
             ['nama_brand' => 'Ofero'],
-            ['type' => 'direct', 'account_owner' => 'Gerry', 'status' => 'not_started', 'status_client' => 'aktif'],
+            ['type' => 'direct', 'account_owner' => 'Gerry', 'status' => 'not_started', 'status_client' => \App\Enums\ClientStatus::ON_PROGRESS->value],
         );
 
         foreach (self::KOLS as $k) {

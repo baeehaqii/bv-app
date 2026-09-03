@@ -1,5 +1,7 @@
 <?php
 
+use App\Enums\ClientStatus;
+use App\Enums\SalesStatus;
 use App\Filament\Pages\MigrasiData;
 use App\Models\BvSalesList;
 use App\Models\DataClient;
@@ -77,7 +79,7 @@ it('menormalkan tipe, prioritas, dan status client', function () {
 
     expect($items[0]['type'])->toBe('agency')
         ->and($items[0]['priority'])->toBe('P2')
-        ->and($items[0]['status_client'])->toBe('won')
+        ->and($items[0]['status_client'])->toBe(ClientStatus::WON_ON_GOING->value)
         ->and($items[1]['type'])->toBe('direct')
         // Status di luar daftar yang sah dibuang, bukan disimpan mentah.
         ->and($items[1]['status_client'])->toBeNull();
@@ -803,4 +805,85 @@ it('menolak menyimpan brief sebelum deal-nya dipilih', function () {
     expect($hasil['success'])->toBe(0)
         ->and($hasil['notes'][0])->toContain('belum dipilih')
         ->and(\App\Models\FormBrief::count())->toBe(0);
+});
+
+it('membaca judul kolom sheet PIPELINE BD: Brand/Agency Company, PIC BD, Product Type', function () {
+    // Judul asli baris 4 sheet "PIPELINE BD - PROJECT - BVN 2026". Dulu hanya
+    // kolom Brand & STATUS yang dikenali, sehingga semua agency (IPG, Curve,
+    // CPXI, ...) hilang dan tiap baris jadi direct tanpa agency.
+    $judul = [
+        '', 'NO', 'Brief Dates', 'Brand', 'Brand/Agency Company', 'Campaign', 'Product Type',
+        'PIC BD', 'EXT Sheet', 'Core Services', 'DEADLINE SUBMIT', 'INT Sheet', 'STATUS',
+    ];
+
+    $migrasi = new ClientSheetMigration();
+
+    expect($migrasi->mapHeaders($judul))->toBe([
+        3 => 'nama_brand',
+        4 => 'agency_handled_by',
+        6 => 'category',
+        7 => 'pic_internal_sales',
+        12 => 'status_client',
+    ]);
+
+    $migrasi->persist($migrasi->parseRows([
+        ['', 'PIPELINE - Q1 - Q2 (H1 2026)'],
+        ['', '', '', '', '', '', '', '', '', '', '', '', '', 'TOTAL'],
+        ['', '', '', '', '', '', '', '', '', '', 'After Discuss BD'],
+        $judul,
+        ['', '1', '30 Jan 2026', 'Blue Band', 'IPG', 'Blue Band Dracin 5in1', 'FMCG', 'Gerry', '', 'KOL', '', '', 'FINISH'],
+        ['', '5', '3 Mar 2026', 'Ofero', 'Ofero', 'Ofero Leasing', 'Automotive', 'Gerry', '', 'KOL', '', '', 'FINISH'],
+        ['', '2', '12 May 2026', 'Gimbory', 'CPXI', 'Gimbory KOL May', 'Food & Drinks', 'Gerry', '', 'KOL', '', '', 'LOST'],
+        ['', '6', '21 May 2026', 'GoFood', 'Curve', 'Threads Campaign', 'APP', 'Wina', '', 'KOL', '', '', 'FINISH'],
+        ['', '5', '3 Mar 2026', 'Le Minerale', 'Direct', 'KOC Le Minerale', 'FMCG', 'Gerry', '', 'KOL', '', '', 'WON - ON GOING'],
+    ]));
+
+    $blueBand = DataClient::where('nama_brand', 'Blue Band')->firstOrFail();
+    $goFood = DataClient::where('nama_brand', 'GoFood')->firstOrFail();
+    $leMinerale = DataClient::where('nama_brand', 'Le Minerale')->firstOrFail();
+
+    $ofero = DataClient::where('nama_brand', 'Ofero')->firstOrFail();
+
+    expect(DataClient::where('type', 'agency')->pluck('nama_brand')->sort()->values()->all())
+        // "Ofero / Ofero" = ditangani sendiri, bukan agency bernama sama
+        ->toBe(['CPXI', 'Curve', 'IPG'])
+        ->and($ofero->type)->toBe('direct')
+        ->and($ofero->agency_client_id)->toBeNull()
+        ->and($blueBand->agency_client_id)->toBe(DataClient::where('nama_brand', 'IPG')->value('id'))
+        ->and($blueBand->category)->toBe('FMCG')
+        ->and($blueBand->picInternalSales->nama_sales)->toBe('Gerry')
+        ->and($goFood->picInternalSales->nama_sales)->toBe('Wina')
+        // Nilai dropdown STATUS sheet masuk ke Status Client, apa adanya maknanya
+        ->and($blueBand->status_client)->toBe(ClientStatus::FINISH->value)
+        ->and($leMinerale->status_client)->toBe(ClientStatus::WON_ON_GOING->value)
+        // Status Campaign TIDAK diisi dari sheet — itu tahap campaign internal
+        ->and($leMinerale->status)->toBe(SalesStatus::NOT_STARTED->value)
+        // "Direct" tetap bukan nama agency
+        ->and($leMinerale->agency_client_id)->toBeNull()
+        ->and(DataClient::where('nama_brand', 'Direct')->exists())->toBeFalse();
+});
+
+it('kosakata Status Client sama dengan dropdown sheet, termasuk penulisan pendeknya', function () {
+    expect(ClientStatus::options())->toBe([
+        'on_progress' => 'ON PROGRESS',
+        'sent_parallel' => 'SENT PARALLEL',
+        'hold' => 'HOLD',
+        'complete_sent_to_client' => 'COMPLETE - SENT TO CLIENT',
+        'revision' => 'REVISION',
+        'awaiting_feedback' => 'AWAITING FEEDBACK',
+        'lost' => 'LOST',
+        'won_on_going' => 'WON - ON GOING',
+        'finish' => 'FINISH',
+    ]);
+
+    // Variasi penulisan yang benar-benar muncul di sheet BD
+    expect(ClientStatus::fromSheet('WON - ON GOING'))->toBe(ClientStatus::WON_ON_GOING)
+        ->and(ClientStatus::fromSheet('WON – ON GOING'))->toBe(ClientStatus::WON_ON_GOING)
+        ->and(ClientStatus::fromSheet('won'))->toBe(ClientStatus::WON_ON_GOING)
+        ->and(ClientStatus::fromSheet('COMPLETE - SENT TO CLIENT'))->toBe(ClientStatus::COMPLETE_SENT_TO_CLIENT)
+        ->and(ClientStatus::fromSheet('AWAITING FEEDBACK'))->toBe(ClientStatus::AWAITING_FEEDBACK)
+        ->and(ClientStatus::fromSheet('On Progress'))->toBe(ClientStatus::ON_PROGRESS)
+        ->and(ClientStatus::fromSheet('SENT PARALLEL'))->toBe(ClientStatus::SENT_PARALLEL)
+        ->and(ClientStatus::fromSheet('ngawur'))->toBeNull()
+        ->and(ClientStatus::fromSheet(''))->toBeNull();
 });

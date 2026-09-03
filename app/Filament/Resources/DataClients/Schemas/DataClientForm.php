@@ -144,11 +144,9 @@ class DataClientForm
                     Select::make('status_client')
                         ->label('Status Client')
                         ->required()
-                        ->options([
-                            'aktif'      => 'Aktif',
-                            'tidak_aktif' => 'Tidak Aktif',
-                        ])
-                        ->default('aktif')
+                        // Sama dengan dropdown kolom STATUS di sheet PIPELINE BD.
+                        ->options(ClientStatus::options())
+                        ->default(ClientStatus::ON_PROGRESS->value)
                         ->native(false),
 
                     // ─── PIC Client (dikomentari — dipindah ke section tersendiri untuk direct brand) ─
