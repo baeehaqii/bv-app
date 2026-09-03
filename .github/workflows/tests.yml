@@ -10,11 +10,29 @@ on:
       - develop
       - main
 
+# Batalkan run lama bila ada push baru di branch yang sama
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Pakai Node.js 24 untuk action (hilangkan warning deprecation Node 20)
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 jobs:
+  # ──────────────────────────────────────────────────────────────
+  # Gerbang mutu: build aset + seluruh test suite Pest (382 test).
+  # Deploy tidak akan berjalan kalau job ini merah.
+  # ──────────────────────────────────────────────────────────────
   test:
     name: Run Tests
     runs-on: ubuntu-latest
     environment: Testing
+
+    env:
+      # Di level job supaya bisa dibaca `if:` — secrets tidak tersedia di sana.
+      BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
     steps:
       - name: Checkout
@@ -34,10 +52,7 @@ jobs:
           cache: 'npm'
 
       - name: Install Node Dependencies
-        run: npm i
-
-      - name: Add Flux Credentials
-        run: composer config http-basic.composer.fluxui.dev "${{ secrets.FLUX_USERNAME }}" "${{ secrets.FLUX_LICENSE_KEY }}"
+        run: npm ci
 
       - name: Install PHP Dependencies
         run: composer install --no-interaction --prefer-dist --optimize-autoloader
@@ -55,62 +70,168 @@ jobs:
         run: ./vendor/bin/pest
 
       - name: Notify Telegram - Tests Failed
-        if: failure()
+        if: failure() && env.BOT_TOKEN != ''
         env:
-          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          TEXT=$(printf "TESTS FAILED - Deploy Dibatalkan!\n\nRepo: %s\nBranch: %s\nBy: %s\n\nDetail: %s" \
+          TEXT=$(printf "❌ TESTS FAILED - Deploy Dibatalkan!\n\nRepo: %s\nBranch: %s\nBy: %s\n\nDetail: %s" \
             "${{ github.repository }}" "${{ github.ref_name }}" "${{ github.actor }}" "${RUN_URL}")
           curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
             -d "chat_id=${CHAT_ID}" \
             --data-urlencode "text=${TEXT}"
 
+  # ──────────────────────────────────────────────────────────────
+  # Deploy ke VPS lewat SSH: server menarik kode sendiri dari GitHub
+  # (git fetch + reset), build di server, lalu cache Laravel dibangun ulang.
+  #
+  # Seluruh langkahnya ada di file ini, bukan di dalam panel server. Script yang
+  # hidup di aaPanel tidak punya riwayat: tidak ada yang bisa melihat kapan ia
+  # berubah, oleh siapa, dan kenapa.
+  # ──────────────────────────────────────────────────────────────
   deploy:
-    name: Deploy to Server
+    name: Deploy ke Server
     needs: test
     runs-on: ubuntu-latest
     environment: Testing
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
+    env:
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/www/wwwroot/bv-app' }}
+      # aaPanel menjalankan php-fpm sebagai `www`, dan file aplikasi dimiliki www.
+      # User SSH deploy bukan www, jadi perintah yang menyentuh direktori aplikasi
+      # dibungkus sudo -u www.
+      RUN_AS: ${{ vars.RUN_AS_USER || 'www' }}
+      PHP_BIN: ${{ vars.PHP_BIN || '/www/server/php/84/bin/php' }}
+      HEALTH_URL: ${{ vars.HEALTHCHECK_URL || 'https://bvtech.findy.my.id/office/login' }}
+      SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
+      # Di level job supaya bisa dibaca `if:` — secrets tidak tersedia di sana.
+      BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
     steps:
-      - name: Trigger aaPanel Webhook Deployment
-        id: webhook
+      - name: Siapkan SSH key
         run: |
-          RESPONSE=$(curl -k -s -w "\n%{http_code}" -X POST "${{ secrets.AAPANEL_WEBHOOK_URL }}" --max-time 60)
-          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-          BODY=$(echo "$RESPONSE" | head -n-1)
-          echo "response=$BODY" >> $GITHUB_OUTPUT
-          echo "http_code=$HTTP_CODE" >> $GITHUB_OUTPUT
-          echo "Deploy triggered at $(date) | HTTP $HTTP_CODE | $BODY"
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "${SSH_PORT}" -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
-          # curl -s hanya gagal saat TIDAK BISA konek. Kalau webhook menjawab 4xx/5xx
-          # (mis. token salah, script deploy error), curl tetap exit 0 dan step ini
-          # dianggap sukses — notifikasinya lalu mengabarkan "DEPLOY BERHASIL"
-          # padahal server menolak. Status HTTP-nya harus ikut diperiksa.
-          case "$HTTP_CODE" in
-            2*) ;;
-            *)  echo "::error::Webhook deploy menjawab HTTP $HTTP_CODE — deploy dianggap GAGAL."
-                exit 1 ;;
-          esac
-
-      - name: Notify Telegram - Deploy Status
-        if: always()
-        env:
-          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      - name: Jalankan proses deploy di server
+        id: deploy
         run: |
-          # job.status, bukan teks statis — dulu selalu kirim "BERHASIL" walau webhook gagal.
-          if [ "${{ job.status }}" = "success" ]; then
-            HEAD="DEPLOY BERHASIL!"
-            FOOT="Aplikasi sudah live di server!"
+          ssh -o ServerAliveInterval=15 -o ServerAliveCountMax=4 \
+            -i ~/.ssh/deploy_key -p "${SSH_PORT}" \
+            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
+            "SITE='${DEPLOY_PATH}' RUN_AS='${RUN_AS}' PHP='${PHP_BIN}' SHA='${{ github.sha }}' bash -s" <<'DEPLOY'
+          set -euo pipefail
+          export PATH="$PATH:/usr/local/bin"
+          # Node dipasang aaPanel di direktori ber-versi; jangan dipatok ke satu versi.
+          # `|| true`: kalau tidak ada direktori yang cocok, perintah terakhir di
+          # dalam loop mengembalikan 1 — dan dengan `set -e` itu menghentikan
+          # seluruh deploy sebelum satu langkah pun berjalan.
+          for d in /www/server/nodejs/*/bin; do [ -d "$d" ] && PATH="$PATH:$d"; done || true
+
+          # sudo hanya dipakai kalau user SSH memang bukan pemilik aplikasi.
+          # Kalau keduanya sama, sudo malah jadi syarat tambahan yang tidak perlu.
+          if [ "$(id -un)" = "$RUN_AS" ]; then
+            as_app() { "$@"; }
           else
-            HEAD="DEPLOY GAGAL!"
-            FOOT="Cek log GitHub Actions: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            as_app() { sudo -u "$RUN_AS" -H "$@"; }
           fi
-          TEXT=$(printf "%s\n\nRepo: %s\nBranch: %s\nBy: %s\n\n%s" \
-            "$HEAD" "${{ github.repository }}" "${{ github.ref_name }}" "${{ github.actor }}" "$FOOT")
+
+          echo "==> [1/7] Validasi lingkungan server"
+          [ -x "$PHP" ] || command -v "$PHP" >/dev/null || { echo "ERROR: PHP tidak ditemukan di '$PHP' (set variable PHP_BIN)"; exit 1; }
+          command -v git  >/dev/null || { echo "ERROR: git tidak ditemukan"; exit 1; }
+          command -v composer >/dev/null || { echo "ERROR: composer tidak ditemukan"; exit 1; }
+          command -v npm  >/dev/null || { echo "ERROR: npm tidak ditemukan — aset Filament tidak bisa dibuild"; exit 1; }
+          if [ "$(id -un)" != "$RUN_AS" ]; then
+            sudo -n true 2>/dev/null || { echo "ERROR: user deploy butuh sudo tanpa password untuk menjadi '$RUN_AS'"; exit 1; }
+          fi
+          PHP_VER=$("$PHP" -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')
+          echo "  php $PHP_VER di $PHP"
+          cd "$SITE"
+          [ -d .git ] || { echo "ERROR: $SITE bukan git clone"; exit 1; }
+          # Tanpa .env, Laravel jalan tanpa APP_KEY dan semua sesi tertolak.
+          [ -f .env ] || { echo "ERROR: $SITE/.env tidak ada"; exit 1; }
+
+          echo "==> [2/7] Ambil kode dari GitHub"
+          # Reset ke SHA persis milik run ini, bukan origin/main, supaya push yang
+          # lebih baru tidak diam-diam ikut terbawa ke deploy ini.
+          as_app git fetch --quiet origin main
+          as_app git reset --hard --quiet "$SHA"
+          echo "  HEAD sekarang: $(as_app git rev-parse --short HEAD)"
+          # reset --hard hanya membatalkan perubahan pada file yang DI-TRACK. .env
+          # ada di .gitignore, dan berkas unggahan di storage/app/public tidak
+          # ter-track, jadi keduanya aman. Jangan pernah menambahkan `git clean -x`
+          # di sini — itu justru menghapus keduanya.
+
+          echo "==> [3/7] Install dependency PHP"
+          as_app composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev
+
+          echo "==> [4/7] Build aset"
+          # Dibuild di server, bukan mengandalkan public/build yang ikut ter-commit:
+          # kelas Tailwind baru pada tema Filament baru muncul setelah build, dan
+          # kalau ada yang lupa build sebelum push, halamannya tampil tanpa gaya
+          # tanpa satu pun error.
+          as_app npm ci --no-audit --no-fund
+          as_app npm run build
+
+          echo "==> [5/7] Migrasi database"
+          as_app "$PHP" artisan migrate --force
+
+          echo "==> [6/7] Segarkan aset vendor & cache"
+          # Aset Livewire di repo ini IKUT TER-COMMIT. Kalau versinya tertinggal
+          # dari paket composer-nya, seluruh interaktivitas Filament mati tanpa
+          # satu pun error di layar maupun di log.
+          as_app "$PHP" artisan vendor:publish --tag=livewire:assets --force --quiet
+          as_app "$PHP" artisan storage:link || true
+          as_app "$PHP" artisan optimize:clear
+          as_app "$PHP" artisan config:cache
+          as_app "$PHP" artisan route:cache
+          as_app "$PHP" artisan view:cache
+          as_app "$PHP" artisan filament:optimize
+          # Worker yang sedang jalan masih memegang kode versi sebelumnya. Ini
+          # menyuruhnya berhenti setelah job yang sedang dikerjakan selesai,
+          # lalu supervisor menyalakannya lagi dengan kode baru.
+          as_app "$PHP" artisan queue:restart
+
+          echo "==> [7/7] Health check"
+          # Dua-duanya harus benar. HTTP 200 saja tidak cukup: nginx bisa menjawab
+          # dari cache opcache lama, dan deploy yang sebenarnya gagal tetap
+          # melapor hijau. Jadi SHA di disk ikut diperiksa.
+          DEPLOYED=$(as_app git rev-parse HEAD)
+          [ "$DEPLOYED" = "$SHA" ] || { echo "ERROR: HEAD di server ($DEPLOYED) bukan SHA run ini ($SHA)"; exit 1; }
+          echo "==> DEPLOY SELESAI: $(as_app git rev-parse --short HEAD)"
+          DEPLOY
+
+      - name: Health check aplikasi
+        id: health
+        run: |
+          for i in 1 2 3 4 5; do
+            CODE=$(curl -fsSL -o /dev/null -w '%{http_code}' -m 15 "${HEALTH_URL}" 2>/dev/null || echo 000)
+            if [ "$CODE" = "200" ]; then
+              echo "OK — ${HEALTH_URL} menjawab 200"
+              exit 0
+            fi
+            echo "  percobaan $i: HTTP ${CODE}, ulangi dalam 5 detik"
+            sleep 5
+          done
+          echo "::error::Aplikasi tidak menjawab 200 di ${HEALTH_URL} setelah 5 percobaan."
+          exit 1
+
+      - name: Notify Telegram - Hasil Deploy
+        if: always() && env.BOT_TOKEN != ''
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          # job.status, bukan teks statis — dulu selalu kirim "BERHASIL" walau deploy gagal.
+          if [ "${{ job.status }}" = "success" ]; then
+            TEXT=$(printf "✅ DEPLOY BERHASIL!\n\nRepo: %s\nBranch: %s\nBy: %s\n\nBV App sudah live di server! 🚀" \
+              "${{ github.repository }}" "${{ github.ref_name }}" "${{ github.actor }}")
+          else
+            TEXT=$(printf "❌ DEPLOY GAGAL!\n\nRepo: %s\nBranch: %s\nBy: %s\n\nProses deploy di server error. Cek detail: %s" \
+              "${{ github.repository }}" "${{ github.ref_name }}" "${{ github.actor }}" "${RUN_URL}")
+          fi
           curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
             -d "chat_id=${CHAT_ID}" \
             --data-urlencode "text=${TEXT}"
