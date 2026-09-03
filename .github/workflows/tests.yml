@@ -156,6 +156,8 @@ jobs:
             # memaksa user deploy jadi setara root.
             sudo -n -u "$RUN_AS" true 2>/dev/null || { echo "ERROR: user deploy tidak bisa 'sudo -u $RUN_AS' tanpa password"; exit 1; }
           fi
+          HOME_APP=$(getent passwd "$RUN_AS" | cut -d: -f6)
+          [ -n "$HOME_APP" ] || { echo "ERROR: user '$RUN_AS' tidak punya home directory"; exit 1; }
           PHP_VER=$("$PHP" -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')
           echo "  php $PHP_VER di $PHP"
           run test -d .git || { echo "ERROR: $SITE bukan git clone"; exit 1; }
@@ -181,7 +183,12 @@ jobs:
           # kelas Tailwind baru pada tema Filament baru muncul setelah build, dan
           # kalau ada yang lupa build sebelum push, halamannya tampil tanpa gaya
           # tanpa satu pun error.
-          run npm ci --no-audit --no-fund
+          # Cache npm diarahkan ke home user aplikasi, bukan cache global
+          # /www/server/nodejs/cache. Cache global itu dimiliki root begitu ada
+          # yang pernah menjalankan npm sebagai root di panel — dan sekali itu
+          # terjadi, setiap deploy berikutnya mati dengan EACCES. Mengembalikan
+          # kepemilikannya cuma menunda; memakai cache sendiri menutupnya.
+          run npm ci --no-audit --no-fund --cache "$HOME_APP/.npm-cache"
           run npm run build
 
           echo "==> [5/7] Migrasi database"
