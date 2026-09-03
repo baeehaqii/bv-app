@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\Users\Schemas;
 
+use App\Models\BvEmploye;
+use App\Models\User;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
@@ -77,6 +79,33 @@ class UserForm
                             ->required(fn(string $operation): bool => $operation === 'create')
                             ->dehydrated(false),
                     ])->columns(2),
+
+                Section::make('Data Karyawan')
+                    ->description('Tautkan akun ini ke satu baris data karyawan')
+                    ->schema([
+                        Select::make('bv_employe_id')
+                            ->label('Karyawan')
+                            ->placeholder('Belum ditautkan')
+                            ->options(fn(?User $record) => BvEmploye::query()
+                                ->where(fn($q) => $q->whereNull('user_id')
+                                    ->when($record, fn($q) => $q->orWhere('user_id', $record->id)))
+                                ->orderBy('nama_lengkap')
+                                ->pluck('nama_lengkap', 'id'))
+                            ->searchable()
+                            ->preload()
+                            ->helperText('Hanya karyawan yang belum punya akun yang muncul di sini.')
+                            ->afterStateHydrated(fn($component, ?User $record) => $component->state($record?->bvEmploye?->getKey()))
+                            ->dehydrated(false)
+                            ->saveRelationshipsUsing(function (User $record, $state) {
+                                if ($record->bvEmploye?->getKey() == $state) {
+                                    return;
+                                }
+                                // Lewat model, bukan mass update, supaya BvEmployeObserver
+                                // ikut memperbarui user_id di Sales List.
+                                $record->bvEmploye?->update(['user_id' => null]);
+                                BvEmploye::find($state)?->update(['user_id' => $record->id]);
+                            }),
+                    ]),
 
                 Section::make('Role & Permissions')
                     ->description('Atur akses user')

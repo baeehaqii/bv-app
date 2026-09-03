@@ -40,6 +40,12 @@ class UsersTable
                     ->copyable()
                     ->icon('heroicon-m-envelope'),
 
+                TextColumn::make('bvEmploye.nama_lengkap')
+                    ->label('Data Karyawan')
+                    ->placeholder('Belum ditautkan')
+                    ->searchable()
+                    ->toggleable(),
+
                 TextColumn::make('roles.name')
                     ->label('Roles')
                     ->badge()

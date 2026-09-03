@@ -75,6 +75,33 @@ class BvEmployesTable
                     ->searchable()
                     ->toggleable(),
 
+                TextColumn::make('bank')
+                    ->label('Bank')
+                    ->placeholder('-')
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                TextColumn::make('no_rekening')
+                    ->label('No. Rekening')
+                    ->placeholder('-')
+                    ->copyable()
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                TextColumn::make('npwp')
+                    ->label('NPWP')
+                    ->placeholder('-')
+                    ->copyable()
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                TextColumn::make('bpjs_kesehatan')
+                    ->label('BPJS Kesehatan')
+                    ->placeholder('-')
+                    ->copyable()
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+
                 TextColumn::make('created_at')
                     ->label('Dibuat')
                     ->dateTime('d M Y')

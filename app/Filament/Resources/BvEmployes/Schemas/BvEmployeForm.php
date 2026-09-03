@@ -146,6 +146,39 @@ class BvEmployeForm
                             ->nullable(),
                     ]),
 
+                Section::make('Payroll & Dokumen')
+                    ->description('Rekening untuk pembayaran gaji dan nomor dokumen pajak/BPJS')
+                    ->columns(2)
+                    ->schema([
+                        TextInput::make('bank')
+                            ->label('Bank')
+                            ->placeholder('Contoh: BCA')
+                            ->nullable(),
+
+                        TextInput::make('no_rekening')
+                            ->label('No. Rekening')
+                            ->placeholder('Atas nama karyawan yang bersangkutan')
+                            // Bukan numeric: nomor rekening bisa berawalan nol.
+                            ->nullable(),
+
+                        TextInput::make('npwp')
+                            ->label('NPWP')
+                            ->placeholder('15 atau 16 digit')
+                            ->helperText('Nomor saja. Titik dan strip otomatis dibuang saat disimpan.')
+                            // Tetap type=text, bukan numeric: NPWP 15 digit bisa berawalan nol.
+                            ->dehydrateStateUsing(
+                                fn(?string $state) => filled($state)
+                                ? preg_replace('/\D/', '', $state)
+                                : null
+                            )
+                            ->nullable(),
+
+                        TextInput::make('bpjs_kesehatan')
+                            ->label('BPJS Kesehatan')
+                            ->placeholder('Nomor kartu BPJS Kesehatan')
+                            ->nullable(),
+                    ]),
+
                 Section::make('Struktur Organisasi')
                     ->columns(2)
                     ->schema([

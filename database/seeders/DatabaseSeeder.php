@@ -60,6 +60,10 @@ class DatabaseSeeder extends Seeder
         $this->call(OrganizationStructureSeeder::class);
         $this->command->info('OrganizationStructure seeding completed!');
 
+        // Data karyawan dari form "List Data Karyawan" (butuh struktur org & user)
+        $this->call(BvEmployeSeeder::class);
+        $this->command->info('BvEmploye seeding completed!');
+
         $this->command->info('Database seeding completed successfully!');
     }
 }

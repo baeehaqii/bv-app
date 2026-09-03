@@ -57,14 +57,26 @@ class BvEmployeObserver
 
     private function syncToSalesList(BvEmploye $employe): void
     {
-        BvSalesList::updateOrCreate(
-            ['bv_employe_id' => $employe->id],
-            [
-                'nama_sales' => $employe->nama_lengkap,
-                'user_id' => $employe->user_id,
-                'alamat' => $employe->alamat,
-            ]
-        );
+        // Baris lama (dibuat BvTeamSeeder / import sheet) dicari dulu lewat
+        // user_id, baru dibuat baru kalau memang belum ada — kalau langsung
+        // updateOrCreate by bv_employe_id, satu orang bisa punya dua baris PIC.
+        $salesList = BvSalesList::firstWhere('bv_employe_id', $employe->id)
+            ?? ($employe->user_id
+                ? BvSalesList::whereNull('bv_employe_id')->firstWhere('user_id', $employe->user_id)
+                : null);
+
+        if (! $salesList) {
+            // nama_sales HANYA diisi saat baris dibuat. Pada baris lama isinya
+            // nama depan seperti yang tertulis di sheet, dan itu kunci
+            // pencocokan PIC di DataClientImporter & BvSalesList::untuk().
+            $salesList = new BvSalesList(['nama_sales' => $employe->nama_lengkap]);
+        }
+
+        $salesList->fill([
+            'bv_employe_id' => $employe->id,
+            'user_id' => $employe->user_id,
+            'alamat' => $employe->alamat,
+        ])->save();
     }
 
     private function syncToBusinessDirector(BvEmploye $employe): void
