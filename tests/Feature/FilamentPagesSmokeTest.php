@@ -50,6 +50,9 @@ it('halaman List tiap modul ter-render', function () {
     $this->get('/office/media-plan-internal')->assertSuccessful();
     $this->get('/office/media-plan-external')->assertSuccessful();
     $this->get('/office/campaign-ongoing-internal')->assertSuccessful();
+    $this->get('/office/target-finance')->assertSuccessful();
+    $this->get('/office/sales-target-matrix')->assertSuccessful();
+    $this->get('/office/target-finance/create')->assertSuccessful();
 });
 
 it('Edit Media Plan Internal ter-render (regression: BvSales date cast)', function () {

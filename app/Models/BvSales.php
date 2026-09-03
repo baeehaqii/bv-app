@@ -90,6 +90,56 @@ class BvSales extends Model
     }
 
     /**
+     * Total deal WON satu tahun: revenue & gross profit, dipecah per bulan dan per sales.
+     *
+     * Dikelompokkan di PHP, bukan lewat MONTH() di SQL, supaya jalan di MySQL
+     * (produksi) maupun SQLite (test) tanpa dialek terpisah.
+     *
+     * @return array{months: array<int, array{revenue: float, gp: float}>, sales: array<int, array{revenue: float, gp: float, months: array<int, float>}>}
+     */
+    public static function wonTotalsForYear(int $year): array
+    {
+        $months = [];
+        foreach (range(1, 12) as $m) {
+            $months[$m] = ['revenue' => 0.0, 'gp' => 0.0];
+        }
+
+        $sales = [];
+
+        static::query()
+            ->whereIn('status', SalesStatus::wonValues())
+            ->whereYear('close_date', $year)
+            ->get(['bv_sales_list_id', 'close_date', 'deal_value', 'margin'])
+            ->each(function (self $deal) use (&$months, &$sales) {
+                $month = (int) Carbon::parse($deal->close_date)->month;
+                $revenue = (float) $deal->deal_value;
+                $gp = $revenue * (float) $deal->margin / 100;
+
+                $months[$month]['revenue'] += $revenue;
+                $months[$month]['gp'] += $gp;
+
+                $salesId = $deal->bv_sales_list_id;
+                if ($salesId === null) {
+                    return;
+                }
+
+                if (! isset($sales[$salesId])) {
+                    $sales[$salesId] = [
+                        'revenue' => 0.0,
+                        'gp' => 0.0,
+                        'months' => array_fill_keys(range(1, 12), 0.0),
+                    ];
+                }
+
+                $sales[$salesId]['revenue'] += $revenue;
+                $sales[$salesId]['gp'] += $gp;
+                $sales[$salesId]['months'][$month] += $revenue;
+            });
+
+        return ['months' => $months, 'sales' => $sales];
+    }
+
+    /**
      * Apakah campaign ini sudah memiliki brief (upload dokumen, link, atau brief client tersubmit).
      * FormBrief berstatus draft (dibuat otomatis saat briefing) tidak dihitung.
      */

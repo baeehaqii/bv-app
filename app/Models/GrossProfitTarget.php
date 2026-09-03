@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\SalesStatus;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -12,11 +13,24 @@ class GrossProfitTarget extends Model
     protected $guarded = [];
 
     protected $casts = [
-        'target_amount'       => 'decimal:2',
-        'target_deal_revenue' => 'decimal:2',
-        'year'                => 'integer',
-        'month'               => 'integer',
+        'target_amount'            => 'decimal:2',
+        'target_deal_revenue'      => 'decimal:2',
+        'margin_benchmark_percent' => 'decimal:2',
+        'year'                     => 'integer',
+        'month'                    => 'integer',
     ];
+
+    private ?array $actualsMemo = null;
+
+    protected static function booted(): void
+    {
+        // Target GP selalu = target revenue x benchmark margin (sesuai sheet: 31%).
+        static::saving(function (self $target) {
+            $target->target_amount = round(
+                (float) $target->target_deal_revenue * (float) ($target->margin_benchmark_percent ?? 31) / 100
+            );
+        });
+    }
 
     // -------------------------------------------------------
     // Relationships
@@ -111,8 +125,61 @@ class GrossProfitTarget extends Model
     }
 
     // -------------------------------------------------------
+    // Realisasi (Actual) dari deal yang sudah won
+    // -------------------------------------------------------
+
+    /** Realisasi revenue & gross profit satu bulan, dari deal berstatus won. */
+    public static function actualsForMonth(int $year, int $month): array
+    {
+        $row = BvSales::query()
+            ->whereIn('status', SalesStatus::wonValues())
+            ->whereYear('close_date', $year)
+            ->whereMonth('close_date', $month)
+            ->selectRaw('COALESCE(SUM(deal_value), 0) as revenue')
+            ->selectRaw('COALESCE(SUM(deal_value * margin / 100), 0) as gp')
+            ->first();
+
+        return [
+            'revenue' => (float) $row->revenue,
+            'gp'      => (float) $row->gp,
+        ];
+    }
+
+    /** ponytail: memo per instance — tabel target baca 4 kolom actual per baris, cukup 1 query */
+    private function actuals(): array
+    {
+        return $this->actualsMemo ??= static::actualsForMonth($this->year, $this->month);
+    }
+
+    // -------------------------------------------------------
     // Accessors
     // -------------------------------------------------------
+
+    public function getActualRevenueAttribute(): float
+    {
+        return $this->actuals()['revenue'];
+    }
+
+    public function getActualGpAttribute(): float
+    {
+        return $this->actuals()['gp'];
+    }
+
+    /** % realisasi GP terhadap target GP bulan ini */
+    public function getGpAchievementPercentAttribute(): float
+    {
+        $target = (float) $this->target_amount;
+
+        return $target > 0 ? round($this->actual_gp / $target * 100, 2) : 0.0;
+    }
+
+    /** % margin riil = actual GP / actual revenue */
+    public function getProfitMarginPercentAttribute(): float
+    {
+        $revenue = $this->actual_revenue;
+
+        return $revenue > 0 ? round($this->actual_gp / $revenue * 100, 2) : 0.0;
+    }
 
     public function getMonthNameAttribute(): string
     {

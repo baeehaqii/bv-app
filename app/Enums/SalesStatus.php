@@ -76,5 +76,17 @@ enum SalesStatus: string
     {
         return self::toArray();
     }
-}
 
+    /**
+     * Status yang dihitung sebagai deal jadi (won) untuk revenue & gross profit.
+     */
+    public static function wonValues(): array
+    {
+        return [
+            self::CAMPAIGN_LIVE->value,
+            self::REPORTING->value,
+            self::INVOICING->value,
+            self::PAID->value,
+        ];
+    }
+}

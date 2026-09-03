@@ -349,12 +349,7 @@ class SalesDashboard extends Page
 
     private function wonStatuses(): array
     {
-        return [
-            SalesStatus::CAMPAIGN_LIVE->value,
-            SalesStatus::REPORTING->value,
-            SalesStatus::INVOICING->value,
-            SalesStatus::PAID->value,
-        ];
+        return SalesStatus::wonValues();
     }
 
     public function getWidgets(): array
