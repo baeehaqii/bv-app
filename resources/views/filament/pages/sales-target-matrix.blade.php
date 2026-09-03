@@ -24,23 +24,30 @@
             .stm-select{padding:.4rem .6rem;border-radius:.5rem;border:1px solid rgba(128,128,128,.35);
                 background:transparent;color:inherit;font-size:.85rem}
             .stm-scroll{overflow-x:auto;border:1px solid rgba(128,128,128,.18);border-radius:.75rem;
-                background:var(--gray-50,#f9fafb)}
-            .dark .stm-scroll{background:rgba(255,255,255,.02)}
+                background:#fff}
+            .dark .stm-scroll{background:#1b1b21}
             .stm-table{border-collapse:separate;border-spacing:0;font-size:.8rem;white-space:nowrap;min-width:100%}
             .stm-table th,.stm-table td{padding:.45rem .6rem;border-bottom:1px solid rgba(128,128,128,.15)}
             .stm-table thead th{font-size:.7rem;text-transform:uppercase;letter-spacing:.03em;font-weight:700;
-                text-align:right;background:var(--primary-600,#48009f);color:#fff;position:sticky;top:0;z-index:2}
+                text-align:right;background:#48009f;color:#fff;position:sticky;top:0;z-index:3}
+            /* Sudut kiri-atas menempel dua arah, jadi harus di atas header & kolom label. */
+            .stm-table thead th.stm-row-label{background:#48009f;z-index:4}
             .stm-head-row{text-align:left !important}
             .stm-quarter{background:rgba(245,158,11,.16) !important}
             .stm-total{background:rgba(16,185,129,.16) !important}
             .stm-table thead th.stm-quarter,.stm-table thead th.stm-total{background:#5b1bb5 !important}
-            .stm-row-label{position:sticky;left:0;z-index:1;text-align:left;font-weight:600;
-                background:var(--gray-50,#f9fafb);min-width:220px}
-            .dark .stm-row-label{background:#1f2027}
+            /* Kolom yang di-freeze latarnya WAJIB opak 100%: begitu ada alpha < 1,
+               angka kolom lain kelihatan menumpuk di belakang nama sales saat
+               tabel di-scroll ke samping. */
+            .stm-row-label{position:sticky;left:0;z-index:2;text-align:left;font-weight:600;
+                background:#fff;min-width:220px;box-shadow:1px 0 0 rgba(128,128,128,.28)}
+            .dark .stm-row-label{background:#1b1b21}
             .stm-num{text-align:right;font-variant-numeric:tabular-nums}
             .stm-sales td{background:rgba(59,130,246,.06)}
             .dark .stm-sales td{background:rgba(59,130,246,.08)}
-            .stm-sales .stm-row-label{padding-left:1.4rem;font-weight:500}
+            /* Tint baris sales dipakai versi opaknya di kolom label, bukan rgba tembus. */
+            .stm-sales .stm-row-label{padding-left:1.4rem;font-weight:500;background:#eff4fe}
+            .dark .stm-sales .stm-row-label{background:#1e2430}
             .stm-input{width:100%;min-width:104px;padding:.25rem .4rem;border-radius:.35rem;
                 border:1px solid rgba(128,128,128,.3);background:transparent;color:inherit;
                 text-align:right;font-size:.78rem;font-variant-numeric:tabular-nums}
@@ -99,10 +106,14 @@
                                     ? 'stm-quarter'
                                     : ($column['kind'] === 'year' ? 'stm-total' : '');
 
-                                // Nilai pembanding: hijau kalau sudah pas/melewati, merah kalau di bawah.
+                                // 'equal' → hijau hanya kalau pas (kurang maupun lebih sama-sama merah);
+                                // default → hijau kalau sudah menyamai/melewati pembandingnya.
                                 $verdict = null;
                                 if ($compare !== null && ($value > 0 || $compare > 0)) {
-                                    $verdict = $value >= $compare ? 'stm-good' : 'stm-bad';
+                                    $ok = ($row['compare_mode'] ?? 'atleast') === 'equal'
+                                        ? abs($value - $compare) < 1
+                                        : $value >= $compare;
+                                    $verdict = $ok ? 'stm-good' : 'stm-bad';
                                 }
                             @endphp
 

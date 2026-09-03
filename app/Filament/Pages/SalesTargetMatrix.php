@@ -169,8 +169,10 @@ class SalesTargetMatrix extends Page
             'label' => 'Total Target Sales',
             'kind' => 'money',
             'values' => $this->spread($salesTotal),
-            // Beda dengan Booked Revenue = ada target yang belum terdistribusi ke sales.
+            // Harus PAS dengan Booked Revenue: kurang = ada target yang belum
+            // terdistribusi, lebih = target sales melebihi target perusahaan.
             'compare' => $this->spread($bookedRevenue),
+            'compare_mode' => 'equal',
         ];
 
         $rows[] = [
