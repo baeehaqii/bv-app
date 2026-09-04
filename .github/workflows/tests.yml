@@ -44,12 +44,12 @@ jobs:
           php-version: 8.4
           tools: composer:v2
           extensions: pdo_sqlite, sqlite3
-          # max_execution_time menghitung waktu CPU SELURUH proses, dan Pest
-          # menjalankan semua test dalam satu proses. Default 60 detik dari
-          # php.ini runner itu batas request web, bukan batas suite: ia memotong
-          # di tengah test acak dengan FatalException yang menyesatkan.
-          # Disetel di sini, bukan di phpunit.xml — <ini> di sana tidak berlaku
-          # di runner (sudah dicoba di commit 4ad9810).
+          # Pengaman, bukan perbaikan: penyebab sebenarnya suite mati di 60 detik
+          # adalah set_time_limit() di kode aplikasi (lihat
+          # KolProfileImporter::perpanjangJatahWaktu). Baris ini menjaga kalau
+          # image runner suatu saat memasang batas request web ke CLI — Pest
+          # menjalankan seluruh suite dalam SATU proses, jadi batas seperti itu
+          # memotong di tengah test acak yang tidak bersalah.
           ini-values: max_execution_time=0
 
       - name: Setup Node

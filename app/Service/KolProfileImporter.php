@@ -35,6 +35,26 @@ class KolProfileImporter
      */
     public const BATAS_WAKTU_PER_BARIS = 60;
 
+    /**
+     * Beri satu baris scraping jatah waktunya sendiri. Tiap baris memanggil API
+     * yang bisa makan puluhan detik; tanpa reset, max_execution_time menghitung
+     * seluruh batch dan mematikan request di tengah jalan — fatal, tidak bisa
+     * ditangkap, hasil separuh jalan hilang dari layar.
+     *
+     * HANYA kalau memang sudah ada batasnya. Di CLI — queue worker, artisan,
+     * dan test — max_execution_time bernilai 0 alias tanpa batas; memanggil
+     * set_time_limit(60) di sana justru MEMBUAT batas yang tadinya tidak ada,
+     * dan batas itu menempel ke seluruh proses. Di CI hal ini mematikan suite
+     * Pest (satu proses untuk semua test) di test acak yang tidak bersalah,
+     * berjam-jam setelah baris ini dieksekusi.
+     */
+    public static function perpanjangJatahWaktu(): void
+    {
+        if (function_exists('set_time_limit') && (int) ini_get('max_execution_time') > 0) {
+            @set_time_limit(self::BATAS_WAKTU_PER_BARIS);
+        }
+    }
+
     /** Channel yang punya service scraping. Sisanya (Threads, Facebook, X, Talent) manual. */
     public const SCRAPABLE = [
         'Instagram' => InstagramService::class,
@@ -300,13 +320,7 @@ class KolProfileImporter
                 $onProgress($i + 1, $total, $channel, $url);
             }
 
-            // Tiap baris memanggil API yang bisa makan puluhan detik. Tanpa reset,
-            // max_execution_time PHP (30 dtk) menghitung seluruh batch dan mematikan
-            // request di tengah jalan — fatal, tidak bisa ditangkap, hasil separuh
-            // jalan hilang dari layar. Reset membuat batas berlaku per baris.
-            if (function_exists('set_time_limit')) {
-                @set_time_limit(self::BATAS_WAKTU_PER_BARIS);
-            }
+            self::perpanjangJatahWaktu();
 
             try {
                 $profile = $this->fetchProfile($channel, $url);

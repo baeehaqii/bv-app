@@ -2185,7 +2185,9 @@ class MediaPlanForm
                                     ])
                                     ->action(function (array $data, callable $get, callable $set): void {
                                         // Beri ruang waktu eksekusi karena tiap row = 1 API call
-                                        @set_time_limit(300);
+                                        if ((int) ini_get('max_execution_time') > 0) {
+                                            @set_time_limit(300); // jangan memasang batas di CLI/test yang tadinya tak berbatas
+                                        }
 
                                         $result = self::importKolsFromCsv($data['csv_file'], $get('kols') ?? []);
                                         $set('kols', array_values($result['kols']));

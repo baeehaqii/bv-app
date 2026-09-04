@@ -41,9 +41,7 @@ trait MenyegarkanChannelKol
         // Profil + video = dua panggilan API berurutan; beri ruang di atas jumlah
         // timeout keduanya supaya yang menghentikan adalah timeout HTTP (bisa
         // ditangkap & dinotifikasi), bukan max_execution_time (fatal, layar 500).
-        if (function_exists('set_time_limit')) {
-            @set_time_limit(KolProfileImporter::BATAS_WAKTU_PER_BARIS);
-        }
+        KolProfileImporter::perpanjangJatahWaktu();
 
         try {
             // fetch & save dipisah supaya media_count bisa dibaca — itu yang
