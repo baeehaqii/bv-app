@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\DataKols\Tables;
 
 use App\Models\DataKol;
+use App\Models\MediaPlanCalcSetting;
 use Filament\Actions\Action;
 use Filament\Actions\BulkAction;
 use Filament\Actions\BulkActionGroup;
@@ -81,20 +82,10 @@ class DataKolsTable
                     ->label('Tier')
                     ->badge()
                     ->state(fn(DataKol $record) => DataKol::tierFor((int) $record->channels_sum_followers))
-                    ->color(fn(string $state): string => match ($state) {
-                        'Mega' => 'success',
-                        'Macro' => 'warning',
-                        'Micro' => 'primary',
-                        'Nano' => 'info',
-                        default => 'gray',
-                    })
-                    ->icon(fn(string $state): string => match ($state) {
-                        'Mega' => 'heroicon-o-star',
-                        'Macro' => 'heroicon-o-fire',
-                        'Micro' => 'heroicon-o-sparkles',
-                        'Nano' => 'heroicon-o-light-bulb',
-                        default => 'heroicon-o-user',
-                    }),
+                    // Warna & ikon ikut PERINGKAT tier di master data, bukan namanya,
+                    // supaya tier buatan sendiri tetap kebagian.
+                    ->color(fn(string $state): string => MediaPlanCalcSetting::current()->tierBadgeColor($state))
+                    ->icon(fn(string $state): string => MediaPlanCalcSetting::current()->tierBadgeIcon($state)),
 
                 TextColumn::make('channels_avg_engagement_rate')
                     ->label('ER %')
@@ -154,26 +145,22 @@ class DataKolsTable
                 // harus ke jumlah itu — bukan ke kolom `tier` baris wakil.
                 SelectFilter::make('tier')
                     ->label('Filter by Tier')
-                    ->options([
-                        'Mega' => 'Mega (1M+)',
-                        'Macro' => 'Macro (100K-999K)',
-                        'Micro' => 'Micro (10K-99K)',
-                        'Nano' => 'Nano (1K-9K)',
-                        'Mini' => 'Mini (<1K)',
-                    ])
+                    ->options(fn() => MediaPlanCalcSetting::current()->tierOptions())
                     ->multiple()
                     ->query(function (Builder $query, array $data): Builder {
-                        $tiers = array_intersect($data['values'] ?? [], array_keys(DataKol::TIER_RANGES));
+                        $ranges = DataKol::tierRanges();
+                        $tiers = array_intersect($data['values'] ?? [], array_keys($ranges));
 
                         if (! $tiers) {
                             return $query;
                         }
 
                         // Aman dari injeksi: yang di-interpolasi hanya integer dari
-                        // TIER_RANGES, kuncinya sudah disaring lewat array_intersect.
+                        // master data tier, kuncinya sudah disaring array_intersect.
                         $kondisi = collect($tiers)
-                            ->map(function (string $tier): string {
-                                [$min, $max] = DataKol::TIER_RANGES[$tier];
+                            ->map(function (string $tier) use ($ranges): string {
+                                [$min, $max] = array_map('intval', [$ranges[$tier][0], $ranges[$tier][1] ?? PHP_INT_MAX]);
+                                $max = $ranges[$tier][1] === null ? null : $max;
 
                                 return $max === null
                                     ? "SUM(followers) >= {$min}"

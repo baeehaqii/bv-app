@@ -86,7 +86,7 @@ it('memetakan profil scraping ke kolom DataKol', function () {
     expect($kol->username)->toBe('windahbasudara')
         ->and($kol->channel)->toBe('Tiktok')
         ->and((int) $kol->followers)->toBe(5_000_000)
-        ->and($kol->tier)->toBe('Mega')
+        ->and($kol->tier)->toBe('Celebrity') // 5jt ≥ ambang Celebrity di master data tier
         ->and($kol->category)->toBe(['Gamers & Lifestyle'])
         ->and($kol->email)->toBe('windah@example.test')
         ->and($kol->contact)->toBe('windah@example.test')

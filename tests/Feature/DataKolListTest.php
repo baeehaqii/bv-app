@@ -232,9 +232,15 @@ it('memfilter tier memakai followers gabungan', function () {
 
     DataKol::create(['username' => 'kecil', 'channel' => 'Instagram', 'link_userprofile' => 'https://instagram.com/kecil', 'followers' => 5_000, 'tier' => 'Nano']);
 
+    // Sejak tier disatukan ke master data, ≥4jt masuk band "Celebrity":
+    // windah (8,5jt) Celebrity, awkarin (2,1jt) Mega.
     Livewire::test(ListDataKols::class)
+        ->filterTable('tier', ['Celebrity'])
+        ->assertCountTableRecords(1)
         ->filterTable('tier', ['Mega'])
-        ->assertCountTableRecords(2)          // windah (8,5jt) + awkarin (2,1jt)
+        ->assertCountTableRecords(1)
+        ->filterTable('tier', ['Celebrity', 'Mega'])
+        ->assertCountTableRecords(2)
         ->filterTable('tier', ['Nano'])
         ->assertCountTableRecords(1);
 });

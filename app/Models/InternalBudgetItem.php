@@ -136,26 +136,6 @@ class InternalBudgetItem extends Model
     }
 
     /**
-     * Vendor Tax Type options
-     */
-    const VENDOR_TAX_TYPES = [
-        'Pribadi' => 'Pribadi (PPh 2.5%/21)',
-        'PT Non PKP' => 'PT Non PKP (PPh 23 2%)',
-        'PT PKP' => 'PT PKP (PPh 23 + PPN 11%)',
-        'CV' => 'CV (PPh Final 0.5%)',
-    ];
-
-    /**
-     * Gross Up Coefficients per Tax Type
-     */
-    const GROSS_UP_COEFFICIENTS = [
-        'Pribadi' => 0.975,     // PPh 2.5% / 21
-        'PT Non PKP' => 0.98,   // PPh 23 2%
-        'PT PKP' => 0.98,       // PPh 23 2% (PPN calculated separately)
-        'CV' => 0.995,          // PPh Final 0.5%
-    ];
-
-    /**
      * Get the internal budget this item belongs to
      */
     public function internalBudget(): BelongsTo
@@ -189,64 +169,75 @@ class InternalBudgetItem extends Model
     }
 
     /**
-     * Get Gross Up Coefficient based on Vendor Tax Type
-     * Formula H
+     * Koefisien gross-up PPh MENTAH (kolom X sheet KOL List = 0.98). Bukan pembagi
+     * final — PPN-nya berdiri sendiri di kolom Y. Dipakai apa adanya di PDF.
+     *
+     * `master_pph_id` menang atas `vendor_tax_type`: Media Plan Internal hanya
+     * mengisi kolom itu (lihat CreateMediaPlan/EditMediaPlan), sementara
+     * `vendor_tax_type` diam di default kolom DB 'Pribadi'.
      */
     public function getGrossUpCoeff(): float
     {
-        return self::GROSS_UP_COEFFICIENTS[$this->vendor_tax_type] ?? 0.975;
+        return (float) ($this->resolvePph()?->coefficient ?? MasterPph::defaultCoefficient());
     }
 
     /**
-     * Calculate MU PPh* (Real Cost) - Total uang keluar dari perusahaan
-     * Formula I - Dynamic Tax Calculation
-     * 
-     * Pribadi: baseRate / 0.975
-     * PT Non PKP: baseRate / 0.98
-     * PT PKP: (baseRate / 0.98) + (baseRate * 11%)
-     * CV: baseRate / 0.995
+     * Master PPh yang berlaku untuk baris ini. `master_pph_id` dulu, lalu
+     * `vendor_tax_type` (baris lama / hasil migrasi sheet), lalu tipe default
+     * yang ditandai di Master PPH. Tidak ada koefisien yang ditulis di kode.
+     */
+    public function resolvePph(): ?MasterPph
+    {
+        if ($pph = $this->masterPph) {
+            return $pph;
+        }
+
+        if (filled($this->vendor_tax_type)) {
+            return MasterPph::query()->active()->where('name', $this->vendor_tax_type)->first()
+                ?? MasterPph::defaultRow();
+        }
+
+        return MasterPph::defaultRow();
+    }
+
+    /**
+     * MU PPh* (kolom Z sheet KOL List) = uang yang benar-benar keluar.
+     * Koefisiennya diambil dari Master PPH, tidak ada yang hardcode.
      */
     public function calculateMuPph(): float
     {
-        $baseRate = $this->subtotal ?? 0;
+        $baseRate = (float) ($this->subtotal ?? 0);
 
         if ($baseRate <= 0) {
             return 0;
         }
 
-        switch ($this->vendor_tax_type) {
-            case 'Pribadi':
-                return $baseRate / 0.975;
+        // getCalculatedCoefficient() sudah memasukkan PPN sebagai pembagi
+        // ekuivalen: subtotal / koef == (subtotal / 0.98) + (subtotal * 11%).
+        $coefficient = $this->resolvePph()?->getCalculatedCoefficient()
+            ?? MasterPph::defaultCalculatedCoefficient();
 
-            case 'PT Non PKP':
-                return $baseRate / 0.98;
-
-            case 'PT PKP':
-                // Logic: (Base / 0.98) + (Base * 11%)
-                $grossUpValue = $baseRate / 0.98;
-                $ppnValue = $baseRate * 0.11;
-                return $grossUpValue + $ppnValue;
-
-            case 'CV':
-                return $baseRate / 0.995;
-
-            default:
-                return $baseRate / 0.975; // Default to Pribadi
-        }
+        return $coefficient > 0 ? $baseRate / $coefficient : $baseRate;
     }
 
     /**
-     * Get Tax Value display text
+     * Teks kolom "Tax Reference" — dirakit dari Master PPh supaya tipe pajak
+     * baru yang ditambah lewat UI ikut punya label tanpa mengubah kode.
      */
     public function getTaxValueDisplay(): string
     {
-        return match ($this->vendor_tax_type) {
-            'Pribadi' => 'PPh 2.5%',
-            'PT Non PKP' => 'PPh 23 2%',
-            'PT PKP' => 'PPh 23 2% + PPN 11%',
-            'CV' => 'PPh Final 0.5%',
-            default => 'PPh 2.5%',
-        };
+        $pph = $this->resolvePph();
+
+        if (! $pph) {
+            return '-';
+        }
+
+        $angka = fn($v) => rtrim(rtrim(number_format((float) $v, 3, '.', ''), '0'), '.');
+        $label = "{$pph->name} — koef {$angka($pph->coefficient)}";
+
+        return $pph->include_ppn && $pph->ppn_percent
+            ? $label.' + PPN '.$angka($pph->ppn_percent).'%'
+            : $label;
     }
 
     /**
@@ -271,8 +262,8 @@ class InternalBudgetItem extends Model
      * Calculate Auto Target Margin based on subtotal
      * Formula J
      *
-     * Tabel margin diatur di panel admin (Master Margin). Default sesuai
-     * sheet KOL List: flat 50% (AA = Z / 0.5) untuk semua nominal.
+     * Tabel margin diatur di panel admin (Master Margin); nilai jatuhannya
+     * diatur di "Masterdata Media Plan Internal" (bawaan 50%, = AA Z / 0.5).
      *
      * If use_flexible_margin is true, uses margin_percent_override instead
      */
@@ -296,28 +287,17 @@ class InternalBudgetItem extends Model
             return 0;
         }
 
-        $marginDecimal = $this->target_margin_percent / 100;
-
-        if ($marginDecimal >= 1) {
-            return $this->mu_pph; // Prevent division by zero
-        }
-
-        return $this->mu_pph / (1 - $marginDecimal);
+        return MediaPlanCalcSetting::current()
+            ->applyMargin((float) $this->mu_pph, (float) $this->target_margin_percent);
     }
 
     /**
-     * Calculate Rounded Price
-     * Formula K: Rounds up to nearest 100,000
+     * Kolom AC: ROUNDUP(AB, -5). Langkah & arah pembulatan diatur di
+     * "Masterdata Media Plan Internal".
      */
     public function calculateRounded(): float
     {
-        $price = $this->published_rate ?? $this->mu_target ?? 0;
-
-        if ($price <= 0) {
-            return 0;
-        }
-
-        return ceil($price / 100000) * 100000;
+        return MediaPlanCalcSetting::current()->roundPrice((float) ($this->published_rate ?? $this->mu_target ?? 0));
     }
 
     /**

@@ -422,7 +422,7 @@
                             // Kolom ini meniru kolom X sheet client = koefisien gross-up MENTAH (0.98),
                             // PPN-nya berdiri sendiri di kolom "Tax". Jangan pakai
                             // getCalculatedCoefficient() — itu pembagi gabungan untuk hitung MU PPh.
-                            $coefficient = $masterPph ? (float) $masterPph->coefficient : 0.975;
+                            $coefficient = $masterPph ? (float) $masterPph->coefficient : \App\Models\MasterPph::defaultCoefficient();
                             $taxRate = $item->taxRateDecimal();
 
                             // Format numbers

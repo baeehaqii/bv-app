@@ -549,17 +549,10 @@ class TiktokService
      */
     protected function calculateTier(int $followersCount): string
     {
-        if ($followersCount >= 1000000) {
-            return 'Mega';
-        } elseif ($followersCount >= 100000) {
-            return 'Macro';
-        } elseif ($followersCount >= 10000) {
-            return 'Micro';
-        } elseif ($followersCount >= 1000) {
-            return 'Nano';
-        } else {
-            return 'Mini'; // Below 1,000 followers
-        }
+        // Ambangnya master data (halaman Masterdata Media Plan Internal), bukan
+        // tangga if di tiap service — dulu Threads bahkan memakai huruf kecil
+        // dan band "mid" yang tidak dikenal modul lain.
+        return \App\Models\MediaPlanCalcSetting::current()->tierFor($followersCount);
     }
 
     /**

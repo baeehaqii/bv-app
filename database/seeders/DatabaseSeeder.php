@@ -4,7 +4,9 @@ namespace Database\Seeders;
 
 // use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
+use Database\Seeders\MasterMarginSeeder;
 use Database\Seeders\MasterPphSeeder;
+use Database\Seeders\MediaPlanCalcSettingSeeder;
 
 class DatabaseSeeder extends Seeder
 {
@@ -47,6 +49,13 @@ class DatabaseSeeder extends Seeder
 
         $this->call(MasterPphSeeder::class);
         $this->command->info('MasterPph seeding completed!');
+
+        // Master data rumus Media Plan Internal (acuan: sheet KOL List)
+        $this->call(MasterMarginSeeder::class);
+        $this->command->info('MasterMargin seeding completed!');
+
+        $this->call(MediaPlanCalcSettingSeeder::class);
+        $this->command->info('MediaPlanCalcSetting seeding completed!');
 
         // Jalankan MasterServiceSeeder (master data 7 layanan BV Network)
         $this->call(MasterServiceSeeder::class);

@@ -13,6 +13,15 @@
 
 pest()->extend(Tests\TestCase::class)
     ->use(Illuminate\Foundation\Testing\RefreshDatabase::class)
+    // Master data perhitungan di-cache per request supaya KOL List tidak
+    // menembak ribuan query. RefreshDatabase me-rollback DB tapi tidak
+    // menyentuh static itu, jadi tanpa ini test bisa memakai master data
+    // milik test sebelumnya — dan hasilnya beda saat jalan sendiri vs sesuite.
+    ->beforeEach(function () {
+        App\Models\MasterPph::forgetCachedDefault();
+        App\Models\MasterMargin::forgetCached();
+        App\Models\MediaPlanCalcSetting::forgetCached();
+    })
     ->in('Feature');
 
 /*

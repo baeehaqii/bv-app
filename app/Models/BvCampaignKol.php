@@ -31,12 +31,15 @@ class BvCampaignKol extends Model
         'threads'   => 'Threads',
     ];
 
-    public const TIERS = [
-        'nano'  => 'Nano (< 10K)',
-        'micro' => 'Micro (10K–100K)',
-        'macro' => 'Macro (100K–1M)',
-        'mega'  => 'Mega (> 1M)',
-    ];
+    /**
+     * Pilihan tier di brief KOL — sumbernya sama dengan Media Plan Internal,
+     * KOL Data, dan scraping: master data "Tier KOL". Dulu daftar sendiri
+     * dengan kunci huruf kecil, jadi tier yang sama tertulis dua rupa.
+     */
+    public static function tierOptions(): array
+    {
+        return MediaPlanCalcSetting::current()->tierOptions();
+    }
 
     public const VISIT_STATUSES = [
         'scheduled' => 'Scheduled',

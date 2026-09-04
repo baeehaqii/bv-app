@@ -86,7 +86,7 @@ class CreateMediaPlan extends CreateRecord
                     'scope_item' => $scopeItem,
                     'qty' => 1,
                     'rate_base' => 0,
-                    'master_pph_id' => $mediaPlanKol->tipe_pajak_kol ?? \App\Models\MasterPph::where('name', 'Pribadi')->value('id'),
+                    'master_pph_id' => $mediaPlanKol->tipe_pajak_kol ?? \App\Models\MasterPph::defaultId(),
                     'sort_order' => ++$sortOrder,
                     'use_flexible_margin' => $useFlexible,
                     'margin_percent_override' => $overridenMargin,

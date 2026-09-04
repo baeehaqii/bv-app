@@ -71,28 +71,21 @@ class DataKol extends Model
     }
 
     /**
-     * Ambang tier resmi [min, max] followers (max null = tanpa batas atas), disalin
-     * dari calculateTier() di service scraping — Instagram/Tiktok/Youtube pakai
-     * angka yang sama. Urut menurun: tierFor() ambil kecocokan pertama.
+     * Tier & batasnya sekarang satu sumber dengan Media Plan Internal dan
+     * service scraping: master data "Tier KOL" di halaman Masterdata Media
+     * Plan Internal. Dulu tiga skema terpisah yang diam-diam berbeda.
+     *
+     * @return array<string, array{0:int, 1:?int}>
      */
-    public const TIER_RANGES = [
-        'Mega' => [1_000_000, null],
-        'Macro' => [100_000, 999_999],
-        'Micro' => [10_000, 99_999],
-        'Nano' => [1_000, 9_999],
-        'Mini' => [0, 999],
-    ];
+    public static function tierRanges(): array
+    {
+        return MediaPlanCalcSetting::current()->tierRanges();
+    }
 
     /** Tier dari total followers gabungan semua channel. */
     public static function tierFor(int $followers): string
     {
-        foreach (self::TIER_RANGES as $tier => [$min, $max]) {
-            if ($followers >= $min) {
-                return $tier;
-            }
-        }
-
-        return 'Mini';
+        return MediaPlanCalcSetting::current()->tierFor($followers);
     }
 
     /** Semua baris channel milik KOL ini, termasuk baris ini sendiri. */

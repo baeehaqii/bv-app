@@ -491,17 +491,10 @@ class YoutubeChannelsService
      */
     protected function calculateTier(int $subscriberCount): string
     {
-        if ($subscriberCount >= 1000000) {
-            return 'Mega';
-        } elseif ($subscriberCount >= 100000) {
-            return 'Macro';
-        } elseif ($subscriberCount >= 10000) {
-            return 'Micro';
-        } elseif ($subscriberCount >= 1000) {
-            return 'Nano';
-        } else {
-            return 'Mini'; // Below 1,000 subscribers
-        }
+        // Ambangnya master data (halaman Masterdata Media Plan Internal), bukan
+        // tangga if di tiap service — dulu Threads bahkan memakai huruf kecil
+        // dan band "mid" yang tidak dikenal modul lain.
+        return \App\Models\MediaPlanCalcSetting::current()->tierFor($subscriberCount);
     }
 
     /**

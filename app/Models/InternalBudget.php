@@ -301,8 +301,8 @@ class InternalBudget extends Model
             [$scope],
         );
 
-        $pphId = $newKol->tipe_pajak_kol ?? $item->master_pph_id ?? MasterPph::where('name', 'Pribadi')->value('id');
-        $coeff = MasterPph::find($pphId)?->getCalculatedCoefficient() ?? 0.975;
+        $pphId = $newKol->tipe_pajak_kol ?? $item->master_pph_id ?? MasterPph::defaultId();
+        $coeff = MasterPph::find($pphId)?->getCalculatedCoefficient() ?? MasterPph::defaultCalculatedCoefficient();
         $margin = $newKol->margin_percent !== null ? (float) $newKol->margin_percent : null;
         $figs = \App\Filament\Resources\MediaPlans\Schemas\MediaPlanForm::computeBudgetFigures($rateBase * $qty, $coeff, $margin);
 

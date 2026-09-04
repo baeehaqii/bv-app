@@ -15,6 +15,7 @@ class MasterPph extends Model
         'description',
         'order',
         'is_active',
+        'is_default',
     ];
 
     protected $casts = [
@@ -22,7 +23,69 @@ class MasterPph extends Model
         'ppn_percent' => 'decimal:2',
         'include_ppn' => 'boolean',
         'is_active' => 'boolean',
+        'is_default' => 'boolean',
     ];
+
+    /**
+     * Tipe pajak default untuk KOL baru — diatur lewat toggle "Default" di
+     * Master PPH, bukan ditulis di kode. Kalau tak ada yang ditandai, jatuh ke
+     * baris aktif dengan order terkecil.
+     */
+    private static ?self $defaultRow = null;
+
+    private static bool $defaultResolved = false;
+
+    protected static function booted(): void
+    {
+        // Default itu tunggal: menandai satu baris otomatis melepas yang lain.
+        static::saved(function (self $pph) {
+            if ($pph->is_default) {
+                static::query()->whereKeyNot($pph->getKey())->where('is_default', true)
+                    ->update(['is_default' => false]);
+            }
+
+            static::forgetCachedDefault();
+        });
+
+        static::deleted(fn() => static::forgetCachedDefault());
+    }
+
+    public static function forgetCachedDefault(): void
+    {
+        self::$defaultRow = null;
+        self::$defaultResolved = false;
+    }
+
+    public static function defaultRow(): ?self
+    {
+        if (! self::$defaultResolved) {
+            self::$defaultRow = static::query()->active()->where('is_default', true)->first()
+                ?? static::query()->active()->ordered()->first();
+            self::$defaultResolved = true;
+        }
+
+        return self::$defaultRow;
+    }
+
+    public static function defaultId(): ?int
+    {
+        return self::defaultRow()?->id;
+    }
+
+    /**
+     * Pembagi MU PPh milik tipe default. 1.0 (tanpa gross-up) kalau master PPh
+     * benar-benar kosong — lebih jujur daripada diam-diam memakai angka ajaib.
+     */
+    public static function defaultCalculatedCoefficient(): float
+    {
+        return self::defaultRow()?->getCalculatedCoefficient() ?? 1.0;
+    }
+
+    /** Koefisien MENTAH tipe default (kolom X sheet KOL List), untuk PDF. */
+    public static function defaultCoefficient(): float
+    {
+        return (float) (self::defaultRow()?->coefficient ?? 1.0);
+    }
 
     /**
      * Pembagi tunggal untuk menghitung MU PPh (real cost): `subtotal / coefficient`.

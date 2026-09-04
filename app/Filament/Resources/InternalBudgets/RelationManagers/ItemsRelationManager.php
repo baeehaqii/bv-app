@@ -81,14 +81,14 @@ class ItemsRelationManager extends RelationManager
                                     ->dehydrated()
                                     ->helperText('Qty × Rate'),
 
-                                // Dynamic Tax Type Selection
-                                Select::make('vendor_tax_type')
-                                    ->label('Vendor Tax Type')
-                                    ->options(InternalBudgetItem::VENDOR_TAX_TYPES)
-                                    ->default('Pribadi')
+                                // Pilihan & koefisiennya datang dari Master PPH.
+                                Select::make('master_pph_id')
+                                    ->label('Tipe Pajak Vendor')
+                                    ->options(fn() => \App\Models\MasterPph::getActiveOptions())
+                                    ->default(fn() => \App\Models\MasterPph::defaultId())
                                     ->required()
                                     ->live(onBlur: true)
-                                    ->helperText('Tipe badan usaha vendor'),
+                                    ->helperText('Diatur di Master Data → Master PPH'),
                             ]),
 
                         Grid::make(3)
@@ -215,16 +215,11 @@ class ItemsRelationManager extends RelationManager
                     ->money('IDR')
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('vendor_tax_type')
-                    ->label('Tax Type')
+                Tables\Columns\TextColumn::make('masterPph.name')
+                    ->label('Tipe Pajak')
                     ->badge()
-                    ->color(fn(string $state): string => match ($state) {
-                        'Pribadi' => 'gray',
-                        'PT Non PKP' => 'info',
-                        'PT PKP' => 'warning',
-                        'CV' => 'success',
-                        default => 'gray',
-                    })
+                    ->color('info')
+                    ->placeholder(fn($record) => $record->vendor_tax_type ?: '-')
                     ->toggleable(),
 
                 Tables\Columns\TextColumn::make('mu_pph')
@@ -249,8 +244,9 @@ class ItemsRelationManager extends RelationManager
                 // Target % & Actual Margin disembunyikan di Media Plan External (data internal saja).
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('vendor_tax_type')
-                    ->options(InternalBudgetItem::VENDOR_TAX_TYPES),
+                Tables\Filters\SelectFilter::make('master_pph_id')
+                    ->label('Tipe Pajak')
+                    ->options(fn() => \App\Models\MasterPph::getActiveOptions()),
             ])
             ->headerActions([
                 Tables\Actions\CreateAction::make()

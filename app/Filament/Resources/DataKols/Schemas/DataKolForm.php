@@ -404,15 +404,16 @@ class DataKolForm
                             ->label('Tier')
                             ->readOnly()
                             ->dehydrated()
-                            ->hintIcon('heroicon-m-question-mark-circle', tooltip: 'Otomatis: Nano (1K-9K) | Micro (10K-99K) | Macro (100K-999K) | Mega (1M+)')
+                            ->hintIcon('heroicon-m-question-mark-circle', tooltip: 'Otomatis dari master data Tier KOL: '
+                                .implode(' | ', \App\Models\MediaPlanCalcSetting::current()->tierOptions()))
                             ->hiddenOn('edit')
                             ->prefixIcon('heroicon-o-star')
                             ->extraAttributes(fn($state) => [
-                                'style' => match ($state) {
-                                    'Mega' => 'color: #10b981; font-weight: bold;',
-                                    'Macro' => 'color: #f59e0b; font-weight: bold;',
-                                    'Micro' => 'color: #3b82f6; font-weight: bold;',
-                                    'Nano' => 'color: #06b6d4; font-weight: bold;',
+                                'style' => match (\App\Models\MediaPlanCalcSetting::current()->tierBadgeColor($state)) {
+                                    'success' => 'color: #10b981; font-weight: bold;',
+                                    'warning' => 'color: #f59e0b; font-weight: bold;',
+                                    'primary' => 'color: #3b82f6; font-weight: bold;',
+                                    'info' => 'color: #06b6d4; font-weight: bold;',
                                     default => 'color: #6b7280;',
                                 }
                             ]),

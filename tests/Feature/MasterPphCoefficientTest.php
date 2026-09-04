@@ -19,13 +19,17 @@ it('PT PKP menambahkan PPN, bukan mengurangi cost', function () {
 });
 
 it('koefisien sama dengan InternalBudgetItem::calculateMuPph untuk semua tipe pajak', function (string $tipe, float $koef, bool $ppn) {
-    $pph = new MasterPph([
+    $pph = MasterPph::create([
+        'name' => $tipe,
+        'entity_type' => 'PT',
         'coefficient' => $koef,
         'include_ppn' => $ppn,
         'ppn_percent' => $ppn ? 11.00 : null,
+        'order' => 1,
+        'is_active' => true,
     ]);
 
-    $item = new InternalBudgetItem(['vendor_tax_type' => $tipe, 'subtotal' => 5_000_000]);
+    $item = new InternalBudgetItem(['master_pph_id' => $pph->id, 'subtotal' => 5_000_000]);
 
     expect(5_000_000 / $pph->getCalculatedCoefficient())
         ->toEqualWithDelta($item->calculateMuPph(), 0.01);

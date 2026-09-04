@@ -383,7 +383,7 @@ class EditMediaPlan extends EditRecord
                                 'scope_item' => $scopeItem,
                                 'qty' => $qty,
                                 'rate_base' => $this->rateForScope($mediaPlanKol, $scopeItem),
-                                'master_pph_id' => $mediaPlanKol->tipe_pajak_kol ?? \App\Models\MasterPph::where('name', 'Pribadi')->value('id'),
+                                'master_pph_id' => $mediaPlanKol->tipe_pajak_kol ?? \App\Models\MasterPph::defaultId(),
                                 'sort_order' => ++$sortOrder,
                             ]);
                         }
@@ -413,7 +413,7 @@ class EditMediaPlan extends EditRecord
                         'scope_item' => $scopeItem,
                         'qty' => max(1, (int) ($mediaPlanKol->qty ?: 1)),
                         'rate_base' => $this->rateForScope($mediaPlanKol, $scopeItem),
-                        'master_pph_id' => $mediaPlanKol->tipe_pajak_kol ?? \App\Models\MasterPph::where('name', 'Pribadi')->value('id'),
+                        'master_pph_id' => $mediaPlanKol->tipe_pajak_kol ?? \App\Models\MasterPph::defaultId(),
                         'sort_order' => ++$sortOrder,
                     ]);
                 }
@@ -423,7 +423,7 @@ class EditMediaPlan extends EditRecord
         // Kalkulasi Cost/Client Price/Margin tiap budget item dari rate_base + koef PPh + Margin% KOL.
         // Dipindah dari step "Budget Items" (kini disembunyikan) agar nilai tetap konsisten & tidak dobel.
         foreach ($internalBudget->items()->with(['mediaPlanKol', 'masterPph'])->get() as $item) {
-            $coeff = $item->masterPph?->getCalculatedCoefficient() ?? 0.975;
+            $coeff = $item->masterPph?->getCalculatedCoefficient() ?? \App\Models\MasterPph::defaultCalculatedCoefficient();
             $kolMargin = $item->mediaPlanKol?->margin_percent;
             $subtotal = (float) $item->rate_base * (int) ($item->qty ?: 1);
 

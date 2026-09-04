@@ -22,6 +22,7 @@ class MasterPphSeeder extends Seeder
                 'ppn_percent' => null,
                 'description' => 'Coefficient for individual/personal tax',
                 'order' => 1,
+                'is_default' => false,
                 'is_active' => true,
             ],
             [
@@ -32,6 +33,7 @@ class MasterPphSeeder extends Seeder
                 'ppn_percent' => null,
                 'description' => 'PT (Perseroan Terbatas) - Non Pengusaha Kena Pajak',
                 'order' => 2,
+                'is_default' => false,
                 'is_active' => true,
             ],
             [
@@ -42,6 +44,9 @@ class MasterPphSeeder extends Seeder
                 'ppn_percent' => 11.00,
                 'description' => 'PT (Perseroan Terbatas) - Pengusaha Kena Pajak + PPN 11%',
                 'order' => 3,
+                // Sheet KOL List pakai gross-up 0.98 + PPN 11% di SEMUA baris.
+                // Bisa dipindah ke tipe lain lewat toggle "Default" di Master PPH.
+                'is_default' => true,
                 'is_active' => true,
             ],
             [
@@ -52,6 +57,7 @@ class MasterPphSeeder extends Seeder
                 'ppn_percent' => null,
                 'description' => 'CV (Commanditaire Vennootschap)',
                 'order' => 4,
+                'is_default' => false,
                 'is_active' => true,
             ],
         ];

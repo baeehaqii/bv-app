@@ -80,9 +80,14 @@ class MasterPphForm
                             ->columnSpanFull(),
 
                         Toggle::make('is_active')
-                            ->label('Active')
+                            ->label('Aktif')
                             ->default(true)
-                            ->helperText('Only active options will be shown in forms')
+                            ->helperText('Hanya pilihan aktif yang muncul di form')
+                            ->columnSpan(1),
+
+                        Toggle::make('is_default')
+                            ->label('Jadikan default')
+                            ->helperText('Tipe pajak yang otomatis dipakai KOL baru di Media Plan Internal. Hanya boleh satu — menandai di sini otomatis melepas yang lain.')
                             ->columnSpan(1),
                     ])->columns(2),
             ]);

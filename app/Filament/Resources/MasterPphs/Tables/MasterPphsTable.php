@@ -2,9 +2,11 @@
 
 namespace App\Filament\Resources\MasterPphs\Tables;
 
+use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
+use Filament\Notifications\Notification;
 use Filament\Tables\Table;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Columns\IconColumn;
@@ -67,10 +69,21 @@ class MasterPphsTable
                     ->description('Including PPN if applicable'),
 
                 IconColumn::make('is_active')
-                    ->label('Active')
+                    ->label('Aktif')
                     ->boolean()
                     ->sortable()
                     ->alignCenter(),
+
+                IconColumn::make('is_default')
+                    ->label('Default')
+                    ->boolean()
+                    ->trueIcon('heroicon-s-star')
+                    ->falseIcon('heroicon-o-minus-small')
+                    ->trueColor('warning')
+                    ->falseColor('gray')
+                    ->sortable()
+                    ->alignCenter()
+                    ->tooltip('Tipe pajak yang dipakai KOL baru di Media Plan Internal'),
 
                 TextColumn::make('created_at')
                     ->label('Created')
@@ -98,6 +111,23 @@ class MasterPphsTable
                     ->falseLabel('Without PPN'),
             ])
             ->recordActions([
+                Action::make('jadikan_default')
+                    ->label('Jadikan default')
+                    ->icon('heroicon-o-star')
+                    ->color('warning')
+                    ->visible(fn($record) => ! $record->is_default)
+                    ->requiresConfirmation()
+                    ->modalDescription('KOL baru di Media Plan Internal akan memakai tipe pajak ini. Baris budget yang sudah ada tidak berubah.')
+                    ->action(function ($record) {
+                        // booted() di MasterPph yang melepas default lama.
+                        $record->update(['is_default' => true, 'is_active' => true]);
+
+                        Notification::make()
+                            ->success()
+                            ->title("\"{$record->name}\" jadi tipe pajak default")
+                            ->send();
+                    }),
+
                 EditAction::make(),
             ])
             ->toolbarActions([

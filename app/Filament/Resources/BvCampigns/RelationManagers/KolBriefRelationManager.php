@@ -59,7 +59,7 @@ class KolBriefRelationManager extends RelationManager
 
                     Select::make('tier')
                         ->label('Tier')
-                        ->options(BvCampaignKol::TIERS)
+                        ->options(fn() => BvCampaignKol::tierOptions())
                         ->native(false),
 
                     Select::make('platform')
@@ -158,20 +158,8 @@ class KolBriefRelationManager extends RelationManager
                 TextColumn::make('tier')
                     ->label('Tier')
                     ->badge()
-                    ->color(fn($state) => match ($state) {
-                        'mega'  => 'danger',
-                        'macro' => 'warning',
-                        'micro' => 'info',
-                        'nano'  => 'gray',
-                        default => 'gray',
-                    })
-                    ->formatStateUsing(fn($state) => match ($state) {
-                        'mega'  => 'Mega',
-                        'macro' => 'Macro',
-                        'micro' => 'Micro',
-                        'nano'  => 'Nano',
-                        default => ucfirst($state ?? '-'),
-                    }),
+                    ->color(fn($state) => \App\Models\MediaPlanCalcSetting::current()->tierBadgeColor($state))
+                    ->formatStateUsing(fn($state) => filled($state) ? $state : '-'),
 
                 TextColumn::make('visit_date')
                     ->label('Tanggal Visit')
@@ -240,7 +228,7 @@ class KolBriefRelationManager extends RelationManager
             ->filters([
                 SelectFilter::make('tier')
                     ->label('Tier')
-                    ->options(BvCampaignKol::TIERS),
+                    ->options(fn() => BvCampaignKol::tierOptions()),
 
                 SelectFilter::make('visit_status')
                     ->label('Status Visit')

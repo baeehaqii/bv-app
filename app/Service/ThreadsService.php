@@ -357,13 +357,9 @@ class ThreadsService
      */
     protected function calculateTier(int $followers): string
     {
-        return match (true) {
-            $followers >= 1_000_000 => 'mega',
-            $followers >= 500_000 => 'macro',
-            $followers >= 100_000 => 'mid',
-            $followers >= 10_000 => 'micro',
-            $followers >= 1_000 => 'nano',
-            default => 'nano',
-        };
+        // Ambangnya master data (halaman Masterdata Media Plan Internal), bukan
+        // tangga if di tiap service — dulu Threads bahkan memakai huruf kecil
+        // dan band "mid" yang tidak dikenal modul lain.
+        return \App\Models\MediaPlanCalcSetting::current()->tierFor($followers);
     }
 }

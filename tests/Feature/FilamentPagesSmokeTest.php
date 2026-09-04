@@ -79,3 +79,26 @@ it('menu KOL Area ter-render: KOL Data, KOL Analyzer, KOL SPK', function () {
     $this->get('/office/kol-analyzer')->assertSuccessful()->assertSee('Klik satu baris');
     $this->get('/office/spk')->assertSuccessful();
 });
+
+it('Masterdata Media Plan Internal ter-render dengan pratinjau perhitungan', function () {
+    (new Database\Seeders\MediaPlanCalcSettingSeeder)->run();
+
+    $this->get('/office/masterdata-media-plan-internal')
+        ->assertSuccessful()
+        ->assertSee('Pembulatan harga jual')
+        ->assertSee('Tier KOL')
+        // Pajak & margin punya resource sendiri — tidak boleh diduplikasi di sini.
+        ->assertDontSee('Gross Up')
+        ->assertDontSee('Margin default');
+});
+
+it('Master PPH ter-render dengan kolom Default', function () {
+    $this->get('/office/master-pphs')->assertSuccessful();
+});
+
+it('KOL Data & brief campaign ter-render dengan tier dari master data', function () {
+    (new Database\Seeders\MediaPlanCalcSettingSeeder)->run();
+
+    $this->get('/office/data-kol')->assertSuccessful();
+    $this->get("/office/campaign-ongoing-internal/{$this->campaign->id}/edit")->assertSuccessful();
+});

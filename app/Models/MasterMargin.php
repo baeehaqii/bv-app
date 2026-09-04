@@ -42,6 +42,12 @@ class MasterMargin extends Model
         static::deleted(fn() => self::$aktif = null);
     }
 
+    /** Mass-delete/mass-update tidak memicu event model, jadi cache dilepas manual. */
+    public static function forgetCached(): void
+    {
+        self::$aktif = null;
+    }
+
     public static function getMarginForAmount(float $subtotal): float
     {
         self::$aktif ??= self::query()->active()->ordered()->get();
@@ -49,9 +55,11 @@ class MasterMargin extends Model
         $margin = self::$aktif->first(fn(self $m) => (float) $m->min_amount <= $subtotal
             && ($m->max_amount === null || (float) $m->max_amount >= $subtotal));
 
-        // ponytail: default sheet KOL List = flat 50%; tabel bertingkat
-        // tinggal ditambah lewat panel admin Master Margin
-        return $margin ? (float) $margin->margin_percent : 50.0;
+        // Jatuhan kalau tak ada baris yang cocok: diatur di
+        // "Masterdata Media Plan Internal" (bawaan 50% = kolom AA Z / 0.5).
+        return $margin
+            ? (float) $margin->margin_percent
+            : (float) MediaPlanCalcSetting::current()->default_margin_percent;
     }
 
     /**

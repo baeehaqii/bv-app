@@ -166,7 +166,7 @@ class MediaPlanForm
      */
     public static function kolRowsFromBriefSow(?string $sow): array
     {
-        $defaultPph = MasterPph::active()->ordered()->first()?->id;
+        $defaultPph = MasterPph::defaultId();
         $masterSows = \App\Models\MasterSow::query()->where('is_active', true)->get(['name', 'channel']);
 
         return collect(self::parseBriefSow($sow))
@@ -667,9 +667,9 @@ class MediaPlanForm
             ? $marginOverride
             : \App\Models\MasterMargin::getMarginForAmount($subtotal);
 
-        $marginDecimal = min(max($margin, 0), 99) / 100;
-        $muTarget = $marginDecimal >= 1 ? $muPph : $muPph / (1 - $marginDecimal);
-        $rounded = ceil($muTarget / 100000) * 100000;
+        $calc = \App\Models\MediaPlanCalcSetting::current();
+        $muTarget = $calc->applyMargin($muPph, $margin);
+        $rounded = $calc->roundPrice($muTarget);
         $actualMargin = $rounded > 0 ? (($rounded - $muPph) / $rounded) * 100 : 0;
 
         return [
@@ -696,7 +696,7 @@ class MediaPlanForm
 
         $rateCards = self::resolveKolRateCards($get('data_kol_id'), $get('name'), $get('channel'));
         $pph = self::masterPph(filled($get('tipe_pajak_kol')) ? (int) $get('tipe_pajak_kol') : null);
-        $coeff = $pph?->getCalculatedCoefficient() ?? 0.975;
+        $coeff = $pph?->getCalculatedCoefficient() ?? \App\Models\MasterPph::defaultCalculatedCoefficient();
         $margin = filled($get('margin_percent')) ? (float) $get('margin_percent') : null;
         $qty = max(1, (int) ($get('qty') ?: 1));
 
@@ -2493,13 +2493,9 @@ class MediaPlanForm
 
         // PPh Coefficient dari MasterPph
         $masterPphId = $get('master_pph_id');
-        $pphCoefficient = 0.975; // default Pribadi
-        if ($masterPphId) {
-            $masterPph = \App\Models\MasterPph::find($masterPphId);
-            if ($masterPph) {
-                $pphCoefficient = $masterPph->getCalculatedCoefficient();
-            }
-        }
+        $pphCoefficient = ($masterPphId ? \App\Models\MasterPph::find($masterPphId) : null)
+            ?->getCalculatedCoefficient()
+            ?? \App\Models\MasterPph::defaultCalculatedCoefficient();
 
         $muPph = $subtotal / $pphCoefficient;
 
@@ -2509,10 +2505,9 @@ class MediaPlanForm
             $targetMargin = (float) $mediaPlanRecord->margin_percent;
         }
 
-        $marginDecimal = $targetMargin / 100;
-        $muTarget = $marginDecimal >= 1 ? $muPph : $muPph / (1 - $marginDecimal);
-
-        $rounded = ceil($muTarget / 100000) * 100000;
+        $calc = \App\Models\MediaPlanCalcSetting::current();
+        $muTarget = $calc->applyMargin($muPph, $targetMargin);
+        $rounded = $calc->roundPrice($muTarget);
         $actualMargin = $rounded > 0 ? (($rounded - $muPph) / $rounded) * 100 : 0;
 
         $fmt = fn($v) => number_format(round($v), 0, '.', ',');
@@ -2538,9 +2533,9 @@ class MediaPlanForm
             return;
         }
 
-        $marginDecimal = min(max($margin, 0), 99) / 100;
-        $muTarget = $marginDecimal >= 1 ? $muPph : $muPph / (1 - $marginDecimal);
-        $rounded = ceil($muTarget / 100000) * 100000;
+        $calc = \App\Models\MediaPlanCalcSetting::current();
+        $muTarget = $calc->applyMargin($muPph, $margin);
+        $rounded = $calc->roundPrice($muTarget);
         $actualMargin = $rounded > 0 ? (($rounded - $muPph) / $rounded) * 100 : 0;
 
         $fmt = fn($v) => number_format(round($v), 0, '.', ',');
@@ -2705,7 +2700,7 @@ class MediaPlanForm
             return ['kols' => $existingKols, 'count' => 0, 'fetched' => 0, 'errors' => ['Header CSV harus memuat kolom: channel, link']];
         }
 
-        $defaultPph = MasterPph::active()->ordered()->first()?->id;
+        $defaultPph = MasterPph::defaultId();
         $startRowNum = (int) (collect($existingKols)->max('row_number') ?? 0) + 1;
         $newKols = $existingKols;
         $count = 0;
@@ -3002,7 +2997,7 @@ class MediaPlanForm
             return ['kols' => $existingKols, 'created' => 0];
         }
 
-        $defaultPph = MasterPph::active()->ordered()->first()?->id;
+        $defaultPph = MasterPph::defaultId();
         $startRowNum = (int) (collect($existingKols)->max('row_number') ?? 0) + 1;
         $rateCardsByChannel = collect($data['rate_cards'] ?? [])
             ->filter(fn($rc) => filled($rc['channel'] ?? null))

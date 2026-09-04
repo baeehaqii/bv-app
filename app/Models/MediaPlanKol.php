@@ -88,19 +88,12 @@ class MediaPlanKol extends Model
     }
 
     /**
-     * Calculate Tier based on followers
+     * Kolom I sheet KOL List. Ambangnya diatur di
+     * "Masterdata Media Plan Internal", bukan ditulis di kode.
      */
     public static function calculateTier(int $followers): string
     {
-        if ($followers >= 1000000) {
-            return 'Mega';
-        } elseif ($followers >= 100000) {
-            return 'Macro';
-        } elseif ($followers >= 10000) {
-            return 'Micro';
-        } else {
-            return 'Nano';
-        }
+        return MediaPlanCalcSetting::current()->tierFor($followers);
     }
 
     /**
