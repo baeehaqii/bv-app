@@ -366,6 +366,15 @@ class MediaPlan extends Model
     }
 
     /**
+     * Quotation yang terbit dari media plan ini. Dipakai kolom "Quotation?" di
+     * daftar Media Plan Internal.
+     */
+    public function quotations(): HasMany
+    {
+        return $this->hasMany(BvQuotation::class, 'media_plan_id');
+    }
+
+    /**
      * Get the internal budget for this media plan (1:1)
      */
     public function internalBudget(): HasOne

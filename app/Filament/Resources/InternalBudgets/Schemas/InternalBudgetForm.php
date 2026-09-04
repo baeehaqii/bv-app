@@ -273,7 +273,9 @@ class InternalBudgetForm
                             ->columnSpanFull(),
 
                         Placeholder::make('budget_items_sticky_css')
-                            ->label('')
+                            // hiddenLabel(), bukan label(''): label kosong tetap
+                            // dirender jadi teks "Budget items sticky css".
+                            ->hiddenLabel()
                             ->content(new \Illuminate\Support\HtmlString('
                                 <style>
                                     #ib-budget-items .fi-fo-repeater-table-wrapper { overflow-x: auto; }

@@ -9,10 +9,26 @@ use Filament\Actions\EditAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\Action;
+use App\Filament\Resources\MediaPlans\Schemas\MediaPlanForm;
+use Carbon\CarbonImmutable;
 
 
 class MediaPlansTable
 {
+    /** Kolom periode disimpan sebagai string bebas; tampilkan rapi kalau terbaca. */
+    private static function tanggal(?string $nilai): ?string
+    {
+        if (blank($nilai)) {
+            return null;
+        }
+
+        try {
+            return CarbonImmutable::parse($nilai)->translatedFormat('d M Y');
+        } catch (\Throwable) {
+            return $nilai;
+        }
+    }
+
     public static function configure(Table $table): Table
     {
         return $table
@@ -51,13 +67,21 @@ class MediaPlansTable
                     ->color('gray')
                     ->alignCenter(),
 
-                // Selected KOLs count
-                TextColumn::make('selected_kols_count')
-                    ->label('Selected')
-                    ->state(fn($record) => $record->kols()->where('is_selected', true)->count())
+                // KOL yang sudah di-approve client di Media Plan External.
+                // is_selected cuma "dicentang di shortlist", bukan keputusan client —
+                // itu sebabnya kolom lama selalu 0 padahal di external sudah approve.
+                TextColumn::make('approved_kols_count')
+                    ->label('Approved')
+                    ->state(fn($record) => (int) ($record->internalBudget
+                        ?->items()
+                        ->where('status', 'approved')
+                        ->whereNotNull('media_plan_kol_id')
+                        ->distinct()
+                        ->count('media_plan_kol_id') ?? 0))
                     ->badge()
-                    ->color('success')
-                    ->alignCenter(),
+                    ->color(fn($state) => $state > 0 ? 'success' : 'gray')
+                    ->alignCenter()
+                    ->tooltip('KOL yang di-approve client lewat Media Plan External'),
 
                 TextColumn::make('kols_list_count')
                     ->label('KOL(s)')
@@ -76,17 +100,59 @@ class MediaPlansTable
                             ->modalWidth('4xl')
                     ),
 
-                TextColumn::make('kols.channel')
-                    ->label('Channel(s)')
-                    ->badge()
-                    ->separator(',')
-                    ->color(fn($state) => match ($state) {
-                        'Instagram' => 'pink',
-                        'Tiktok' => 'gray',
-                        'Youtube Channels' => 'danger',
-                        'Youtube Shorts' => 'warning',
-                        default => 'gray',
+                TextColumn::make('picSalesBd.nama_sales')
+                    ->label('Sales')
+                    ->placeholder('—')
+                    ->searchable()
+                    ->toggleable(),
+
+                TextColumn::make('pic_project_internal_ids')
+                    ->label('PIC KOL')
+                    ->state(function ($record) {
+                        $daftar = MediaPlanForm::kolSpecialists();
+
+                        return collect($record->pic_project_internal_ids ?? [])
+                            ->map(fn($id) => $daftar[$id] ?? null)
+                            ->filter()
+                            ->values()
+                            ->all();
                     })
+                    ->badge()
+                    ->color('info')
+                    ->placeholder('—')
+                    ->toggleable(),
+
+                TextColumn::make('picAm.nama_sales')
+                    ->label('PIC AM')
+                    ->placeholder('—')
+                    ->toggleable(),
+
+                TextColumn::make('picLeadsProject.nama_sales')
+                    ->label('Lead Project')
+                    ->placeholder('—')
+                    ->toggleable(),
+
+                TextColumn::make('quotations_count')
+                    ->label('Quotation?')
+                    ->counts('quotations')
+                    ->badge()
+                    ->formatStateUsing(fn($state) => $state > 0 ? 'Ada' : 'Belum')
+                    ->color(fn($state) => $state > 0 ? 'success' : 'gray')
+                    ->alignCenter()
+                    ->toggleable(),
+
+                TextColumn::make('campaign_period_start')
+                    ->label('Period Start')
+                    ->formatStateUsing(fn($state) => self::tanggal($state))
+                    ->placeholder('—')
+                    ->sortable()
+                    ->toggleable(),
+
+                TextColumn::make('campaign_period_end')
+                    ->label('Period End')
+                    ->formatStateUsing(fn($state) => self::tanggal($state))
+                    ->placeholder('—')
+                    ->sortable()
                     ->toggleable(),
 
                 // Summary from Internal Budget
