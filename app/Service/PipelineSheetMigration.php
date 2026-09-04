@@ -2,6 +2,7 @@
 
 namespace App\Service;
 
+use App\Enums\ClientStatus;
 use App\Enums\SalesStatus;
 use App\Models\BvSales;
 use App\Models\BvSalesList;
@@ -40,6 +41,11 @@ class PipelineSheetMigration extends SheetMigration
             'status' => ['stage status', 'stage', 'status', 'status kol teams'],
             'budget_propose' => ['amount idr', 'amount', 'budget', 'budget plan from client', 'budget plan from clients'],
             'deal_value' => ['amount deals', 'deal value'],
+            'plan_cogs' => ['plan cogs', 'cogs', 'plan cost'],
+            // Kolom rupiahnya. Yang berakhiran "%" jatuh ke field margin di bawah
+            // — normalize() mengubah "%" jadi kata "persen", jadi dua judul yang
+            // nyaris sama ini tetap bisa dibedakan.
+            'projected_nett_margin' => ['projected nett margin', 'nett margin', 'net margin'],
             // BvSales.margin itu PERSEN (lihat getFormattedMarginAttribute), jadi
             // yang diambil kolom persen — bukan kolom rupiah di sebelahnya.
             'margin' => ['projected nett margin persen', 'margin persen', 'margin'],
@@ -51,7 +57,11 @@ class PipelineSheetMigration extends SheetMigration
 
     public function previewColumns(): array
     {
-        return ['event_name', 'company_name', 'related_client_name', 'sales', 'status', 'budget_propose', 'deal_value', 'close_date'];
+        return [
+            'event_name', 'company_name', 'related_client_name', 'sales', 'status',
+            'budget_propose', 'plan_cogs', 'projected_nett_margin', 'margin',
+            'deal_value', 'close_date',
+        ];
     }
 
     /** Nilai status yang tidak dikenali, untuk dilaporkan sekali di akhir chunk. */
@@ -73,6 +83,8 @@ class PipelineSheetMigration extends SheetMigration
         $item['status'] = $this->normalizeStatus($item['status'] ?? null);
         $item['budget_propose'] = self::toNumber($item['budget_propose'] ?? null);
         $item['deal_value'] = self::toNumber($item['deal_value'] ?? null);
+        $item['plan_cogs'] = self::toNumber($item['plan_cogs'] ?? null);
+        $item['projected_nett_margin'] = self::toNumber($item['projected_nett_margin'] ?? null);
         $item['close_date'] = self::toDate($item['close_date'] ?? null);
         $item['brief_submit_date'] = self::toDate($item['brief_submit_date'] ?? null);
         // Sheet menulis margin sebagai pecahan (0,6533); kolomnya menyimpan persen.
@@ -122,8 +134,9 @@ class PipelineSheetMigration extends SheetMigration
             'company_name' => $item['company_name'] ?: null,
         ]);
 
-        foreach (['related_client_name', 'budget_propose', 'deal_value', 'close_date',
-            'brief_submit_date', 'margin', 'campaign_month', 'campaign_year'] as $field) {
+        foreach (['related_client_name', 'budget_propose', 'deal_value', 'plan_cogs',
+            'projected_nett_margin', 'close_date', 'brief_submit_date', 'margin',
+            'campaign_month', 'campaign_year'] as $field) {
             if (($item[$field] ?? null) !== null && $item[$field] !== '') {
                 $sales->{$field} = $item[$field];
             }
@@ -180,15 +193,37 @@ class PipelineSheetMigration extends SheetMigration
 
     private static function petaStatus(string $teks): ?SalesStatus
     {
-        return match ($teks) {
+        // Istilah yang hanya ada di sheet lama / tab KOL Planning.
+        $khusus = match ($teks) {
             'finish paid', 'paid' => SalesStatus::PAID,
-            'lost', 'close lost' => SalesStatus::CLOSE_LOSE,
             'invoicing' => SalesStatus::INVOICING,
-            'won on going', 'on going', 'ongoing' => SalesStatus::CAMPAIGN_LIVE,
-            'awaiting feedback' => SalesStatus::NEGOTIATION,
-            'revision' => SalesStatus::PROPOSAL_BUILDING,
-            'media plan' => SalesStatus::PROPOSAL_BUILDING,
             'report', 'reporting' => SalesStatus::REPORTING,
+            'media plan' => SalesStatus::PROPOSAL_BUILDING,
+            'close lost' => SalesStatus::CLOSE_LOSE,
+            'on going', 'ongoing' => SalesStatus::CAMPAIGN_LIVE,
+            default => null,
+        };
+
+        if ($khusus) {
+            return $khusus;
+        }
+
+        // Sisanya kosakata dropdown STATUS di sheet BD. Pengenalan tulisannya
+        // (en dash, huruf besar-kecil, "WON" saja) diurus ClientStatus supaya
+        // tidak ada dua daftar ejaan yang harus dijaga bersamaan.
+        return match (ClientStatus::fromSheet($teks)) {
+            ClientStatus::LOST => SalesStatus::CLOSE_LOSE,
+            ClientStatus::WON_ON_GOING => SalesStatus::CAMPAIGN_LIVE,
+            // Campaign-nya sudah kelar; apakah sudah dibayar tidak dinyatakan
+            // sheet, jadi berhenti di Reporting — bukan Paid.
+            ClientStatus::FINISH => SalesStatus::REPORTING,
+            ClientStatus::ON_PROGRESS, ClientStatus::REVISION => SalesStatus::PROPOSAL_BUILDING,
+            // Empat-empatnya deal yang sudah di tangan client dan menunggu
+            // keputusannya — satu kolom kanban yang sama.
+            ClientStatus::SENT_PARALLEL,
+            ClientStatus::COMPLETE_SENT_TO_CLIENT,
+            ClientStatus::AWAITING_FEEDBACK,
+            ClientStatus::HOLD => SalesStatus::NEGOTIATION,
             default => null,
         };
     }

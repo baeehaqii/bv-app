@@ -45,6 +45,8 @@ class BvSales extends Model
         'campaign_items' => 'array',
         'budget_propose' => 'decimal:2',
         'deal_value' => 'decimal:2',
+        'plan_cogs' => 'decimal:2',
+        'projected_nett_margin' => 'decimal:2',
         'margin' => 'decimal:2',
         'brief_files' => 'array',
         'brief_submit_date' => 'date',

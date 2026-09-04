@@ -351,6 +351,34 @@ class BvSalesForm
                                 ->dehydrateStateUsing(fn ($state) => (int) str_replace('.', '', $state))
                                 ->default(0),
 
+                            TextInput::make('plan_cogs')
+                                ->label('Plan COGS')
+                                ->hintIcon('heroicon-m-information-circle', tooltip: 'Rencana biaya pokok campaign — kolom Plan COGS di sheet BD')
+                                ->prefix('Rp')
+                                ->mask(RawJs::make(<<<'JS'
+                            $money($input, ',', '.', 0)
+                        JS))
+                                ->formatStateUsing(fn ($state) => filled($state) ? (int) $state : null)
+                                ->dehydrateStateUsing(fn ($state) => filled($state) ? (int) str_replace('.', '', $state) : null),
+
+                            TextInput::make('projected_nett_margin')
+                                ->label('Projected Nett Margin')
+                                ->hintIcon('heroicon-m-information-circle', tooltip: 'Budget Propose dikurangi Plan COGS')
+                                ->prefix('Rp')
+                                ->mask(RawJs::make(<<<'JS'
+                            $money($input, ',', '.', 0)
+                        JS))
+                                ->formatStateUsing(fn ($state) => filled($state) ? (int) $state : null)
+                                ->dehydrateStateUsing(fn ($state) => filled($state) ? (int) str_replace('.', '', $state) : null),
+
+                            TextInput::make('margin')
+                                ->label('Nett Margin %')
+                                ->hintIcon('heroicon-m-information-circle', tooltip: 'Persentase margin terhadap budget — kolom Projected Nett Margin % di sheet BD')
+                                ->suffix('%')
+                                ->numeric()
+                                ->minValue(0)
+                                ->maxValue(100),
+
                         ]),
                 ]),
 

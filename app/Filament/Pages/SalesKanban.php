@@ -222,6 +222,21 @@ class SalesKanban extends BoardPage implements HasTable
                         ]),
 
                         InfolistGrid::make(2)->schema([
+                            TextEntry::make('plan_cogs')
+                                ->label('Plan COGS')
+                                ->getStateUsing(fn () => filled($record->plan_cogs)
+                                    ? 'Rp '.number_format((float) $record->plan_cogs, 0, ',', '.')
+                                    : '-'),
+
+                            TextEntry::make('projected_nett_margin')
+                                ->label('Projected Nett Margin')
+                                ->getStateUsing(fn () => filled($record->projected_nett_margin)
+                                    ? 'Rp '.number_format((float) $record->projected_nett_margin, 0, ',', '.')
+                                        .($record->margin ? ' ('.rtrim(rtrim(number_format((float) $record->margin, 2, ',', '.'), '0'), ',').'%)' : '')
+                                    : '-'),
+                        ]),
+
+                        InfolistGrid::make(2)->schema([
                             TextEntry::make('period')
                                 ->label('Campaign Period')
                                 ->getStateUsing(fn () => $record->campaign_month && $record->campaign_year
@@ -394,6 +409,20 @@ class SalesKanban extends BoardPage implements HasTable
                     ->color('info')
                     ->toggleable(isToggledHiddenByDefault: false),
 
+                TextColumn::make('plan_cogs')
+                    ->label('Plan COGS')
+                    ->formatStateUsing(fn ($state) => filled($state) ? 'IDR '.number_format((float) $state, 0, ',', '.') : '—')
+                    ->sortable()
+                    ->color('gray')
+                    ->toggleable(isToggledHiddenByDefault: false),
+
+                TextColumn::make('projected_nett_margin')
+                    ->label('Projected Nett Margin')
+                    ->formatStateUsing(fn ($state) => filled($state) ? 'IDR '.number_format((float) $state, 0, ',', '.') : '—')
+                    ->sortable()
+                    ->color('warning')
+                    ->toggleable(isToggledHiddenByDefault: false),
+
                 TextColumn::make('deal_value')
                     ->label('Deal Value')
                     ->formatStateUsing(fn ($state) => 'IDR '.number_format((float) $state, 0, ',', '.'))
@@ -401,7 +430,7 @@ class SalesKanban extends BoardPage implements HasTable
                     ->color('success'),
 
                 TextColumn::make('margin')
-                    ->label('Margin')
+                    ->label('Nett Margin %')
                     ->suffix('%')
                     ->sortable()
                     ->badge()

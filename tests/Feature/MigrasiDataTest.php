@@ -353,28 +353,77 @@ it('mencatat status yang tidak dikenali alih-alih menebak kolom kanban', functio
     $m = new \App\Service\PipelineSheetMigration();
     $items = $m->parseRows([
         $judul,
-        ['Campaign A', 'Arummi', 'HOLD'],
+        ['Campaign A', 'Arummi', 'ENTAH APA'],
         ['Campaign B', 'Arummi', 'LOST'],
     ]);
 
     expect($items[0]['status'])->toBeNull()
-        ->and($items[1]['status'])->toBe(\App\Enums\SalesStatus::CLOSE_LOSE)
-        ->and($m->statusTakDikenal())->toBe(['HOLD']);
+        ->and($items[1]['status'])->toBe(SalesStatus::CLOSE_LOSE)
+        ->and($m->statusTakDikenal())->toBe(['ENTAH APA']);
+});
+
+it('sembilan nilai dropdown STATUS sheet BD semuanya punya kolom kanban', function () {
+    $judul = ['Campaign', 'Brand', 'Brand/Agency Company', 'PIC BD', 'STATUS', 'Budget Plan from Clients', 'AMOUNT DEALS'];
+
+    $m = new \App\Service\PipelineSheetMigration();
+    $items = $m->parseRows([
+        $judul,
+        ['Blue Band Dracin', 'Blue Band', 'IPG', 'Gerry', 'FINISH', '42.200.000', '42.200.000'],
+        ['Gimbory KOL May', 'Gimbory', 'CPXI', 'Gerry', 'LOST', '50.000.000', ''],
+        ['Threads Campaign', 'GoFood', 'Curve', 'Wina', 'WON - ON GOING', '35.000.000', '35.000.000'],
+        ['Belfoods Nugget', 'Belfoods', 'Direct', 'Wina', 'AWAITING FEEDBACK', '150.000.000', ''],
+        ['Bir Kawan Senja', 'Bir Kawan', 'Direct', 'Wina', 'ON PROGRESS', '100.000.000', ''],
+        ['KOL Listing', 'Sosis Eat', 'Anymind', 'Wina', 'SENT PARALLEL', '50.000.000', ''],
+        ['Live Streaming', 'Natasha', 'Semut', 'Wina', 'HOLD', '64.000.000', ''],
+        ['Pegadaian Visit', 'Pegadaian', 'Cognitiv', 'Wina', 'COMPLETE - SENT TO CLIENT', '30.000.000', ''],
+        ['Talent Shoot', 'Planet Ban', 'Direct', 'Wina', 'REVISION', '5.000.000', ''],
+    ]);
+
+    expect(collect($items)->pluck('status')->all())->toBe([
+        SalesStatus::REPORTING,        // FINISH — campaign kelar, pembayaran tidak dinyatakan sheet
+        SalesStatus::CLOSE_LOSE,       // LOST
+        SalesStatus::CAMPAIGN_LIVE,    // WON - ON GOING
+        SalesStatus::NEGOTIATION,      // AWAITING FEEDBACK
+        SalesStatus::PROPOSAL_BUILDING,// ON PROGRESS
+        SalesStatus::NEGOTIATION,      // SENT PARALLEL
+        SalesStatus::NEGOTIATION,      // HOLD
+        SalesStatus::NEGOTIATION,      // COMPLETE - SENT TO CLIENT
+        SalesStatus::PROPOSAL_BUILDING,// REVISION
+    ])->and($m->statusTakDikenal())->toBe([]);
+
+    // Lima kolom lain yang diminta ikut terisi, bukan cuma status.
+    $m->persist($items);
+    $blueBand = \App\Models\BvSales::where('event_name', 'Blue Band Dracin')->firstOrFail();
+
+    expect($blueBand->company_name)->toBe('Blue Band')
+        ->and($blueBand->related_client_name)->toBe('IPG')
+        ->and($blueBand->salesList->nama_sales)->toBe('Gerry')
+        ->and((float) $blueBand->budget_propose)->toBe(42_200_000.0)
+        ->and((float) $blueBand->deal_value)->toBe(42_200_000.0)
+        ->and($blueBand->status)->toBe(SalesStatus::REPORTING)
+        // "Direct" tetap bukan nama agency
+        ->and(\App\Models\BvSales::where('event_name', 'Talent Shoot')->value('related_client_name'))->toBeNull();
 });
 
 it('membedakan kolom rupiah dari kolom persen di sebelahnya', function () {
-    // BvSales.margin menyimpan PERSEN, jadi yang harus terbaca kolom "%",
-    // bukan kolom rupiah yang judulnya nyaris sama.
+    // Dua judul yang menyusut jadi nyaris sama: yang rupiah masuk ke
+    // projected_nett_margin, yang "%" ke margin (BvSales.margin menyimpan PERSEN).
     $judul = ['Campaign', 'Brand', 'Projected Nett Margin', 'Projected Nett Margin %'];
 
     $m = new \App\Service\PipelineSheetMigration();
 
-    expect($m->mapHeaders($judul))->toBe([0 => 'event_name', 1 => 'company_name', 3 => 'margin'])
-        ->and($m->unmappedHeaders($judul))->toBe(['Projected Nett Margin']);
+    expect($m->mapHeaders($judul))->toBe([
+        0 => 'event_name',
+        1 => 'company_name',
+        2 => 'projected_nett_margin',
+        3 => 'margin',
+    ])->and($m->unmappedHeaders($judul))->toBe([]);
 
     // Sheet menulis 0,6533; yang disimpan 65,33 persen.
     $items = $m->parseRows([$judul, ['Campaign A', 'Arummi', 9800000, 0.6533]]);
-    expect((float) $items[0]['margin'])->toBe(65.33);
+
+    expect((float) $items[0]['margin'])->toBe(65.33)
+        ->and((float) $items[0]['projected_nett_margin'])->toBe(9_800_000.0);
 });
 
 it('satu field tetap hanya boleh diisi satu kolom', function () {
@@ -886,4 +935,46 @@ it('kosakata Status Client sama dengan dropdown sheet, termasuk penulisan pendek
         ->and(ClientStatus::fromSheet('SENT PARALLEL'))->toBe(ClientStatus::SENT_PARALLEL)
         ->and(ClientStatus::fromSheet('ngawur'))->toBeNull()
         ->and(ClientStatus::fromSheet(''))->toBeNull();
+});
+
+it('blok angka sheet BD terbaca lengkap: Budget Plan, Plan COGS, Nett Margin rupiah & persen', function () {
+    // Empat judul yang nyaris sama; "Projected Nett Margin" (rupiah) dan
+    // "Projected Nett Margin %" harus mendarat di kolom yang berbeda.
+    $judul = [
+        'Campaign', 'Brand', 'PIC BD', 'STATUS',
+        'Budget Plan from Clients', 'Plan COGS', 'Projected Nett Margin', 'Projected Nett Margin %',
+        'AMOUNT DEALS',
+    ];
+
+    $m = new \App\Service\PipelineSheetMigration();
+
+    expect($m->mapHeaders($judul))->toBe([
+        0 => 'event_name',
+        1 => 'company_name',
+        2 => 'sales',
+        3 => 'status',
+        4 => 'budget_propose',
+        5 => 'plan_cogs',
+        6 => 'projected_nett_margin',
+        7 => 'margin',
+        8 => 'deal_value',
+    ]);
+
+    // Angka Planet Ban Agustus di sheet: 25jt budget, 20jt COGS, 5jt margin (20%).
+    $items = $m->parseRows([
+        $judul,
+        ['Planet Ban IG Collab', 'Planet Ban', 'Sita', 'WON - ON GOING', '25.000.000', '20.000.000', '5.000.000', '20%', '25.000.000'],
+    ]);
+    $m->persist($items);
+
+    $deal = \App\Models\BvSales::where('event_name', 'Planet Ban IG Collab')->firstOrFail();
+
+    expect((float) $deal->budget_propose)->toBe(25_000_000.0)
+        ->and((float) $deal->plan_cogs)->toBe(20_000_000.0)
+        ->and((float) $deal->projected_nett_margin)->toBe(5_000_000.0)
+        ->and((float) $deal->margin)->toBe(20.0)
+        ->and((float) $deal->deal_value)->toBe(25_000_000.0)
+        // Nett margin rupiah memang selisih budget dengan COGS
+        ->and((float) $deal->projected_nett_margin)
+        ->toBe((float) $deal->budget_propose - (float) $deal->plan_cogs);
 });
