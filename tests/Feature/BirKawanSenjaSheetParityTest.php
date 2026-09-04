@@ -1,6 +1,6 @@
 <?php
 
-use App\Models\{InternalBudget, MasterPph, MediaPlan, MediaPlanCalcSetting};
+use App\Models\{InternalBudgetItem, MasterPph, MediaPlanCalcSetting};
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
 /**
@@ -9,6 +9,12 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
  * data-nya diubah jauh dari sheet, test ini yang jatuh duluan.
  *
  * Kolom sheet: W subtotal, Z MU PPh (cost), AA MU**, AC Rounded, AD Margin %.
+ *
+ * Sengaja memanggil recalculate() di memori, bukan menyimpan 197 baris: tiap
+ * save memicu InternalBudget::recalculateTotals() yang mengagregasi SELURUH
+ * item, jadi biayanya kuadratik — 54 detik di runner CI dan menabrak
+ * max_execution_time. Jalur simpan sungguhan tetap diuji di
+ * BirKawanSenjaSheetTest (4 baris) dan MediaPlanCalcSettingTest.
  */
 const SHEET_BKS = 'docs/berkas-referensi/[INT] Bir Kawan Senja - KOL List (1).xlsx';
 
@@ -61,20 +67,17 @@ it('setiap baris berisi di sheet Bir Kawan Senja direproduksi persis', function 
     $baris = barisSheetBks();
     expect($baris)->toHaveCount(197);
 
-    $plan = MediaPlan::create(['brand' => 'Bir Kawan Senja', 'campaign_name' => 'BKS', 'quotation_number' => 'Q-1']);
-    $budget = InternalBudget::create(['media_plan_id' => $plan->id]);
-    $pphId = MasterPph::defaultId();
-
+    $pph = MasterPph::find(MasterPph::defaultId());
     $meleset = [];
 
-    foreach ($baris as $i => $b) {
-        $item = $budget->items()->create([
-            'scope_item' => 'SOW',
+    foreach ($baris as $b) {
+        $item = new InternalBudgetItem([
             'qty' => (int) $b['qty'],
             'rate_base' => $b['rate'],
-            'master_pph_id' => $pphId,
-            'sort_order' => $i,
-        ])->refresh();
+            'master_pph_id' => $pph->id,
+        ]);
+        $item->setRelation('masterPph', $pph); // hindari 197 kueri relasi
+        $item->recalculate();
 
         $bandingkan = [
             'W subtotal' => [(float) $item->subtotal, $b['W'], 0.01],
