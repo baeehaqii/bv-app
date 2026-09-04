@@ -18,15 +18,6 @@
         </include>
     </source>
     <php>
-        <!--
-            max_execution_time menghitung waktu CPU seluruh proses, dan Pest
-            menjalankan semua test dalam satu proses. Default 60 detik dari
-            php.ini runner CI itu batas request web, bukan batas suite: run
-            hijau terakhir butuh 109 detik wall-clock dan cuma lolos karena
-            sebagian besarnya menunggu I/O. Begitu suite tumbuh, batas itu
-            memotong di tengah test acak dengan FatalException yang menyesatkan.
-        -->
-        <ini name="max_execution_time" value="0"/>
         <env name="APP_ENV" value="testing"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
