@@ -22,6 +22,9 @@ class CampaignSummary
     {
         $this->kols = $campaign->kols()
             ->where('brief_status', 'approved')
+            // Retrieve History merender riwayat SEMUA postingan sekaligus;
+            // tanpa eager load itu satu kueri per postingan.
+            ->with('snapshots')
             ->orderByDesc('views')
             ->get();
     }

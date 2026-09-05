@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use App\Filament\Concerns\MenarikPerformaBertahap;
 use App\Filament\Resources\BvCampigns\BvCampignResource;
 use App\Models\BvCampaignKol;
 use App\Models\BvCampign;
@@ -36,6 +37,7 @@ use Livewire\Attributes\Url;
 class CampaignSummaryList extends Page implements HasTable
 {
     use InteractsWithTable;
+    use MenarikPerformaBertahap;
 
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-presentation-chart-line';
     protected static string|\UnitEnum|null $navigationGroup = 'Campaign Area';
@@ -48,8 +50,55 @@ class CampaignSummaryList extends Page implements HasTable
     #[Url(as: 'campaign', history: true)]
     public ?int $campaignId = null;
 
-    /** Postingan yang riwayatnya sedang dibuka di tabel Retrieve History. */
-    public ?int $historyKolId = null;
+    /**
+     * Retrieve History merender riwayat SEMUA postingan, dan satu campaign bisa
+     * berisi puluhan postingan — dipotong per halaman supaya tidak jadi gulungan
+     * panjang yang tak ada habisnya.
+     */
+    public int $historyPerPage = 5;
+
+    public int $historyPage = 1;
+
+    /** Ganti isi per halaman → balik ke halaman 1, jangan tertinggal di halaman kosong. */
+    public function updatedHistoryPerPage(): void
+    {
+        $this->historyPage = 1;
+    }
+
+    public function updatedCampaignId(): void
+    {
+        $this->historyPage = 1;
+    }
+
+    /** Cakupan Fetch All di halaman ini: semua postingan campaign yang sudah tayang. */
+    protected function antreanFetch(): \Illuminate\Support\Collection
+    {
+        return $this->summary?->published() ?? collect();
+    }
+
+    /** Jumlah halaman Retrieve History; minimal 1 supaya penunjuknya tidak "0 dari 0". */
+    public function getHistoryPagesProperty(): int
+    {
+        $total = $this->summary?->published()->count() ?? 0;
+
+        return max(1, (int) ceil($total / max(1, $this->historyPerPage)));
+    }
+
+    /**
+     * Postingan pada halaman yang sedang dibuka.
+     *
+     * @return \Illuminate\Support\Collection<int, BvCampaignKol>
+     */
+    public function getHistoryPageItemsProperty(): \Illuminate\Support\Collection
+    {
+        $published = $this->summary?->published() ?? collect();
+
+        // Halaman dijepit ke rentang yang ada: hapus baris di halaman terakhir
+        // dan nomor halamannya bisa melewati batas.
+        $halaman = min(max(1, $this->historyPage), $this->historyPages);
+
+        return $published->forPage($halaman, max(1, $this->historyPerPage));
+    }
 
     public static function getNavigationBadge(): ?string
     {
@@ -76,15 +125,6 @@ class CampaignSummaryList extends Page implements HasTable
     public function getSummaryProperty(): ?CampaignSummary
     {
         return $this->campaign ? new CampaignSummary($this->campaign) : null;
-    }
-
-    public function getHistoryKolProperty(): ?BvCampaignKol
-    {
-        $published = $this->summary?->published();
-
-        return $this->historyKolId
-            ? $published?->firstWhere('id', $this->historyKolId)
-            : $published?->first();
     }
 
     public function table(Table $table): Table
@@ -259,23 +299,12 @@ class CampaignSummaryList extends Page implements HasTable
                     ->label('Fetch All Performance')
                     ->icon('heroicon-o-arrow-path')
                     ->requiresConfirmation()
-                    ->modalDescription('Menarik ulang metrik semua postingan yang sudah tayang, sekaligus mencatat satu baris Retrieve History.')
-                    ->action(function () {
-                        $kols = $this->summary->published();
-
-                        if ($kols->isEmpty()) {
-                            Notification::make()->warning()->title('Belum ada postingan tayang')->send();
-
-                            return;
-                        }
-
-                        $hasil = (new PostPerformanceService())->bulkFetchAndUpdate($kols);
-
-                        Notification::make()->success()
-                            ->title('Performa diperbarui')
-                            ->body("{$hasil['success']} dari {$hasil['total']} postingan berhasil.")
-                            ->send();
-                    }),
+                    ->modalDescription(fn () => 'Menarik ulang metrik '
+                        .($this->summary?->published()->count() ?? 0)
+                        .' postingan yang sudah tayang, sekaligus mencatat satu baris Retrieve History. '
+                        .'Diproses bertahap — jangan tutup tab selama berjalan.')
+                    ->disabled(fn () => $this->fetching)
+                    ->action(fn () => $this->startFetchAll()),
 
                 Action::make('ringkasan_ai')
                     ->label('Ringkasan AI')
