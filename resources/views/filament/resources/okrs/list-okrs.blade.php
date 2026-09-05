@@ -64,7 +64,7 @@
                 <label for="okr-tahun">Tahun</label>
                 <select id="okr-tahun" wire:model.live="year">
                     @foreach ($this->pilihanTahun() as $tahun)
-                        <option value="{{ $tahun }}">{{ $tahun }}</option>
+                        <option value="{{ $tahun }}" @selected((int) $this->year === (int) $tahun)>{{ $tahun }}</option>
                     @endforeach
                 </select>
             </div>
@@ -72,16 +72,16 @@
                 <label for="okr-kuartal">Kuartal</label>
                 <select id="okr-kuartal" wire:model.live="quarter">
                     @foreach ([1, 2, 3, 4] as $k)
-                        <option value="{{ $k }}">Q{{ $k }}</option>
+                        <option value="{{ $k }}" @selected((int) $this->quarter === $k)>Q{{ $k }}</option>
                     @endforeach
                 </select>
             </div>
             <div>
                 <label for="okr-pemilik">Pemilik</label>
                 <select id="okr-pemilik" wire:model.live="owner">
-                    <option value="">Semua</option>
+                    <option value="" @selected(blank($this->owner))>Semua</option>
                     @foreach ($this->pilihanPemilik() as $nama)
-                        <option value="{{ $nama }}">{{ $nama }}</option>
+                        <option value="{{ $nama }}" @selected($this->owner === $nama)>{{ $nama }}</option>
                     @endforeach
                 </select>
             </div>

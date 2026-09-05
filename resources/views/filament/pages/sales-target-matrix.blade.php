@@ -65,7 +65,7 @@
             <span class="stm-label">Tahun</span>
             <select class="stm-select" wire:model.live="year">
                 @foreach ($this->yearOptions() as $value => $label)
-                    <option value="{{ $value }}">{{ $label }}</option>
+                    <option value="{{ $value }}" @selected((int) $this->year === (int) $value)>{{ $label }}</option>
                 @endforeach
             </select>
         </div>
