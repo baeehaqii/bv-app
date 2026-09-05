@@ -134,36 +134,62 @@ class BvCampaignKol extends Model
     /**
      * Get total engagement
      */
+    /**
+     * Engagement = seluruh kolom interaksi dijumlahkan, mengikuti kolom
+     * "Engagement" di sheet KOL Insights (SUM Likes..Repost).
+     */
     public function getTotalEngagementAttribute(): int
     {
-        return $this->likes + $this->comments + $this->shares + $this->saves;
+        return $this->likes + $this->comments + $this->shares + $this->saves + $this->reposts;
     }
 
     /**
-     * Calculate engagement rate from current metrics
-     * 
-     * ER by Views (Reels/Video): (Like + Comment) / Views × 100
-     * ER by Followers (Photo): (Like + Comment) / Followers × 100
-     * 
-     * @param string|null $type Force calculation type ('views' or 'followers')
-     * @return float
+     * Engagement Rate, mengikuti definisi sheet KOL Insights:
+     *
+     *     ER = Engagement / Views
+     *
+     * Engagement = like + comment + share + save (kolom "Engagement" di sheet
+     * adalah SUM dari seluruh kolom interaksi, bukan cuma like + comment).
+     *
+     * CATATAN penyebut. Sheet-nya sendiri tidak seragam: tab TikTok memakai
+     * Views, tab Instagram dan "Raden Rauf" memakai Reach. Yang dipakai di
+     * sistem adalah VIEWS, karena Reach TIDAK BISA di-fetch dari platform mana
+     * pun — itu angka Insights milik pemilik akun. Kalau ER memakai Reach, dia
+     * akan membeku di angka sheet selamanya dan fetch jadi tak ada gunanya
+     * untuk kolom ini.
+     *
+     * Postingan tanpa views (foto/carousel Instagram) jatuh ke followers.
+     *
+     * @param  string|null  $type  paksa 'views' atau 'followers'
      */
     public function calculateEngagementRate(?string $type = null): float
     {
-        $totalEngagement = $this->likes + $this->comments;
+        $engagement = $this->total_engagement;
 
-        // Determine which type to use
-        $erType = $type ?? $this->er_type ?? 'views';
+        // Penyebut dipilih dari yang BENAR-BENAR ada, bukan dari kolom er_type:
+        // default kolom itu 'followers', sehingga baris yang tak pernah menyetelnya
+        // (mis. hasil migrasi) akan menghitung ER terhadap follower — atau
+        // mengembalikan 0 saat follower-nya kosong. er_type dicatat sebagai HASIL,
+        // bukan dipakai sebagai pengaturan.
+        $penyebut = $type
+            ? [$type]
+            : ['views', 'followers'];
 
-        if ($erType === 'views' && $this->views > 0) {
-            return round(($totalEngagement / $this->views) * 100, 4);
-        }
+        foreach ($penyebut as $jenis) {
+            $angka = (int) ($jenis === 'views' ? $this->views : $this->followers_count);
 
-        if ($erType === 'followers' && $this->followers_count > 0) {
-            return round(($totalEngagement / $this->followers_count) * 100, 4);
+            if ($angka > 0) {
+                return round(($engagement / $angka) * 100, 4);
+            }
         }
 
         return 0;
+    }
+
+    /** Penyebut yang dipakai calculateEngagementRate() untuk baris ini. */
+    public function erType(): string
+    {
+        return $this->views > 0 ? 'views' : 'followers';
     }
 
     /** Riwayat harian postingan ini — sumber tabel Retrieve History. */
@@ -186,7 +212,7 @@ class BvCampaignKol extends Model
             'comments' => (int) $this->comments,
             'shares' => (int) $this->shares,
             'saves' => (int) $this->saves,
-            'engagement' => (int) $this->total_engagement,
+            'engagement' => (int) $this->total_engagement,  // sudah termasuk reposts
         ];
 
         // whereDate(), bukan updateOrCreate(['captured_on' => ...]): cast `date`

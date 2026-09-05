@@ -96,78 +96,103 @@ class PostPerformanceService
      * @return BvCampaignKol Updated record
      * @throws Exception
      */
+    /**
+     * Metrik yang bisa datang dari scraping. Tidak semua platform menyediakan
+     * semuanya — lihat CATATAN di bawah.
+     */
+    private const METRIK = ['views', 'likes', 'comments', 'shares', 'saves', 'reposts'];
+
+    /**
+     * Apa yang benar-benar dikembalikan tiap platform (diuji langsung ke API
+     * ScrapeCreators, bukan dari dokumentasi):
+     *
+     *   TikTok    views, likes, comments, shares, saves  → lengkap
+     *   Instagram views, likes, comments                 → TANPA shares/saves/followers
+     *   YouTube   views, likes, comments                 → TANPA shares/saves
+     *   Threads   views, likes, comments, shares         → TANPA saves
+     *
+     * Reach, impressions & reposts TIDAK tersedia di platform mana pun: itu
+     * angka Insights yang hanya bisa dilihat pemilik akun, tidak lewat halaman
+     * publik. Isinya datang dari migrasi sheet dan dijaga di sini.
+     *
+     * Karena itu metrik yang TIDAK dilaporkan dibiarkan apa adanya, bukan
+     * ditulis 0. Menulis 0 berarti menghapus angka yang tadinya benar — hasil
+     * migrasi sheet atau isian manual dari IG Insights — dan itu kehilangan
+     * data, bukan pembaruan.
+     */
     public function fetchAndUpdateKol(BvCampaignKol $kol): BvCampaignKol
     {
         if (empty($kol->post_url)) {
             throw new Exception("KOL {$kol->creator_name} has no post URL");
         }
 
+        // Satu panggilan API bisa makan puluhan detik (terukur 2,8-5,1 dtk, batas
+        // timeout-nya 40). Beri tiap postingan jatah waktunya sendiri, bukan satu
+        // jatah untuk seluruh perulangan — penjaganya sama dengan jalur scraping
+        // lain: jangan memasang batas di CLI yang tadinya tanpa batas.
+        KolProfileImporter::perpanjangJatahWaktu();
+
         $platform = $this->detectPlatform($kol->post_url);
         $stats = $this->fetchPerformance($kol->post_url);
 
-        // Update KOL record with base metrics
-        $updateData = [
-            'views' => $stats['views'] ?? 0,
-            'likes' => $stats['likes'] ?? 0,
-            'comments' => $stats['comments'] ?? 0,
-            'shares' => $stats['shares'] ?? 0,
-            'saves' => $stats['saves'] ?? 0,
-            'total_engagement' => $stats['total_engagement'] ?? (($stats['likes'] ?? 0) + ($stats['comments'] ?? 0) + ($stats['shares'] ?? 0) + ($stats['saves'] ?? 0)),
-            'last_fetched_at' => now(),
-        ];
+        $updateData = ['last_fetched_at' => now()];
+        $dipertahankan = [];
 
-        // Save platform if detected
+        foreach (self::METRIK as $metrik) {
+            $nilai = $stats[$metrik] ?? null;
+
+            if (is_numeric($nilai) && $nilai > 0) {
+                $updateData[$metrik] = (int) $nilai;
+            } else {
+                $dipertahankan[] = $metrik;
+            }
+        }
+
+        // Nilai final = yang baru di-fetch, atau yang sudah ada bila platformnya
+        // tidak melaporkan metrik itu.
+        $final = fn (string $metrik): int => (int) ($updateData[$metrik] ?? $kol->{$metrik});
+
+        // Engagement dihitung dari nilai FINAL, bukan cuma yang baru datang —
+        // kalau tidak, shares/saves yang dipertahankan hilang dari totalnya.
+        $updateData['total_engagement'] = $final('likes') + $final('comments')
+            + $final('shares') + $final('saves') + $final('reposts');
+
         if ($platform) {
             $updateData['platform'] = $platform;
         }
 
-        // If service returns followers_count, save it
         if (isset($stats['followers_count']) && $stats['followers_count'] > 0) {
             $updateData['followers_count'] = $stats['followers_count'];
         }
 
-        // If service returns content_type, update it
         if (isset($stats['content_type'])) {
             $updateData['content_type'] = $stats['content_type'];
         }
 
-        // Calculate and set engagement rate
-        // Use pre-calculated ER from service if available, otherwise calculate
-        if (isset($stats['engagement_rate']) && $stats['engagement_rate'] > 0) {
-            $updateData['engagement_rate'] = $stats['engagement_rate'];
-            $updateData['er_type'] = $stats['er_type'] ?? 'views';
-        } else {
-            // Fallback calculation
-            $totalEngagement = ($stats['likes'] ?? 0) + ($stats['comments'] ?? 0);
-            $views = $stats['views'] ?? 0;
-            $followers = $stats['followers_count'] ?? $kol->followers_count ?? 0;
+        // ER mengikuti definisi sheet KOL Insights: Engagement / Views, dengan
+        // Engagement = like + comment + share + save. Dihitung DI SINI, bukan
+        // diambil dari masing-masing service: cuma di sini nilai final diketahui
+        // (termasuk shares/saves yang dipertahankan karena platformnya tidak
+        // melaporkannya), dan cuma di sini rumusnya satu untuk semua platform.
+        $views = $final('views');
+        $followers = (int) ($updateData['followers_count'] ?? $kol->followers_count ?? 0);
 
-            if ($views > 0) {
-                // ER by Views
-                $updateData['engagement_rate'] = round(($totalEngagement / $views) * 100, 4);
-                $updateData['er_type'] = 'views';
-            } elseif ($followers > 0) {
-                // ER by Followers (for content without views)
-                $updateData['engagement_rate'] = round(($totalEngagement / $followers) * 100, 4);
-                $updateData['er_type'] = 'followers';
-            } else {
-                // Cannot calculate ER - no denominator available
-                $updateData['engagement_rate'] = 0;
-                $updateData['er_type'] = 'followers';
-            }
-        }
+        [$updateData['engagement_rate'], $updateData['er_type']] = match (true) {
+            $views > 0 => [round(($updateData['total_engagement'] / $views) * 100, 4), 'views'],
+            // Postingan tanpa views (foto/carousel Instagram) jatuh ke followers.
+            $followers > 0 => [round(($updateData['total_engagement'] / $followers) * 100, 4), 'followers'],
+            default => [(float) $kol->engagement_rate, $kol->er_type ?? 'views'],
+        };
 
         $kol->update($updateData);
 
         Log::info('✅ KOL performance updated', [
             'kol_id' => $kol->id,
             'creator_name' => $kol->creator_name,
-            'content_type' => $updateData['content_type'] ?? $kol->content_type,
-            'er_type' => $updateData['er_type'],
-            'views' => $updateData['views'],
-            'likes' => $updateData['likes'],
-            'comments' => $updateData['comments'],
-            'followers_count' => $updateData['followers_count'] ?? $kol->followers_count,
+            'platform' => $platform,
+            'diperbarui' => array_keys(array_diff_key($updateData, array_flip(['last_fetched_at']))),
+            // Metrik yang platformnya tidak sediakan — nilai lamanya sengaja dijaga.
+            'dipertahankan' => $dipertahankan,
             'engagement_rate' => $updateData['engagement_rate'],
         ]);
 
@@ -179,50 +204,11 @@ class PostPerformanceService
         return $kol;
     }
 
-
-    /**
-     * Bulk fetch and update multiple KOL records
-     * 
-     * @param \Illuminate\Database\Eloquent\Collection $kols
-     * @return array Results with success and failed counts
+    /*
+     * bulkFetchAndUpdate() DIHAPUS: itu jalur sekali-jalan yang memproses
+     * seluruh postingan dalam satu request — persis penyebab request mati di
+     * tengah jalan untuk campaign berisi puluhan postingan. Penggantinya trait
+     * App\Filament\Concerns\MenarikPerformaBertahap yang memotongnya per
+     * beberapa postingan, dengan progres dan galat per baris.
      */
-    public function bulkFetchAndUpdate($kols): array
-    {
-        $results = [
-            'total' => $kols->count(),
-            'success' => 0,
-            'failed' => 0,
-            'errors' => [],
-        ];
-
-        foreach ($kols as $kol) {
-            try {
-                if (empty($kol->post_url)) {
-                    $results['failed']++;
-                    $results['errors'][] = "{$kol->creator_name}: No post URL";
-                    continue;
-                }
-
-                $this->fetchAndUpdateKol($kol);
-                $results['success']++;
-
-                // Small delay to avoid rate limiting
-                usleep(500000); // 0.5 second
-
-            } catch (Exception $e) {
-                $results['failed']++;
-                $results['errors'][] = "{$kol->creator_name}: {$e->getMessage()}";
-
-                Log::error('❌ Failed to fetch KOL performance', [
-                    'kol_id' => $kol->id,
-                    'creator_name' => $kol->creator_name,
-                    'error' => $e->getMessage(),
-                ]);
-            }
-        }
-
-        Log::info('📊 Bulk fetch completed', $results);
-
-        return $results;
-    }
 }

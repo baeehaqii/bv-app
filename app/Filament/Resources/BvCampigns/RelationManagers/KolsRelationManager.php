@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\BvCampigns\RelationManagers;
 
+use App\Filament\Concerns\MenarikPerformaBertahap;
 use App\Models\BvCampaignKol;
 use App\Service\PostPerformanceService;
 use Filament\Actions\Action;
@@ -24,6 +25,8 @@ use Exception;
 
 class KolsRelationManager extends RelationManager
 {
+    use MenarikPerformaBertahap;
+
     protected static string $relationship = 'kols';
 
     protected static ?string $title = 'KOL Performance';
@@ -145,9 +148,21 @@ class KolsRelationManager extends RelationManager
             ]);
     }
 
+    /** Cakupan Fetch All di tab ini: postingan campaign yang punya link. */
+    protected function antreanFetch(): \Illuminate\Support\Collection
+    {
+        return $this->getOwnerRecord()->kols()
+            ->whereNotNull('post_url')
+            ->where('post_url', '!=', '')
+            ->get();
+    }
+
     public function table(Table $table): Table
     {
         return $table
+            // Panel progres ditaruh di header tabel — RelationManager tidak
+            // punya blade sendiri untuk menyisipkannya.
+            ->header(fn () => view('filament.partials.fetch-performa-bertahap'))
             ->modifyQueryUsing(fn($query) => $query->where('brief_status', 'approved'))
             ->columns([
                 TextColumn::make('creator_name')
@@ -166,6 +181,19 @@ class KolsRelationManager extends RelationManager
                         default => 'primary',
                     })
                     ->formatStateUsing(fn($state) => ucfirst($state)),
+
+                // Link postingan sebelumnya hanya bisa dilihat lewat aksi baris,
+                // jadi tidak ada cara cepat memastikan hasil impor benar-benar
+                // membawa link-nya.
+                TextColumn::make('post_url')
+                    ->label('Post')
+                    ->formatStateUsing(fn ($state) => filled($state) ? 'Buka ↗' : '—')
+                    ->url(fn ($record) => $record->post_url)
+                    ->openUrlInNewTab()
+                    ->color(fn ($record) => filled($record->post_url) ? 'primary' : 'gray')
+                    ->tooltip(fn ($record) => $record->post_url)
+                    ->searchable()
+                    ->toggleable(),
 
                 TextColumn::make('content_type')
                     ->label('Type')
@@ -192,6 +220,14 @@ class KolsRelationManager extends RelationManager
                     ->label('Shares')
                     ->numeric()
                     ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                TextColumn::make('reposts')
+                    ->label('Reposts')
+                    ->numeric()
+                    ->sortable()
+                    // Hanya bisa diisi dari sheet — tak ada API yang menyediakannya.
+                    ->tooltip('Dari sheet KOL Insights; tidak tersedia lewat fetch')
                     ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('saves')
@@ -227,6 +263,25 @@ class KolsRelationManager extends RelationManager
                         default => 'gray',
                     }),
 
+                // Turunan, dihitung dari price & engagement — tidak disimpan,
+                // jadi tidak pernah basi saat angkanya di-fetch ulang.
+                TextColumn::make('cpe')
+                    ->label('CPE (IDR)')
+                    ->state(fn ($record) => $record->cpe())
+                    ->formatStateUsing(fn ($state) => $state > 0 ? 'Rp '.number_format($state, 0, ',', '.') : '—')
+                    ->alignEnd()
+                    ->tooltip(fn ($record) => $record->total_engagement > 0
+                        ? 'Price ÷ Engagement ('.number_format($record->total_engagement, 0, ',', '.').')'
+                        : 'Butuh Price & Engagement terisi')
+                    ->toggleable(),
+
+                TextColumn::make('cpv')
+                    ->label('CPV (IDR)')
+                    ->state(fn ($record) => $record->cpv())
+                    ->formatStateUsing(fn ($state) => $state > 0 ? 'Rp '.number_format($state, 0, ',', '.') : '—')
+                    ->alignEnd()
+                    ->toggleable(isToggledHiddenByDefault: true),
+
                 TextColumn::make('last_fetched_at')
                     ->label('Last Fetched')
                     ->since()
@@ -251,50 +306,11 @@ class KolsRelationManager extends RelationManager
                     ->color('info')
                     ->requiresConfirmation()
                     ->modalHeading('Fetch All KOL Performance')
-                    ->modalDescription('This will fetch performance data from all KOL post URLs. This may take a while depending on the number of KOLs.')
-                    ->action(function () {
-                        try {
-                            $kols = $this->getOwnerRecord()->kols()
-                                ->whereNotNull('post_url')
-                                ->where('post_url', '!=', '')
-                                ->get();
-
-                            if ($kols->isEmpty()) {
-                                Notification::make()
-                                    ->title('No KOLs with Post URLs')
-                                    ->body('Please add post URLs to KOLs first.')
-                                    ->warning()
-                                    ->send();
-                                return;
-                            }
-
-                            $service = new PostPerformanceService();
-                            $results = $service->bulkFetchAndUpdate($kols);
-
-                            if ($results['success'] > 0) {
-                                Notification::make()
-                                    ->title('Performance Fetched')
-                                    ->body("Successfully updated {$results['success']} of {$results['total']} KOLs.")
-                                    ->success()
-                                    ->send();
-                            }
-
-                            if ($results['failed'] > 0) {
-                                Notification::make()
-                                    ->title('Some Fetches Failed')
-                                    ->body(implode("\n", array_slice($results['errors'], 0, 5)))
-                                    ->warning()
-                                    ->send();
-                            }
-
-                        } catch (Exception $e) {
-                            Notification::make()
-                                ->title('Fetch Failed')
-                                ->body($e->getMessage())
-                                ->danger()
-                                ->send();
-                        }
-                    }),
+                    ->modalDescription(fn () => 'Menarik ulang metrik '
+                        .$this->antreanFetch()->count()
+                        .' postingan yang punya link. Diproses bertahap — jangan tutup tab selama berjalan.')
+                    ->disabled(fn () => $this->fetching)
+                    ->action(fn () => $this->startFetchAll()),
             ])
             ->actions([
                 Action::make('fetch')
