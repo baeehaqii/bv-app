@@ -20,7 +20,7 @@
             ] as $label => $value)
                 <div>
                     <div class="text-sm text-gray-500 dark:text-gray-400">{{ $label }}</div>
-                    <div class="text-lg font-semibold" style="font-variant-numeric: tabular-nums">
+                    <div class="text-lg font-semibold tabular-nums">
                         Rp {{ number_format($value, 0, ',', '.') }}
                     </div>
                 </div>
