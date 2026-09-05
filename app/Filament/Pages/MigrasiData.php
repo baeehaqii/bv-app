@@ -6,6 +6,7 @@ use App\Service\BriefSheetMigration;
 use App\Service\CampaignSheetMigration;
 use App\Service\ClientSheetMigration;
 use App\Service\GoogleSheetReader;
+use App\Service\KolInsightsSheetMigration;
 use App\Service\MediaPlanSheetMigration;
 use App\Service\PipelineSheetMigration;
 use App\Service\SheetMigration;
@@ -53,7 +54,11 @@ class MigrasiData extends Page
         'campaign' => CampaignSheetMigration::class,
         'mediaplan' => MediaPlanSheetMigration::class,
         'brief' => BriefSheetMigration::class,
+        'kolinsights' => KolInsightsSheetMigration::class,
     ];
+
+    /** Jenis yang harus menempel ke satu campaign di Campaign Ongoing. */
+    private const BUTUH_CAMPAIGN = ['kolinsights'];
 
     /** Jenis yang harus menempel ke satu deal di Sales Activity Tracker. */
     private const BUTUH_DEAL = ['mediaplan', 'brief'];
@@ -226,6 +231,16 @@ class MigrasiData extends Page
                     ->required(fn(callable $get) => in_array($get('jenis'), self::BUTUH_DEAL, true))
                     ->visible(fn(callable $get) => in_array($get('jenis'), self::BUTUH_DEAL, true)),
 
+                Select::make('campaignId')
+                    ->label('Campaign di Campaign Ongoing')
+                    ->helperText('KOL & link postingan dari tab ini masuk ke tab KOL Performance campaign tersebut.')
+                    ->options(fn() => \App\Models\BvCampign::orderByDesc('id')->limit(200)
+                        ->pluck('campaign_name', 'id')->all())
+                    ->searchable()
+                    ->native(false)
+                    ->required(fn(callable $get) => in_array($get('jenis'), self::BUTUH_CAMPAIGN, true))
+                    ->visible(fn(callable $get) => in_array($get('jenis'), self::BUTUH_CAMPAIGN, true)),
+
                 Select::make('sheetName')
                     ->label('Tab')
                     ->options(fn() => array_combine($this->sheetNames, $this->sheetNames))
@@ -241,9 +256,19 @@ class MigrasiData extends Page
         $profil = app(self::PROFIL[$this->data['jenis'] ?? 'client'] ?? ClientSheetMigration::class);
 
         // Profil KOL List perlu tahu Media Plan tujuannya; profil lain tidak.
-        return ($profil instanceof MediaPlanSheetMigration || $profil instanceof BriefSheetMigration)
-            ? $profil->untukSales($this->data['bvSalesId'] ?? null)
-            : $profil;
+        if ($profil instanceof MediaPlanSheetMigration || $profil instanceof BriefSheetMigration) {
+            return $profil->untukSales($this->data['bvSalesId'] ?? null);
+        }
+
+        // KOL Insights: campaign tujuan + nama tab (SOW & platform dibaca dari
+        // nama tab, bukan dari judul di dalam sheet).
+        if ($profil instanceof KolInsightsSheetMigration) {
+            return $profil
+                ->untukCampaign($this->data['campaignId'] ?? null)
+                ->untukTab($this->data['sheetName'] ?? null);
+        }
+
+        return $profil;
     }
 
     /** Isi dropdown tab begitu link ditempel, sekalian uji akses lebih awal. */
@@ -283,8 +308,20 @@ class MigrasiData extends Page
             return;
         }
 
+        if (in_array($this->data['jenis'] ?? null, self::BUTUH_CAMPAIGN, true) && blank($this->data['campaignId'] ?? null)) {
+            $this->errorMessage = 'Pilih dulu campaign tujuannya.';
+
+            return;
+        }
+
         try {
-            $rows = app(GoogleSheetReader::class)->readRows($id, $this->data['sheetName'] ?? null);
+            $pembaca = app(GoogleSheetReader::class);
+
+            // Profil yang butuh hyperlink (link postingan tersembunyi di balik
+            // tulisan "Link") harus lewat grid, bukan endpoint values.
+            $rows = $this->profil()->butuhGrid()
+                ? $pembaca->readGrid($id, $this->data['sheetName'] ?? null)
+                : $pembaca->readRows($id, $this->data['sheetName'] ?? null);
         } catch (\Throwable $e) {
             $this->errorMessage = 'Gagal membaca sheet: ' . $e->getMessage();
 

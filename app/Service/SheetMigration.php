@@ -42,6 +42,16 @@ abstract class SheetMigration
      */
     abstract public function persist(array $items): array;
 
+    /**
+     * Profil ini butuh grid (nilai + hyperlink tiap sel), bukan sekadar isi sel.
+     * Dipakai ketika kolom penting isinya hyperlink — teksnya cuma "Link".
+     * Lebih berat, jadi bawaannya mati.
+     */
+    public function butuhGrid(): bool
+    {
+        return false;
+    }
+
     /** Rapikan satu item setelah kolomnya dipetakan (normalisasi khas profil). */
     protected function refine(array $item): array
     {
@@ -59,6 +69,19 @@ abstract class SheetMigration
      * ------------------------------------------------------------------- */
 
     /**
+     * Isi sebuah sel.
+     *
+     * Profil yang butuhGrid() menerima baris berisi sel {v, h} (nilai +
+     * hyperlink), bukan skalar. Tanpa penolong ini setiap (string) $sel di
+     * bawah meledak "Array to string conversion" — dan itu baru terjadi di
+     * jalur preview, bukan di parseRows() milik profilnya.
+     */
+    public static function nilaiSel(mixed $sel): mixed
+    {
+        return is_array($sel) ? ($sel['v'] ?? null) : $sel;
+    }
+
+    /**
      * @param  array<int, mixed>  $headerRow
      * @return array<int, string> index kolom => field
      */
@@ -67,7 +90,7 @@ abstract class SheetMigration
         $peta = [];
 
         foreach ($headerRow as $i => $judul) {
-            $normal = self::normalize((string) $judul);
+            $normal = self::normalize((string) self::nilaiSel($judul));
 
             if ($normal === '') {
                 continue;
@@ -124,8 +147,8 @@ abstract class SheetMigration
         $diabaikan = $this->ignoredHeaders();
 
         $sisa = collect($headerRow)
-            ->reject(fn($judul, $i) => isset($terpetakan[$i]) || self::normalize((string) $judul) === '')
-            ->map(fn($judul) => (string) $judul)
+            ->reject(fn($judul, $i) => isset($terpetakan[$i]) || self::normalize((string) self::nilaiSel($judul)) === '')
+            ->map(fn($judul) => (string) self::nilaiSel($judul))
             ->unique()
             ->values();
 
@@ -236,6 +259,8 @@ abstract class SheetMigration
 
     protected static function bersihkan(mixed $nilai): mixed
     {
+        $nilai = self::nilaiSel($nilai);
+
         return is_string($nilai) ? trim($nilai) : $nilai;
     }
 

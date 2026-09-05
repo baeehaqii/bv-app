@@ -171,6 +171,56 @@ class GoogleSheetReader
         )->getValues() ?? [];
     }
 
+    /**
+     * Baris beserta HYPERLINK tiap sel.
+     *
+     * readRows() memakai endpoint values, yang hanya mengembalikan ISI sel.
+     * Kalau sebuah sel bertuliskan "Link" dengan URL-nya tersimpan sebagai
+     * hyperlink — pola biasa di sheet KOL Insights — URL itu tidak ikut terbawa
+     * dan yang tersisa cuma kata "Link". Grid data mengembalikan CellData utuh:
+     * hyperlink, sekaligus effectiveValue yang sudah berisi HASIL rumus.
+     *
+     * Lebih berat daripada readRows (satu tab dimuat sel per sel), jadi dipakai
+     * hanya oleh profil yang memang butuh — lihat SheetMigration::butuhGrid().
+     *
+     * @return array<int, array<int, array{v: mixed, h: string|null}>>
+     */
+    public function readGrid(string $spreadsheetId, ?string $sheetName = null): array
+    {
+        $service = new GoogleSheets($this->client());
+        $judul = $this->resolveSheetTitle($service, $spreadsheetId, $sheetName);
+
+        $sheets = $service->spreadsheets->get($spreadsheetId, [
+            'ranges' => $this->quoteSheetTitle($judul),
+            'includeGridData' => true,
+            'fields' => 'sheets/data/rowData/values(effectiveValue,formattedValue,hyperlink)',
+        ])->getSheets();
+
+        $rowData = $sheets[0]?->getData()[0]?->getRowData() ?? [];
+        $rows = [];
+
+        foreach ($rowData as $row) {
+            $baris = [];
+
+            foreach ($row->getValues() ?? [] as $cell) {
+                $ev = $cell->getEffectiveValue();
+
+                $baris[] = [
+                    // effectiveValue = hasil rumus, bukan teks rumusnya.
+                    'v' => $ev?->getNumberValue()
+                        ?? $ev?->getStringValue()
+                        ?? $ev?->getBoolValue()
+                        ?? $cell->getFormattedValue(),
+                    'h' => $cell->getHyperlink() ?: null,
+                ];
+            }
+
+            $rows[] = $baris;
+        }
+
+        return $rows;
+    }
+
     /** @return array<int, string> nama semua tab, untuk dropdown pemilihan. */
     public function sheetNames(string $spreadsheetId): array
     {
