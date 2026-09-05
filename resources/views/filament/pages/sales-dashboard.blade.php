@@ -10,7 +10,7 @@
         $myTarget = $this->getMyTarget();
         $clientCategoryStats = $this->getClientCategoryStats();
         $activePipeline = $this->getActivePipelineForCard();
-        $pipeline = $this->getMyPipeline();
+        $todos = $this->getMyTodos();
         $notifications = $this->getNotifications();
         $clients = $this->getMyClients();
         $pipelineStatusColors = [
@@ -37,7 +37,7 @@
                     class="w-full sm:w-72 rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 focus:border-primary-500 focus:ring-primary-500"
                 >
                     @foreach ($this->getSalesOptions() as $id => $name)
-                        <option value="{{ $id }}">{{ $name }}</option>
+                        <option value="{{ $id }}" @selected($this->selectedSalesId === $id)>{{ $name }}</option>
                     @endforeach
                 </select>
             </div>
@@ -94,36 +94,44 @@
         {{-- ────────────── ROW 2: Progress Team / My Progress / My Team ────────────── --}}
         <div class="col-span-12 lg:col-span-3">
             <div class="rounded-2xl bg-white dark:bg-gray-900 p-5 shadow-sm border border-gray-100 dark:border-gray-800 h-full">
-                <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100 mb-4">Target Saya</h3>
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">Target Saya</h3>
+                    <a href="{{ url('/office/target-per-sales') }}" class="text-xs font-medium text-primary-600 hover:underline dark:text-primary-400">Atur</a>
+                </div>
 
                 <div class="space-y-4">
-                    <div>
-                        <div class="flex justify-between items-baseline">
-                            <p class="text-sm text-gray-600 dark:text-gray-400">Target Bulan Ini</p>
-                            <span class="text-lg font-bold text-gray-900 dark:text-gray-100">{{ $myTarget['month']['percent'] }}%</span>
-                        </div>
-                        <div class="mt-2 h-2 w-full rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
-                            <div class="h-full rounded-full bg-emerald-500 transition-all" style="width: {{ $myTarget['month']['percent'] }}%"></div>
-                        </div>
-                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                            Rp {{ number_format($myTarget['month']['achieved'], 0, ',', '.') }}
-                            / Rp {{ number_format($myTarget['month']['target'], 0, ',', '.') }}
-                        </p>
-                    </div>
+                    @foreach ([['key' => 'month', 'label' => 'Target Bulan Ini'], ['key' => 'year', 'label' => 'Target Tahun Ini']] as $baris)
+                        @php $t = $myTarget[$baris['key']]; @endphp
+                        <div>
+                            <div class="flex justify-between items-baseline">
+                                <p class="text-sm text-gray-600 dark:text-gray-400">{{ $baris['label'] }}</p>
+                                @if ($t['has_target'])
+                                    <span class="text-lg font-bold text-gray-900 dark:text-gray-100">{{ $t['percent'] }}%</span>
+                                @else
+                                    <span class="text-xs font-medium text-gray-400">belum diatur</span>
+                                @endif
+                            </div>
 
-                    <div>
-                        <div class="flex justify-between items-baseline">
-                            <p class="text-sm text-gray-600 dark:text-gray-400">Target Tahun Ini</p>
-                            <span class="text-lg font-bold text-gray-900 dark:text-gray-100">{{ $myTarget['year']['percent'] }}%</span>
+                            @if ($t['has_target'])
+                                <div class="mt-2 h-2 w-full rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
+                                    <div class="h-full rounded-full bg-emerald-500 transition-all" style="width: {{ $t['percent'] }}%"></div>
+                                </div>
+                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                    Rp {{ number_format($t['achieved'], 0, ',', '.') }}
+                                    / Rp {{ number_format($t['target'], 0, ',', '.') }}
+                                </p>
+                            @else
+                                {{-- "Rp 0 / Rp 0" terbaca seperti gagal ambil data; sebutkan apa adanya. --}}
+                                <p class="mt-2 text-xs text-gray-400 dark:text-gray-500">
+                                    Belum ada target untuk {{ $this->getDisplayName() }}.
+                                    <a href="{{ url('/office/target-per-sales') }}" class="text-primary-600 hover:underline dark:text-primary-400">Atur di Sales Targets</a>
+                                </p>
+                                @if ($t['achieved'] > 0)
+                                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Tercapai Rp {{ number_format($t['achieved'], 0, ',', '.') }}</p>
+                                @endif
+                            @endif
                         </div>
-                        <div class="mt-2 h-2 w-full rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
-                            <div class="h-full rounded-full bg-emerald-500 transition-all" style="width: {{ $myTarget['year']['percent'] }}%"></div>
-                        </div>
-                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                            Rp {{ number_format($myTarget['year']['achieved'], 0, ',', '.') }}
-                            / Rp {{ number_format($myTarget['year']['target'], 0, ',', '.') }}
-                        </p>
-                    </div>
+                    @endforeach
                 </div>
             </div>
         </div>
@@ -333,38 +341,57 @@
         <div class="col-span-12 lg:col-span-6">
             <div class="rounded-2xl bg-white dark:bg-gray-900 p-5 shadow-sm border border-gray-100 dark:border-gray-800 h-full">
                 <div class="flex items-center justify-between mb-3 gap-2">
-                    <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">Pipeline</h3>
-                    <div class="flex items-center gap-2">
-                        <a href="{{ url('/office/sales-activity') }}" class="inline-flex items-center rounded-full bg-gray-100 dark:bg-gray-800 px-3 py-1 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700">
-                            Lihat Semua
-                        </a>
-                        <a href="{{ url('/office/sales-activity') }}" class="inline-flex h-7 w-7 items-center justify-center rounded-full bg-primary-600 text-white hover:bg-primary-700">
-                            <x-heroicon-m-plus class="h-4 w-4" />
-                        </a>
-                    </div>
+                    <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100 inline-flex items-center gap-1.5">
+                        <x-heroicon-m-check-circle class="h-4 w-4 text-primary-500" /> To Do
+                        @if ($todos['total'] > 0)
+                            <span class="inline-flex items-center justify-center rounded-full bg-primary-100 dark:bg-primary-500/20 px-1.5 text-[10px] font-bold text-primary-700 dark:text-primary-300">{{ $todos['total'] }}</span>
+                        @endif
+                    </h3>
+                    <a href="{{ url('/office/sales-activity') }}" class="inline-flex items-center rounded-full bg-gray-100 dark:bg-gray-800 px-3 py-1 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700">
+                        Activity Tracker
+                    </a>
                 </div>
 
-                <ul class="divide-y divide-gray-100 dark:divide-gray-800">
-                    @forelse ($pipeline as $deal)
-                        @php $statusColor = $pipelineStatusColors[$deal['status']] ?? 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'; @endphp
-                        <li class="flex items-center gap-3 py-2.5">
-                            <span class="inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-medium {{ $statusColor }}">
-                                {{ $deal['status_label'] }}
+                {{-- Ringkasan per tahap: "berapa lead baru", "berapa yang masih proposal". --}}
+                @if (count($todos['groups']) > 0)
+                    <div class="flex flex-wrap gap-1.5 mb-3">
+                        @foreach ($todos['groups'] as $group)
+                            @php $chip = $pipelineStatusColors[$group['status']] ?? 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'; @endphp
+                            <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium {{ $chip }}">
+                                {{ $group['label'] }}
+                                <span class="font-bold">{{ $group['total'] }}</span>
                             </span>
+                        @endforeach
+                    </div>
+                @endif
+
+                <ul class="divide-y divide-gray-100 dark:divide-gray-800">
+                    @forelse ($todos['items'] as $todo)
+                        <li class="flex items-start gap-3 py-2.5">
+                            <span class="mt-1.5 h-2 w-2 shrink-0 rounded-full {{ $todo['is_overdue'] ? 'bg-rose-500' : ($todo['is_today'] ? 'bg-amber-500' : 'bg-gray-300 dark:bg-gray-600') }}"></span>
                             <div class="min-w-0 flex-1">
-                                <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ $deal['title'] }}</p>
-                                @if ($deal['company'])
-                                    <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ $deal['company'] }}</p>
-                                @endif
+                                <p class="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                    {{ $todo['action'] }}
+                                    @if ($todo['is_new'])
+                                        <span class="ml-1 inline-flex items-center rounded-full bg-emerald-100 dark:bg-emerald-500/20 px-1.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">Baru</span>
+                                    @endif
+                                </p>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 truncate">
+                                    {{ $todo['title'] }}@if ($todo['company']) · {{ $todo['company'] }}@endif
+                                </p>
                             </div>
-                            @if ($deal['close_date'])
-                                <span class="shrink-0 text-xs {{ $deal['is_overdue'] ? 'text-rose-500 font-semibold' : 'text-gray-400' }}">
-                                    {{ $deal['close_date'] }}
-                                </span>
-                            @endif
+                            <span class="shrink-0 text-xs {{ $todo['is_overdue'] ? 'text-rose-500 font-semibold' : ($todo['is_today'] ? 'text-amber-600 font-medium' : 'text-gray-400') }}">
+                                @if ($todo['is_overdue'])
+                                    Lewat {{ $todo['due'] }}
+                                @elseif ($todo['is_today'])
+                                    Hari ini
+                                @else
+                                    {{ $todo['due'] ?? '—' }}
+                                @endif
+                            </span>
                         </li>
                     @empty
-                        <li class="text-sm text-gray-400 text-center py-6">Belum ada pipeline aktif.</li>
+                        <li class="text-sm text-gray-400 text-center py-6">Tidak ada yang perlu ditindaklanjuti.</li>
                     @endforelse
                 </ul>
             </div>

@@ -38,6 +38,31 @@ class SalesDashboard extends Page
     #[Url]
     public ?int $selectedSalesId = null;
 
+    /**
+     * Status yang masih menunggu tindakan sales, beserta tindakan yang harus
+     * dilakukan. Sumber kartu To Do — diambil dari deal di Sales Activity
+     * Tracker. Status setelah deal (Campaign Live ke atas) sengaja TIDAK
+     * masuk: itu pekerjaan ops/finance, bukan to-do sales.
+     */
+    private const TODO_ACTIONS = [
+        SalesStatus::NOT_STARTED->value => 'Follow up lead baru',
+        SalesStatus::PITCHING->value => 'Lanjutkan pendekatan',
+        SalesStatus::BRIEFING->value => 'Susun brief',
+        SalesStatus::PROPOSAL_BUILDING->value => 'Selesaikan proposal',
+        SalesStatus::NEGOTIATION->value => 'Tindak lanjuti negosiasi',
+    ];
+
+    /**
+     * Dropdown "Monitoring Sales" harus menunjuk sales yang datanya benar-benar
+     * ditampilkan. Tanpa ini `selectedSalesId` tetap null sementara
+     * getSalesList() diam-diam jatuh ke sales lain — dropdown menulis satu nama,
+     * angkanya milik orang lain.
+     */
+    public function mount(): void
+    {
+        $this->selectedSalesId ??= $this->getSalesList()?->id;
+    }
+
     public static function shouldRegisterNavigation(): bool
     {
         return auth()->check() && auth()->user()->hasRole([...self::SALES_ROLES, ...self::EXECUTIVE_ROLES]);
@@ -141,15 +166,17 @@ class SalesDashboard extends Page
 
         if (! $sales) {
             return [
-                'month' => ['target' => 0, 'achieved' => 0, 'percent' => 0],
-                'year' => ['target' => 0, 'achieved' => 0, 'percent' => 0],
+                'month' => ['target' => 0, 'achieved' => 0, 'percent' => 0, 'has_target' => false],
+                'year' => ['target' => 0, 'achieved' => 0, 'percent' => 0, 'has_target' => false],
             ];
         }
 
         $wonStatuses = $this->wonStatuses();
         $base = BvSales::where('bv_sales_list_id', $sales->id);
 
-        $monthTarget = (float) SalesTarget::forSales($sales->id)->forMonth($year, $month)->value('target_amount') ?? 0;
+        // Target belum diatur beda dari target yang belum tercapai: yang pertama
+        // butuh diisi di menu Sales Targets, yang kedua butuh dikejar.
+        $monthTarget = (float) (SalesTarget::forSales($sales->id)->forMonth($year, $month)->value('target_amount') ?? 0);
         $monthAchieved = (float) (clone $base)
             ->whereIn('status', $wonStatuses)
             ->whereYear('close_date', $year)
@@ -167,11 +194,13 @@ class SalesDashboard extends Page
                 'target' => $monthTarget,
                 'achieved' => $monthAchieved,
                 'percent' => $monthTarget > 0 ? min(round(($monthAchieved / $monthTarget) * 100), 100) : 0,
+                'has_target' => $monthTarget > 0,
             ],
             'year' => [
                 'target' => $yearTarget,
                 'achieved' => $yearAchieved,
                 'percent' => $yearTarget > 0 ? min(round(($yearAchieved / $yearTarget) * 100), 100) : 0,
+                'has_target' => $yearTarget > 0,
             ],
         ];
     }
@@ -241,7 +270,9 @@ class SalesDashboard extends Page
 
         return BvSales::where('bv_sales_list_id', $sales->id)
             ->whereNotIn('status', $excludedStatuses)
-            ->orderByRaw("FIELD(status, '".implode("','", array_reverse($statusOrder))."')")
+            // FIELD() hanya ada di MySQL — dipakai apa adanya, halaman ini tidak
+            // bisa dirender di sqlite (test) sama sekali. CASE berlaku di keduanya.
+            ->orderByRaw(self::urutanStatusSql(array_reverse($statusOrder)), array_reverse($statusOrder))
             ->limit(6)
             ->get(['id', 'event_name', 'company_name', 'status', 'close_date', 'deal_value'])
             ->map(function (BvSales $deal) use ($statusTimeline, $statusOrder) {
@@ -274,30 +305,72 @@ class SalesDashboard extends Page
             ->toArray();
     }
 
-    public function getMyPipeline(): array
+    /**
+     * Kartu To Do — deal di Sales Activity Tracker yang masih menunggu tindakan
+     * sales, bukan daftar pipeline. Tiap baris menyebutkan APA yang harus
+     * dikerjakan, bukan sekadar status.
+     *
+     * @return array{items: list<array<string, mixed>>, groups: list<array<string, mixed>>, total: int}
+     */
+    public function getMyTodos(): array
     {
         $sales = $this->getSalesList();
         if (! $sales) {
-            return [];
+            return ['items' => [], 'groups' => [], 'total' => 0];
         }
 
-        $closedStatuses = [SalesStatus::PAID->value, SalesStatus::CLOSE_LOSE->value];
+        $base = BvSales::where('bv_sales_list_id', $sales->id)
+            ->whereIn('status', array_keys(self::TODO_ACTIONS));
 
-        return BvSales::where('bv_sales_list_id', $sales->id)
-            ->whereNotIn('status', $closedStatuses)
+        $counts = (clone $base)
+            ->selectRaw('status, count(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status');
+
+        $groups = [];
+        foreach (array_keys(self::TODO_ACTIONS) as $status) {
+            $total = (int) ($counts[$status] ?? 0);
+
+            if ($total > 0) {
+                $groups[] = [
+                    'status' => $status,
+                    'label' => SalesStatus::from($status)->getLabel(),
+                    'total' => $total,
+                ];
+            }
+        }
+
+        $hariIni = Carbon::now()->startOfDay();
+
+        $items = (clone $base)
+            // Yang paling mendesak di atas; deal tanpa tanggal tutup jangan
+            // menyerobot yang sudah lewat tenggat hanya karena NULL urut duluan.
+            ->orderByRaw('close_date IS NULL')
             ->orderBy('close_date')
             ->limit(6)
-            ->get(['id', 'event_name', 'company_name', 'close_date', 'status', 'updated_at'])
-            ->map(fn (BvSales $deal) => [
-                'id' => $deal->id,
-                'title' => $deal->event_name ?? 'Untitled',
-                'company' => $deal->company_name ?? '',
-                'close_date' => $deal->close_date?->translatedFormat('d M Y'),
-                'status' => $deal->status?->value ?? 'not_started',
-                'status_label' => $deal->status?->getLabel() ?? 'Not Started',
-                'is_overdue' => $deal->close_date && $deal->close_date->isPast(),
-            ])
+            ->get(['id', 'event_name', 'company_name', 'status', 'close_date', 'created_at'])
+            ->map(function (BvSales $deal) use ($hariIni) {
+                $status = $deal->status?->value ?? SalesStatus::NOT_STARTED->value;
+                $tenggat = $deal->close_date;
+
+                return [
+                    'id' => $deal->id,
+                    'action' => self::TODO_ACTIONS[$status] ?? 'Tindak lanjuti',
+                    'title' => $deal->event_name ?: 'Untitled',
+                    'company' => $deal->company_name ?? '',
+                    'status' => $status,
+                    'status_label' => $deal->status?->getLabel() ?? 'New Leads',
+                    'due' => $tenggat?->translatedFormat('d M Y'),
+                    'is_overdue' => $tenggat && $tenggat->lt($hariIni),
+                    'is_today' => $tenggat && $tenggat->isSameDay($hariIni),
+                    // "Lead yang baru masuk" — pantas ditandai, bukan tenggelam
+                    // di antara deal lama yang statusnya kebetulan sama.
+                    'is_new' => $deal->created_at && $deal->created_at->gt($hariIni->copy()->subDays(3)),
+                ];
+            })
             ->toArray();
+
+        return ['items' => $items, 'groups' => $groups, 'total' => (int) $counts->sum()];
     }
 
     public function getMyClients(): array
@@ -346,6 +419,18 @@ class SalesDashboard extends Page
                 ];
             })
             ->toArray();
+    }
+
+    /** ORDER BY berdasarkan urutan status, portabel lintas MySQL & sqlite. */
+    private static function urutanStatusSql(array $statuses): string
+    {
+        $case = 'CASE status';
+
+        foreach (array_keys($statuses) as $i) {
+            $case .= " WHEN ? THEN {$i}";
+        }
+
+        return $case.' ELSE '.count($statuses).' END';
     }
 
     private function wonStatuses(): array
